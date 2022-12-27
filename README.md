@@ -28,6 +28,31 @@ Then there needs to be the code for the "spectrum" object and its interface.
 
 How to install the program in various different platforms.
 
+The program can be used as a library and scripted from the command line after
+importing, for example, as:
+import spectroscopy as spec
+into an interactive python session, an Jupyter notebook or a python script.
+Alternatively the program be run and used via a GUI.
+
+A simple python script to load a pair of UV-vis spectra and generate a
+figure showing the spectra and their difference could be:
+
+    # Setup the program
+    import spectroscopy as spc
+    # Simple import instruction
+    spectrum_one = spc.import("File1.txt")
+    spectrum_two = spc.import("File2.txt")
+    # Basic maths operations
+    difference   = spectrum_one - spectrum_two
+    # Make a plot using matplotlib
+
+TODO: Need to imagine this    
+1. mise en place, File1.txt and File2.txt two spectra in txt files.
+2. imagine code for plotting simply a nice graphic (using internal info)
+3. code import (and of course, export, load and save) methods
+4. code simple math operations on spectra (+ - / *) with constants and other
+   spectra
+
 ### Loading data from different sources
 
 ### Spectrum Calculations
