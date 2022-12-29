@@ -3,21 +3,22 @@
 This simple script should be almost the Hello World example for the API.
 """
 
-# import sys
-#
-# sys.path.append(r'//home/james/src/SpectroscoPy/src')
+# Find the files
+import sys
+import os
+sys.path.append(os.path.abspath("/home/james/src/SpectrscoPy/SpectroscoPy"))
 
 # Setup the program
 import numpy as np
 import matplotlib.pyplot as plt
-import spectroscopy as spc
+import spectra
 
 # Simple import instruction
-spectrum_one = spc.import("../data/File1.txt")
-spectrum_two = spc.import("../data/File2.txt")
+spectrum_one = spectra.import("../data/File1.txt")
+spectrum_two = spectra.import("../data/File2.txt")
 
 # Basic maths operations
 difference   = spectrum_one - spectrum_two
 
 # Make a plot using matplotlib
-spc.display([[spectrum_one, spectrum_two ], difference ])
+spactra.display([[spectrum_one, spectrum_two ], difference ])
