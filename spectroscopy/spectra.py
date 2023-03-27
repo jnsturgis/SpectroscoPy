@@ -10,16 +10,16 @@ x_units  the x axis units (defaults to nm)
 y_label  the y axis label (defaults to OD)
 y_units  the y axis units (defaults to NONE)
 
-data     a  numpy array of 2 columns with x, y pairs, with the x values in 
+data     a  numpy array of 2 columns with x, y pairs, with the x values in
          either ascending or descending order
 
 Acquisition metadata - for original untreated data it is interesting to have
 information on the acquisition parameters.
 
-Treatment metadata - is it interesting to have the history? Certainly not 
+Treatment metadata - is it interesting to have the history? Certainly not
 for the moment.
 
-Then there are derived values that can either be stored or calculated on 
+Then there are derived values that can either be stored or calculated on
 as they are needed.
 
 x_min    minimum value of x data
@@ -84,7 +84,8 @@ class Spectrum:
 
     def even_p(self):
         n = self.n_points
-        if n <= 2 return True                    # Always true for small
+        if n <= 2:
+            return True                         # Always true for small
         x_data = self.data[:,0]
         first = x_data[0]
         gap = x_data[1] - first
@@ -92,15 +93,13 @@ class Spectrum:
             return all(x == first for x in lst)
         r = range( first, first + gap * n, gap)
         return all( x == y for x,y in zip( x_data, r ))
-        
+
     def y_string(self):
-        return self.y_label + 
-               ( "" if self.y_units == 'NONE' else (" ("+self.y_units+")") )
-        
+        return self.y_label + ("" if self.y_units == 'NONE' else (" ("+self.y_units+")") )
+
     def x_string(self):
-        return self.x_label + 
-               ( "" if self.x_units == 'NONE' else (" ("+self.x_units+")") )
-        
+        return self.x_label + ( "" if self.x_units == 'NONE' else (" ("+self.x_units+")") )
+
     def __str__(self):
         return f"Spectrum :{self.name} {self.y_string} vs {self.x_string}"
 
@@ -110,9 +109,9 @@ class Spectrum:
 
     def write_csv(self, filename: str):
         numpy.savetxt(filename, self.data, delimiter=",")
-    
+
     def export(self, filename: str, file_fmt: str):
         return True
-    
+
 def smooth(a_spectrum, parameters: list):
     return a_spectrum
