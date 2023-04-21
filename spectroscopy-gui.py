@@ -18,34 +18,43 @@ necessarilly identical because of unit changes offsets etc.
 import tkinter as tk
 from matplotlib.backends.backend_tkagg import FigureCanvasTkAgg
 from matplotlib.figure import Figure
+
 import numpy as np
 
 import spectroscopy as spec
 import spectroscopy.gui as gui
 
+class FileItem():                       # This is the gui object
+    """docstring for FileItem
+    """
+    def __init__(self, file_name):
+        self.file_name = file_name
+        self.select = False
+        self.dirty = False
+        self.spectrum = spec.Spectrum()
+        self.plots = []
+
 class App(tk.Tk):
-
     def __init__(self):
-        tk.Tk.__init__(self)
-# Chat GPT example to use Matplotlib
+        self.file_list = []             # List of loaded files
+        self.plot_list = []             # List of open plots
+        self.recent_list = []           # List of recently closed files
 
-# Create a Tkinter window
+        tk.Tk.__init__(self)            # Startup the gui
+
         self.title("Spectroscopy")
         self.geometry("400x150")
 
-    # Set up the menus for the Application
+        # Set up the menus for the Application
         menu_bar = tk.Menu(self)
         file_menu = tk.Menu(menu_bar, tearoff=0)
-        file_menu.add_command(label="Open", command=open_file)
+        file_menu.add_command(label="Open", command=self.open_file)
         file_menu.add_command(label="Open Recent", command=save_file)
         file_menu.add_command(label="Import", command=save_file)
         file_menu.add_separator()
         file_menu.add_command(label="Save", command=save_file)
         file_menu.add_command(label="Save As", command=save_file)
         file_menu.add_command(label="Export", command=save_file)
-        file_menu.add_separator()
-        file_menu.add_command(label="Plot", command=save_file)
-        file_menu.add_command(label="Add to Plot", command=save_file)
         file_menu.add_separator()
         file_menu.add_command(label="Close", command=save_file)
         file_menu.add_command(label="Close All", command=save_file)
@@ -68,6 +77,12 @@ class App(tk.Tk):
         edit_menu.add_separator()
         edit_menu.add_command(label="Resample", command=save_file)
         menu_bar.add_cascade(label="Edit", menu=edit_menu)
+
+        plot_menu = tk.Menu(menu_bar, tearoff=0)
+        plot_menu.add_command(label="New plot", command=save_file)
+        plot_menu.add_command(label="Close plot", command=save_file)
+        plot_menu.add_command(label="Close all plots", command=save_file )
+        menu_bar.add_cascade(label="Plot", menu=plot_menu)
 
         treat_menu = tk.Menu(menu_bar, tearoff=0)
         treat_menu.add_command(label="Smooth", command=save_file)
@@ -93,17 +108,23 @@ class App(tk.Tk):
 
         self.config(menu=menu_bar)
 
-    def quit(self, event):
-        print("quitting...")
+    def quit(self):
+        self.close_all_plots
+        self.close_all_files
+        self.final_splash
         sys.exit(0)
 
-def open_file():
+    def open_file(self):
+        file_name = tk.filedialog.askopenfilename()
+        new_file = File_item(file_name)
+        self.filelist.append(new_file)
 
-    file_name = tk.filedialog.askopenfilename()
-    # Code to open the file and display it in the GUI
+    def close_all_plots(self):
+        for plot_item in self.plot_list:
+            pass
 
 def edit_data():
-    dialog = tk.Toplevel(root)
+    dialog = tk.Toplevel(self)
     dialog.title("Edit Data")
     dialog.geometry("300x200")
     label = tk.Label(dialog, text="Enter new value:")
