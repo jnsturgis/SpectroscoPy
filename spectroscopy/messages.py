@@ -11,3 +11,12 @@ ABOUT = ''.join(("                   SpectroscoPy                           \n",
 # Error messages from spectra.py module
 
 SPEC_MATH_ERR = "Unsupported type for spectrum maths."
+
+# Error messages from ftir.sidechains
+
+WN_RANGE_ERR  = "wn_range must be a 2-tuple (start_freq, end_freq)"
+PH_FLOAT_ERR  = "pH must be a float"
+RES_FLOAT_ERR = "res (spectrum resolution) must be a float"
+D2O_BOOL_ERR  = "D2O must be a boolean"
+ADDN_BOOL_ERR = "addN must be a boolean"
+ADDC_BOOL_ERR = "addC must be a boolean"

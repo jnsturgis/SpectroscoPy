@@ -1,0 +1,6 @@
+# Things TODO
+
+Edit version in tools_spc/ftir_sidechains.py to
+* Use spectrum object
+* Move maximum to spectroscpy and 
+* Extend options for different output formats.

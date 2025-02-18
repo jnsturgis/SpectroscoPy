@@ -31,10 +31,10 @@ import spectroscopy.messages
 class Spectrum:
     def __init__(self, *args):
         """ Initialize a Spectrum object
-        
+
         Simulate overloading the different possitilities for initializing
         a spectrum:
-        
+
         Parameters
         ----------
         args a set of parameters that allow for different initiation routines
@@ -43,12 +43,12 @@ class Spectrum:
 
         Spectrum()                     : no arguments an empty spectrum.
         Spectrum( filename )           : a file
-        Spectrum( filename, filetype ) : a file where filetype can be from 
+        Spectrum( filename, filetype ) : a file where filetype can be from
                  ('jcamp','csv')
         Spectrum( a_spectrum )         : a deepcopy of the original
 
         """
-                
+
         if len(args) == 0 :
             #     This is the empty initializer
             self.name     = 'unnamed'
@@ -95,17 +95,17 @@ class Spectrum:
             raise TypeError("Unknown spectrum initializer")
         # TODO Should finish by checking that we have a well formed Spectrum()
         pass
-            
+
     def y_string(self) -> str:
         # TODO Get this to work
         return self.y_label[0] + (
-            "" if self.y_label[1] == 'None' 
+            "" if self.y_label[1] == 'None'
             else (" ("+self.y_label[1]+")") )
 
     def x_string(self) -> str:
         # TODO Get this to work
         return self.x_label[0] + (
-            "" if self.x_label[1] == 'None' 
+            "" if self.x_label[1] == 'None'
             else (" ("+self.x_label[1]+")") )
 
 ##=============================================================================
@@ -125,10 +125,10 @@ class Spectrum:
     def __repr__(self) -> str:      # Developper string version of object
         # TODO
         pass
-    
+
     def __len__(self) -> int:       # Length of object
         return self.npts()
-    
+
     def __add__(self, other):
         # Check that self and other are compatible x and y ranges and scales
         # And copy almost all of self to new
@@ -141,10 +141,10 @@ class Spectrum:
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
-   
+
     def __radd__(self, other):
         return self.__add__(other)
-    
+
     def __sub__(self, other ):
         # Check that self and other are compatible x and y ranges and scales
         # And copy almost all of self to new
@@ -166,8 +166,8 @@ class Spectrum:
         return new_spectrum
 
     def __neg__(self):
-        return 0.0 - self        
-    
+        return 0.0 - self
+
     def __pos__(self):
         return self + 0.0
 
@@ -182,10 +182,10 @@ class Spectrum:
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
-    
+
     def __rmul__(self, other):
         return self.__mul__(other)
-    
+
     def __truediv__(self, other):
         # Check that self and other are compatible x and y ranges and scales
         # And copy almost all of self to new
@@ -197,7 +197,7 @@ class Spectrum:
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
-    
+
     def __rtruediv__(self, other):
         new_spectrum = Spectrum(self)
         if isinstance(other, int | float):
@@ -214,7 +214,7 @@ class Spectrum:
 ##=============================================================================
 
 
-    
+
 ##=============================================================================
 #
 # Simple information about the spectrum.
@@ -238,7 +238,7 @@ class Spectrum:
 
 ##=============================================================================
 #
-#   Some functions to implement for current applications 
+#   Some functions to implement for current applications
 #
 ##=============================================================================
 
@@ -249,14 +249,14 @@ class Spectrum:
 #   peaks( method, parameters )
     def resample( self, x_values, *args ):
         """Change the position of the spectrum points
-        
+
         Use the new series of x_values and estimate the y_values at these
         positions using one of several methods provided in the arg list.
-        
+
         This is necessary for doing arithmatic on spectra if they are not
         sampled at the same positions, due to differences in spectrometer
         settings or coming from different machines for example.
-        
+
 
         Parameters
         ----------
@@ -286,11 +286,11 @@ class Spectrum:
         result.y_label = self.y_label
         result.x_data  = x_values
         result.y_data = np.zeros(len(x_values))
-        
-        # Version 0.0 
+
+        # Version 0.0
         # Linear inter/extra polation using 2 closest points.
         # TODO more advanced version with polynomial fits to series of points
-        
+
         n = len(args)
         if n > 0 :
             if args[0] == "linear":
@@ -317,9 +317,9 @@ class Spectrum:
                     index0 = j
                 else :
                     break
-            
+
             # index0 is the index of the closest x value in self.x_data.
-            
+
             if index0 == 0:
                 index1 = 1
             elif index0 == len(self.x_data) - 1:
@@ -334,17 +334,17 @@ class Spectrum:
             assert index0 < index1
             assert index0 >= 0
             assert index1 < len(self.x_data)
-            
+
             r = (x - self.x_data[index0])/(self.x_data[index1]-self.x_data[index1])
             delta = self.y_data[index0] - self.y_data[index1]
             result.y_data[i] = self.y_data[index0] + r * delta
-            
+
         # TODO Check we have a well formed spectrum
         return result
-    
+
     def baseline(self, method, *args ):
         """Create a baseline spectrum
-        
+
         Create a baseline spectrum using a method and a set of control
         points possibly using the spectrum to find them.
 
@@ -354,7 +354,7 @@ class Spectrum:
             Describes how to construct the baseline methods include
             1. "polynomial", order - use a polynomial of order n to fit the
             points given the args array(s).
-            2. "spline", order - use a spline function to interpolate the 
+            2. "spline", order - use a spline function to interpolate the
             control points given the args array(s).
         *args : a list of one or two lists of values.
             If there is one list it is interpreted as the set of x_values
@@ -384,11 +384,11 @@ class Spectrum:
         result.x_label = self.x_label
         result.y_label = self.y_label
         result.x_data  = self.x_data
-        
+
         if len(args) == 1:
             x_values = args[0]
             y_values = np.zeros(len(x_values))
-            
+
             # Version 0.0
             # get closest points from self
             for i in range(len(x_values)):
@@ -409,7 +409,7 @@ class Spectrum:
         else :
             # Should never arrive here throw an error
             raise ValueError("Spectrum baseline requires control value array")
-        
+
         # Have the control points
         if method[0] == "polynomial" :
             order = method[1]
@@ -425,10 +425,10 @@ class Spectrum:
             # Should never arrive here
             raise ValueError("Spectrum baseline requires a method tuple")
             pass
-        
+
         # TODO Check we have a well formed spectrum
         return result
-        
+
 ##=============================================================================
 #
 #   Some gui functions to implement
@@ -455,19 +455,19 @@ class Spectrum:
     def __reread_jcamp(self) -> None:
 
         with open(self.filename, 'rb') as filehandle:
-            datadict = formats.jcamp.jcamp_read(filehandle)    
+            datadict = formats.jcamp.jcamp_read(filehandle)
         self.x_data   = datadict['x']
         self.y_data   = datadict['y']
         self.name     = datadict['title']
         self.x_label  = ( "Wavenumber", datadict['xunits'].lower() )
         self.y_label  = ( datadict['yunits'].capitalize(), "" )
-    
+
 def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
 
     linewidth=75
 
     # Pack the data into a jcamp dictionary
-    
+
     jcamp_dict = {}
     jcamp_dict['filename'] = my_spectrum.filename
     jcamp_dict['x']        = my_spectrum.x_data
@@ -476,7 +476,7 @@ def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
     with open(filename, 'w') as filehandle:
         jcamp_str = formats.jcamp.jcamp_write(jcamp_dict, linewidth=linewidth)
         filehandle.write(jcamp_str)
-    
+
     return
 
 ##=============================================================================
@@ -487,12 +487,11 @@ def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
         self.y_data   = data[:,1]
 
 def write_csv_file(filename: str, my_spectrum: Spectrum) -> None:
-    np.savetxt( filename, 
+    np.savetxt( filename,
                np.column_stack((my_spectrum.x_data, my_spectrum.y_data)),
                fmt = '%.6f',
                delimiter = ',')
-    
+
     return
 
 ##=============================================================================
-
