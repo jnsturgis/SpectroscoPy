@@ -23,6 +23,8 @@ TODO:
 
 """
 
+# pylint: disable=W0511, W0107
+
 import numpy as np
 
 import formats.jcamp
@@ -57,24 +59,18 @@ class Spectrum:
             self.name     = 'unnamed'
             self.filename = ''
             self.filetype = 'csv'
-            self.x_label  = ('Wavelength','nm')
-            self.y_label  = ('OD','None')
+            self.x_label  = 'Wavelength (nm)'
+            self.y_label  = 'Absorbance'
             self.x_data   = np.empty(1)
             self.y_data   = np.empty(1)
-            self.acquisition = {}
-            self.treatment   = {}
-            self.children    = {}
         elif isinstance(args[0], Spectrum ) :
             # This is the copy method - initiate from another Spectrum()
             other = args[0]
             self.name        = str(other.name)
             self.filename    = ''
             self.filetype    = 'csv'
-            self.x_label     = (str(other.x_label[0]),str(other.x_label[1]))
-            self.y_label     = (str(other.y_label[0]),str(other.y_label[1]))
-            self.acquisition = {} # other.acquisition.copy()
-            self.treatment   = {} #other.treatment.copy()
-            self.children    = {} #other.children.copy()
+            self.x_label     = other.x_label
+            self.y_label     = other.y_label
             self.x_data      = np.copy(other.x_data)
             self.y_data      = np.copy(other.y_data)
         elif isinstance(args[0], str ) :
@@ -99,18 +95,6 @@ class Spectrum:
         # TODO Should finish by checking that we have a well formed Spectrum()
         pass
 
-    def y_string(self) -> str:
-        # TODO Get this to work
-        return self.y_label[0] + (
-            "" if self.y_label[1] == 'None'
-            else (" ("+self.y_label[1]+")") )
-
-    def x_string(self) -> str:
-        # TODO Get this to work
-        return self.x_label[0] + (
-            "" if self.x_label[1] == 'None'
-            else (" ("+self.x_label[1]+")") )
-
 ##=============================================================================
 #
 #   Some Magic Dunder methods
@@ -123,7 +107,7 @@ class Spectrum:
 ##=============================================================================
 
     def __str__(self) -> str:       # Users string version of object
-        return f"Spectrum :{self.name} {self.y_string()} vs {self.x_string()}"
+        return f"Spectrum :{self.name} {self.y_label()} vs {self.x_label()}"
 
     def __repr__(self) -> str:      # Developper string version of object
         # TODO
@@ -238,6 +222,18 @@ class Spectrum:
 
     def npts(self) -> int:
         return len(self.x_data)
+
+##=============================================================================
+#
+#   Some functions to implement for current applications
+#
+##=============================================================================
+
+    def plot(self, ax, **kwargs) -> None:
+        """
+        A routine to plot a spectrum on some matplotlib axes.
+        """
+        ax.plot(self.x_data, self.y_data, label=self.name, **kwargs)
 
 ##=============================================================================
 #
@@ -465,6 +461,9 @@ class Spectrum:
         self.x_label  = ( "Wavenumber", datadict['xunits'].lower() )
         self.y_label  = ( datadict['yunits'].capitalize(), "" )
 
+    def __reread_csv(self) -> None:
+        pass
+
 def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
 
     linewidth=75
@@ -484,17 +483,10 @@ def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
 
 ##=============================================================================
 
-    def __reread_csv(self):
-        data = np.genfromtxt(self.filename, delimiter=',')
-        self.x_data   = data[:,0]
-        self.y_data   = data[:,1]
-
 def write_csv_file(filename: str, my_spectrum: Spectrum) -> None:
     np.savetxt( filename,
                np.column_stack((my_spectrum.x_data, my_spectrum.y_data)),
                fmt = '%.6f',
                delimiter = ',')
-
-    return
 
 ##=============================================================================

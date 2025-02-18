@@ -1,6 +1,18 @@
 # Things TODO
 
 Edit version in tools_spc/ftir_sidechains.py to
-* Use spectrum object
-* Move maximum to spectroscpy and 
-* Extend options for different output formats.
+* Use spectrum object DONE
+* Move maximum to spectroscpy DONE
+* Extend options for different output formats
+* Reduce internal manipulations on spectra
+
+Edit formats
+* Add csv IO possibilities to formats.
+
+Edit SpectroscoPy
+* Handle csv formats
+* reduce
+
+Add multicomponent fitting of spectra
+Add Savitsky-Golay smoothing
+Add compatibility tests and adjustments

@@ -86,7 +86,7 @@ Return a spectrum object containing the calculated side chain spectrum of the
 protein given the sequence.
 """
 
-# pylint: disable=W0511, C0200, C0103
+# pylint: disable=W0511, C0200, C0103, R0914
 
 # TODO: Refactor data array
 # TODO: Get default True flags to work.
@@ -202,6 +202,8 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
     my_spectrum.x_data = np.linspace(wn_info[0], wn_info[1], count)
     my_spectrum.y_data = np.zeros(count)
     my_spectrum.name = resid
+    my_spectrum.x_label = 'Wavenumber (cm$^{-1}$)'
+    my_spectrum.y_label = 'Absorbance'
 
     try:
         data = SideChainData[resid]
@@ -229,7 +231,7 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
 
     return my_spectrum
 
-def sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
+def ftir_sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
     """
     Calculate the side chain spectrum for a protein sequence at the given pH in h2o or d2o.
 
@@ -276,8 +278,11 @@ def sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
     composition = get_composition(sequence)
     sum_spectrum = spc.Spectrum()
     count = int(abs(wn_range[1]-wn_range[0])/res+1)
-    sum_spectrum.x_data = np.linspace(wn_range[0], wn_range[1], count)
-    sum_spectrum.y_data = np.zeros(count)
+    sum_spectrum.x_data  = np.linspace(wn_range[0], wn_range[1], count)
+    sum_spectrum.y_data  = np.zeros(count)
+    sum_spectrum.sum     = 'Sum'
+    sum_spectrum.x_label = 'Wavenumber (cm$^{-1}$)'
+    sum_spectrum.y_label = 'Absorbance'
 
     for residue in composition:
         resid_spectrum = calc_resid_spectrum(residue[0], ph, d2o,
@@ -325,7 +330,7 @@ def main():
     with open(args.filename, encoding="UTF-8") as f:
         sequence = f.read()
 
-    sum_spectrum = sidechain(sequence, tuple(args.wn_range), **kwargs)
+    sum_spectrum = ftir_sidechain(sequence, tuple(args.wn_range), **kwargs)
 
     if args.plot:
         options = {
@@ -343,8 +348,6 @@ def main():
         if options.get("addC"):
             sequence = sequence + '-'
 
-        print(f"Calculating individual components at pH {options.get("pH")}")
-
         composition = get_composition(sequence)
         components = []
 
@@ -353,18 +356,16 @@ def main():
                 options.get("pH"), options.get("D2O"),
                 (args.wn_range[0], args.wn_range[1], options.get("res"))) * residue[1]
             if np.any(resid_spectrum.y_data):
-                print( max(resid_spectrum.y_data) )
                 components.append(resid_spectrum)
 
         # Plot the spectra
         fig , ax = plt.subplots()
         for element in components:
-            print( max(element.y_data) )
-            ax.plot(element.x_data, element.y_data, label=element.name)
+            element.plot(ax)
 
-        ax.plot(sum_spectrum.x_data,sum_spectrum.y_data,label='Sum')
-        ax.set_xlabel('Wavenumber (cm$^{-1}$)')
-        ax.set_ylabel('Absorbance')
+        sum_spectrum.plot(ax)
+        ax.set_xlabel(sum_spectrum.x_label)
+        ax.set_ylabel(sum_spectrum.y_label)
         fig.legend()
         plt.show()
 
