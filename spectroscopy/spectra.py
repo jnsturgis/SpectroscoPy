@@ -29,6 +29,9 @@ import formats.jcamp
 import spectroscopy.messages
 
 class Spectrum:
+    """
+    A class for spectra
+    """
     def __init__(self, *args):
         """ Initialize a Spectrum object
 

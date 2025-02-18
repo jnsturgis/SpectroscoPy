@@ -197,7 +197,11 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
     Returns:
         a spectrum
     """
-    my_spectrum = spectrum_init(wn_info[0], wn_info[1], wn_info[2] )
+    my_spectrum = spc.Spectrum()
+    count = int(abs(wn_info[1]-wn_info[0])/wn_info[2]+1)
+    my_spectrum.x_data = np.linspace(wn_info[0], wn_info[1], count)
+    my_spectrum.y_data = np.zeros(count)
+    my_spectrum.name = resid
 
     try:
         data = SideChainData[resid]
@@ -220,7 +224,8 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
     weights = weights *  data[INTE]
     for weight, freq, fwhh, fg in zip(
         weights, data[FREQ], data[FWHH], data[FG] ):
-        my_spectrum[1] = my_spectrum[1] + weight * calc.spec_comp(my_spectrum[0], freq, fwhh, fg)
+        my_spectrum.y_data = my_spectrum.y_data + \
+                    weight * calc.spec_comp(my_spectrum.x_data, freq, fwhh, fg)
 
     return my_spectrum
 
@@ -269,54 +274,17 @@ def sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
         sequence = sequence + '-'
 
     composition = get_composition(sequence)
-    sum_spectrum = spectrum_init(wn_range[0], wn_range[1], res)
+    sum_spectrum = spc.Spectrum()
+    count = int(abs(wn_range[1]-wn_range[0])/res+1)
+    sum_spectrum.x_data = np.linspace(wn_range[0], wn_range[1], count)
+    sum_spectrum.y_data = np.zeros(count)
 
     for residue in composition:
         resid_spectrum = calc_resid_spectrum(residue[0], ph, d2o,
             (wn_range[0], wn_range[1], res)) * residue[1]
-        sum_spectrum = spectrum_add(sum_spectrum, resid_spectrum )
+        sum_spectrum = sum_spectrum + resid_spectrum
 
     return sum_spectrum
-
-# These routines manipulate spectra and should probably be in another module where
-# spectra and their manipulation are described.
-
-def spectrum_init(start, end, step):
-    """
-    Create a new empty spectrum
-    """
-    if step is None:
-        raise ValueError("Step size can not be None")
-
-    count = int(abs(end-start)/step+1)
-    return [np.linspace(start, end, count), np.zeros(count)]
-
-def spectrum_add(spectrum1, spectrum2):
-    """
-    Add 2 spectra and return the sum
-    """
-    assert (spectrum1[0]==spectrum2[0]).all()
-
-    new_spectrum = [np.copy(spectrum1[0]),spectrum1[1]+spectrum2[1]]
-    return new_spectrum
-
-def spectrum_zero(a_spectrum):
-    """
-    Is the spectrum a zero baseline?
-    """
-    return np.max(a_spectrum[1])==0.0 and np.min(a_spectrum[1]) == 0.0
-
-def spectrum_wavenumber(a_spectrum):
-    """
-    return the list of wavenumbers for the spectrum
-    """
-    return a_spectrum[0]
-
-def spectrum_absorbance(a_spectrum):
-    """
-    return the list of absorbance values for the spectrum
-    """
-    return a_spectrum[1]
 
 # These routines are private and belong with main only to get data from the
 # command line.
@@ -384,15 +352,17 @@ def main():
             resid_spectrum = calc_resid_spectrum(residue[0],
                 options.get("pH"), options.get("D2O"),
                 (args.wn_range[0], args.wn_range[1], options.get("res"))) * residue[1]
-            if not spectrum_zero(resid_spectrum):
-                components.append([resid_spectrum,residue[0]])
+            if np.any(resid_spectrum.y_data):
+                print( max(resid_spectrum.y_data) )
+                components.append(resid_spectrum)
 
         # Plot the spectra
         fig , ax = plt.subplots()
         for element in components:
-            ax.plot(spectrum_wavenumber(element[0]),spectrum_absorbance(element[0]),
-                label=element[1])
-        ax.plot(spectrum_wavenumber(sum_spectrum),spectrum_absorbance(sum_spectrum),label='Sum')
+            print( max(element.y_data) )
+            ax.plot(element.x_data, element.y_data, label=element.name)
+
+        ax.plot(sum_spectrum.x_data,sum_spectrum.y_data,label='Sum')
         ax.set_xlabel('Wavenumber (cm$^{-1}$)')
         ax.set_ylabel('Absorbance')
         fig.legend()
