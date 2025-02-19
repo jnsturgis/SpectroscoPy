@@ -1,8 +1,9 @@
 """
 sidechain - this module caclulates the ir-spectra of protein sidechains.
 
-The code is based on that of Joëlle De Meutter and Eric Goormaghtigh (Eur Biophys J
-2021 50: 641–651) and the parameters in that article.
+The code is based on that of Joëlle De Meutter and Eric Goormaghtigh 2021 (Eur
+Biophys J 50: 641–651) and the parameters in that article which in turn are based
+on the spectral parameters from Venyaminov S. Yu. and Kalnin N.N. 1990
 
 Note that the pKa values used by Goormaghtigh are sometimes a bit strange, and
 perhaps the ionization of Cyteine and Lysine should be taken into account. Though
@@ -86,10 +87,9 @@ Return a spectrum object containing the calculated side chain spectrum of the
 protein given the sequence.
 """
 
-# pylint: disable=W0511, C0200, C0103, R0914
+# TODO Use Grimsley pKa values as default, switch for Goormaghtigh
 
-# TODO: Refactor data array
-# TODO: Get default True flags to work.
+# pylint: disable=W0511
 
 import argparse
 import numpy as np
@@ -102,47 +102,54 @@ SideChainData = {
   'D': [
     4.25,               # pKa to use in calculation
     [5, 3, 1, 1],       # number of ir components [high pH, low pH, high pD, low pD]
-                        # frequencies for all components in order
-    [1598,1570,1472,1421,1395,1729,1456,1410,1584,1713],
-                        # FWHH for all components in order
-    [44,44,44,44,44,44,44,44,44,44],
-                        # intensities for all components in order
-    [349/2,402,70,186,351,282,71,131,820,290],      # 349/2 as a shoulder
-                        # fraction gaussian for all components in order
-    [.3,.3,.3,.3,.3,.6,.8,.8,.8,.8]
-  ],
-  'E': [3.65,[3,3,1,1],[1570,1451,1404,1728,1454,1417,1567,1706],
-    [48,48,48,56,56,56,34,45],[546,63,290,219,23,33,830,280],[.9,.9,.9,.5,.5,.5,.4,.4]],
-  'Y': [
-    10,[4,4,2,2],
-    [1601,1560,1499,1444,1617,1599,1514,1455,1603,1500,1615,1516],
-    [14,14,14,14,14,14,10,14,14,14,9,7],
-    [320,319,468,63,222,115,241,104,350,650,160,500],
-    [.5,.5,.5,.5,.5,.5,.5,.5,.5,.5,0,.4,0,.4]
-  ],
-  'H': [8.97,[5,3,1,1],[1591,1568,1498,1465,1439,1603,1526,1438,1596,1596],
-    [14,14,14,14,14,14,14,14,14,14],[10,97,74,10,30,97,74,30,70,70],
-    [.4,.4,.4,.4,.4,.4,.4,.4,.4,.4]],
-  'F': [0,[4,1],[1606,1499,1457,1446,1494],[6,6,6,6,6],
-    [66,55,35,20,80],[.2,.2,.2,.2,.2]],
-  'Q': [0,[5,1],[1672,1610,1523,1452,1411,1635],[32,44,44,44,44,36],
-    [360,275,79,72,149,560],[.8,0,0,0,0,.6]],
-  'N': [0,[5,1],[1681,1618,1502,1421,1404,1648],[32,44,44,44,44,31],
-    [274,187,56,99,103,570],[.8,0,0,0,0,.6]],
-  'R': [0,[6,2],[1673,1633,1598,1522,1475,1454,1608,1586],[40,40,40,40,40,40,40,21,22],
-    [235,219,151,75,18,28,500,460],[.9,.5,.5,.5,.5,.5,.5,.4,.4]],
-  'K': [0,[7,0],[1651,1634,1608,1521,1476,1462,1445],[46,48,48,48,48,48,48],
-    [108,242,152,138,36,35,28],[.5,.7,.7,.7,.7,.7,.7]],
-  '-': [5.5,[1,1,1,1],[1582,1740,1592,1720],[47,50,32,45],[575,170,830,230],[.4,1,.4,.8]],
-  '+': [9.5,[1,2,0,0],[1560,1630,1515],[46,54,60],[450,330,200],[0,.2,0]]
+                        # Spectral components an array of tuples (freq, fwhh, ext, fg)
+    [   (1598, 44, 175, 0.3), (1570, 44, 402, 0.3), (1472, 44, 70, 0.3),
+        (1421, 44, 186, 0.3), (1395, 44, 351, 0.3),
+        (1729, 44, 282, 0.6), (1456, 44,  71, 0.8), (1410, 44, 131, 0.8),
+        (1584, 44, 820, 0.8), (1713, 44, 290, 0.8) ]],
+  'E': [3.65,[3,3,1,1],
+    [   (1570, 48, 546, 0.9), (1451, 48,  63, 0.9), (1404, 48, 290, 0.9),
+        (1728, 56, 219, 0.5), (1454, 56,  23, 0.5), (1417, 56,  33, 0.5),
+        (1567, 34, 830, 0.4), (1706, 45, 280, 0.4) ]],
+  'Y': [10.0,[4,4,2,2],
+    [   (1601, 14, 320, 0.5), (1560, 14, 319, 0.5), (1499, 14, 468, 0.5), (1444, 14,  63, 0.5),
+        (1617, 14, 222, 0.5), (1599, 14, 115, 0.5), (1514, 10, 241, 0.5), (1455, 14, 104, 0.5),
+        (1603, 14, 350, 0.0), (1500, 14, 650, 0.4),
+        (1615,  9, 160, 0.0), (1516,  7, 500, 0.4) ]],
+  'H': [8.97,[5,3,1,1],
+    [   (1591, 14,  10, 0.4), (1568, 14,  97, 0.4), (1498, 14,  74, 0.4),
+        (1465, 14,  10, 0.4), (1439, 14,  30, 0.4),
+        (1603, 14,  97, 0.4), (1526, 14,  74, 0.4), (1438, 14,  30, 0.4),
+        (1596, 14,  70, 0.4), (1596, 14,  70, 0.4) ]],
+  'F': [0.00,[4,1],
+    [   (1606,  6,  66, 0.2), (1499,  6,  55, 0.2), (1457,  6,  35, 0.2), (1446,  6,  80, 0.2),
+        (1497,  6,  80, 0.2) ]],
+  'Q': [0.00,[5,1],
+    [   (1672, 32, 360, 0.8), (1610, 44, 275, 0.0), (1523, 44,  79, 0.0),
+        (1452, 44,  72, 0.0), (1411, 44, 149, 0.0), (1635, 36, 560, 0.6) ]],
+  'N': [0.00,[5,1],
+    [   (1681, 32, 274, 0.8), (1618, 44, 187, 0.0), (1502, 44,  56, 0.0),
+        (1421, 44,  99, 0.0), (1404, 44, 103, 0.0), (1648, 31, 570, 0.6) ]],
+  'R': [0.00,[6,2],
+    [   (1673, 40, 235, 0.9), (1633, 40, 219, 0.5), (1598, 40, 151, 0.5),
+        (1522, 40,  75, 0.5), (1475, 40,  18, 0.5), (1454, 40,  28, 0.5),
+        (1608, 21, 500, 0.4), (1586, 22, 460, 0.4) ]],
+  'K': [0.00,[7,0],
+    [   (1651, 46, 108, 0.5), (1634, 48, 242, 0.7), (1608, 48, 152, 0.7), (1521, 48, 138, 0.7),
+        (1476, 48,  36, 0.7), (1462, 48,  35, 0.7), (1445, 48,  28, 0.7) ]],
+  '-': [5.50,[1,1,1,1],
+    [   (1582, 47, 575, 0.4), (1740, 50, 170, 1.0), (1592, 32, 830, 0.4), (1720, 45, 230, 0.8) ]],
+  '+': [9.50,[1,2,0,0],
+    [   (1560, 46, 450, 0.0), (1630, 54, 330, 0.2), (1515, 60, 200, 0.0) ]]
 }
 
 PKA   =  0
 NCOMP =  1
-FREQ  =  2
-FWHH  =  3
-INTE  =  4
-FG    =  5
+COMP  =  2
+FREQ  =  0
+FWHH  =  1
+INTE  =  2
+FG    =  3
 
 # pKa values from Grimsley
 Grimsley = {'D':3.5,'E':4.2,'H':6.6,'Y':10.3,'K':10.5,'-':3.3,'+':7.7}
@@ -185,15 +192,16 @@ def get_composition( sequence: str ):
 
 def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
     """
-    Calculate the spectrum of an amino-acid residue at a given pH.
+    Calculate the expected spectrum of an amino-acid residue at a given pH.
 
     Parameters:
-        resid is a one letter amino acid code (or '+' or '-').
-        ph    the pH of the solution used to calculate acid and base fractions
-        d2o   is this in light or heavy water
-        start beginning of wavenumber range
-        stop  end of wavenumber range
-        res   resolution for the spectrum
+        resid   is a one letter amino acid code (or '+' or '-' for N- and C- terms).
+        ph      the pH of the solution used to calculate acid and base fractions
+        d2o     is this in light or heavy water
+        wn_info is a 3 tuple containing:
+            start   beginning of wavenumber range in cm-1
+            stop    end of wavenumber range in cm-1
+            res     resolution for the spectrum in cm-1
     Returns:
         a spectrum
     """
@@ -223,12 +231,10 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
         d_weights = np.ones(data[NCOMP][1])
 
     weights = np.concatenate(( h_weights * int(not d2o), d_weights * int(d2o)))
-    weights = weights *  data[INTE]
-    for weight, freq, fwhh, fg in zip(
-        weights, data[FREQ], data[FWHH], data[FG] ):
+    for weight, component in zip(weights, data[COMP]):
         my_spectrum.y_data = my_spectrum.y_data + \
-                    weight * calc.spec_comp(my_spectrum.x_data, freq, fwhh, fg)
-
+                    weight * calc.spec_comp(my_spectrum.x_data, component[FREQ],
+                        component[FWHH], component[INTE], component[FG])
     return my_spectrum
 
 def ftir_sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
@@ -264,15 +270,13 @@ def ftir_sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
     if not isinstance(options.get("addC"), bool ):
         raise ValueError(spc.ADDC_BOOL_ERR)
 
-    ph = options.get("pH")
-    d2o = options.get("D2O")
-    res = options.get("res")
-    addN = options.get("addN")
-    addC = options.get("addC")
+    ph    = options.get("pH")
+    d2o   = options.get("D2O")
+    res   = options.get("res")
 
-    if addN:
+    if options.get("addN"):
         sequence = sequence + '+'
-    if addC:
+    if options.get("addC"):
         sequence = sequence + '-'
 
     composition = get_composition(sequence)

@@ -5,6 +5,9 @@ Edit version in tools_spc/ftir_sidechains.py to
 * Move maximum to spectroscpy DONE
 * Extend options for different output formats
 * Reduce internal manipulations on spectra
+* Use pKa values from Grimsley by default
+* Add reference to the Russians
+* Refactor table
 
 Edit formats
 * Add csv IO possibilities to formats.

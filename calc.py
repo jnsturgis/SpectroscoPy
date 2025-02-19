@@ -12,23 +12,24 @@ def base( pka, ph ):
     """
     return 10**(ph-pka)/(1+10**(ph-pka))
 
-def gauss( x_values, posn, fwhh ):
+def gauss( x_values, posn, fwhh, ext ):
     """
     Calculate a gaussian at the x_values centered at posn and with width fwhh.
     """
-    return np.exp(-(math.log(2.))*(2.*(x_values-posn)/fwhh)**2)
+    return ext * np.exp(-(math.log(2.))*(2.*(x_values-posn)/fwhh)**2)
 
-def lorentz( x_values, posn, fwhh ):
+def lorentz( x_values, posn, fwhh, ext ):
     """
     Calculate a lorentzian at the x_values centered at posn and with width fwhh.
     """
-    return fwhh**2/(fwhh**2+4.0*(x_values-posn)**2)
+    return ext * fwhh**2/(fwhh**2+4.0*(x_values-posn)**2)
 
-def spec_comp( x_values, posn, fwhh, fg ):
+def spec_comp( x_values, posn, fwhh, ext, fg ):
     """
     Calculate a compont
     """
-    return fg * gauss(x_values, posn, fwhh) + (1.0 - fg) * lorentz( x_values, posn, fwhh )
+    return fg * gauss(x_values, posn, fwhh, ext) + \
+        (1.0 - fg) * ext * lorentz( x_values, posn, fwhh, ext )
 
 def main():
     """
