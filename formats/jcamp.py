@@ -3,43 +3,49 @@
 """
 Created on Wed Apr 24 10:08:22 2024
 
-@author: james
+@author: James STURGIS
 
 This file implements import and export of spectra with JCAMP DX format files
 for my spectroscopy programmes and utilities.
 
 Much of the code comes from Nathan Hagen and is used under the MIT/X11 Licence
-the original code can be found here: https://github.com/nzhagen/jcamp 
+the original code can be found here: https://github.com/nzhagen/jcamp
 
-The original code uses as a memory structure a dictionary, this version is 
+The original code uses as a memory structure a dictionary, this version is
 modified to use the spectrum class for internal storage.
 
-TODO: Modify return type and define it in separate module.
+TODO: Modify return type and define it in separate module
+
+The module implements 2 public functions:
+    jcamp.read(filehandle, my_spectrum) and
+    jcamp.write( filehandle, my_spectrum)
 """
 
-import numpy as np
 import datetime
 import re
 
+import numpy as np
+import spectroscopy as spc
+
 ## In SQZ_digits, '+' or '-' is for PAC, ',' for CSV.
-SQZ_digits = {'@':'+0', 'A':'+1', 'B':'+2', 'C':'+3', 'D':'+4', 'E':'+5', 
-              'F':'+6', 'G':'+7', 'H':'+8', 'I':'+9', 'a':'-1', 'b':'-2', 
-              'c':'-3', 'd':'-4', 'e':'-5', 'f':'-6', 'g':'-7', 'h':'-8', 
+SQZ_digits = {'@':'+0', 'A':'+1', 'B':'+2', 'C':'+3', 'D':'+4', 'E':'+5',
+              'F':'+6', 'G':'+7', 'H':'+8', 'I':'+9', 'a':'-1', 'b':'-2',
+              'c':'-3', 'd':'-4', 'e':'-5', 'f':'-6', 'g':'-7', 'h':'-8',
               'i':'-9', '+':'+',  '-':'-',  ',':' '}
-DIF_digits = {'%': 0, 'J':1,  'K':2,  'L':3,  'M':4,  'N':5,  'O':6,  'P':7,  
-              'Q':8,  'R':9,  'j':-1, 'k':-2, 'l':-3, 'm':-4, 'n':-5, 'o':-6, 
+DIF_digits = {'%': 0, 'J':1,  'K':2,  'L':3,  'M':4,  'N':5,  'O':6,  'P':7,
+              'Q':8,  'R':9,  'j':-1, 'k':-2, 'l':-3, 'm':-4, 'n':-5, 'o':-6,
               'p':-7, 'q':-8, 'r':-9}
 DUP_digits = {'S':1, 'T':2, 'U':3, 'V':4, 'W':5, 'X':6, 'Y':7, 'Z':8, 's':9}
 
 ## The specification allows multiple formats for representing LONGDATE.
-## See `FRACTIONAL_SECONDS_PATTERN` below for the optional token representing 
-## fractional seconds. These fractional seconds are removed in advance. Thus 
+## See `FRACTIONAL_SECONDS_PATTERN` below for the optional token representing
+## fractional seconds. These fractional seconds are removed in advance. Thus
 ## `%N` is not referenced in the formats below.
 DATE_FORMATS = ["%Y/%m/%d %H:%M:%S %z", "%Y/%m/%d %H:%M:%S", "%Y/%m/%d"]
 
-## The optional token describing the fractional seconds is referenced in the 
-## specification as `.SSSS`. This number of digits (four) is rather unclear, 
-## since the usual presentation of a fraction of seconds would contain 
+## The optional token describing the fractional seconds is referenced in the
+## specification as `.SSSS`. This number of digits (four) is rather unclear,
+## since the usual presentation of a fraction of seconds would contain
 ## either 3, 6 or 9 digits.
 FRACTIONAL_SECONDS_PATTERN = re.compile(
     r"^\d{4}/\d{2}/\d{2} +\d{2}:\d{2}\d{2}(?P<fractional_seconds>\d{1,9})"
@@ -56,23 +62,22 @@ def parse_longdate(date_string: str) -> datetime.datetime:
         ## Remove the fractional seconds string - to simplify `strptime`.
         date_string = FRACTIONAL_SECONDS_PATTERN.sub("", date_string)
 
-        ## Try to interprete the fractional seconds. The JCAMP specification 
-        ## (v6.00) does not explain, how a string of arbitrary length is 
-        ## supposed to be interpreted. Thus we are just guessing based on the 
+        ## Try to interprete the fractional seconds. The JCAMP specification
+        ## (v6.00) does not explain, how a string of arbitrary length is
+        ## supposed to be interpreted. Thus we are just guessing based on the
         ## number of digits.
-        fraction_seconds_string = \
+        fraction_secs = \
             fractional_seconds_match.group("fractional_seconds")
-        if len(fraction_seconds_string) in {7, 8, 9}:
+        if len(fraction_secs) in {7, 8, 9}:
             ## This is probably nanoseconds.
-            microseconds = int(int(fraction_seconds_string) / 1000)
-        elif len(fraction_seconds_string) in {4, 5, 6}:
-            microseconds = int(fraction_seconds_string)
-        elif len(fraction_seconds_string) in {1, 2, 3}:
-            microseconds = 1000 * int(fraction_seconds_string)
+            microseconds = int(int(fraction_secs) / 1000)
+        elif len(fraction_secs) in {4, 5, 6}:
+            microseconds = int(fraction_secs)
+        elif len(fraction_secs) in {1, 2, 3}:
+            microseconds = 1000 * int(fraction_secs)
         else:
             ## We should never end up here.
-            raise ValueError("Fractional seconds string could not be "
-                             "parsed: {}".format(fraction_seconds_string))
+            raise ValueError(f"Fractional seconds string could not be parsed: {fraction_secs}")
     else:
         microseconds = 0
 
@@ -85,26 +90,24 @@ def parse_longdate(date_string: str) -> datetime.datetime:
         else:
             ## Inject the previously parsed microseconds
             return parsed.replace(microsecond=microseconds)
-    else:
-        raise ValueError("Failed to parse the date "
-                         "string: {}".format(date_string))
+    raise ValueError(f"Failed to parse the date string: {date_string}.")
 
 ##=============================================================================
-def jcamp_read(filehandle) -> dict:
+
+def read(filehandle, my_spectrum ) -> None:
     '''
-    Read a JDX-format file, and return a dictionary containing the header info, 
-    a 1D numpy vectors `x` for the abscissa information (e.g. wavelength or 
-    wavenumber) and `y` for the ordinate information (e.g. transmission).
+    Read a JDX-format file, and update the spectrum my_spectrum
 
     Parameters
     ----------
     filehandle : file object
         The object representing the JCAMP-DX filename to read.
+    my_spectrum : a spectrum object
+        Where to store the information
 
     Returns
     -------
-    jcamp_dict : dict
-        The dictionary containing the header and data vectors.
+    nothing.
     '''
 
     jcamp_dict = {}
@@ -117,7 +120,7 @@ def jcamp_read(filehandle) -> dict:
     re_num = re.compile(r'\d+')
     lhs = None
     for line in filehandle:
-        ## When parsing compound files, the input is an array of strings, so 
+        ## When parsing compound files, the input is an array of strings, so
         ## no need to decode it twice.
         if hasattr(line, 'decode'):
             line = line.decode('utf-8','ignore')
@@ -133,7 +136,7 @@ def jcamp_read(filehandle) -> dict:
             compound_block_contents = [line]
             continue
 
-        ## If we are reading a compound block, collect lines into an array to 
+        ## If we are reading a compound block, collect lines into an array to
         ## be processed by a recursive call this this function.
         if in_compound_block:
             ## Store this line.
@@ -142,8 +145,9 @@ def jcamp_read(filehandle) -> dict:
             ## Detect the end of the compound block.
             if line.upper().startswith('##END'):
                 ## Process the entire block and put it into the children array.
-                jcamp_dict['children'].append( 
-                    jcamp_read(compound_block_contents))
+                child_spec = spc.Spectrum()
+                read(compound_block_contents, child_spec)
+                jcamp_dict['children'].append( child_spec )
                 in_compound_block = False
                 compound_block_contents = []
             continue
@@ -172,14 +176,14 @@ def jcamp_read(filehandle) -> dict:
                 is_compound = True
                 jcamp_dict['children'] = []
 
-            if (lhs in ('xydata', 'xypoints', 'peak table')):
+            if lhs in ('xydata', 'xypoints', 'peak table'):
                 ## This is a new data entry, reset x and y.
                 x = []
                 y = []
                 datastart = True
                 datatype = rhs
 
-                ## Calculate x-steps from mandatory metadata. If "xfactor" is 
+                ## Calculate x-steps from mandatory metadata. If "xfactor" is
                 ## not available in jcamp_dict, then use 1.0 as default.
                 if ('lastx' in jcamp_dict) and ('firstx' in jcamp_dict) and   \
                    ('npoints' in jcamp_dict):
@@ -188,13 +192,11 @@ def jcamp_read(filehandle) -> dict:
                 else:
                     dx = 1.0
                 dx /= jcamp_dict.get("xfactor",1)
-                continue        ## data starts on next line
-            elif (lhs == 'end'):
+            elif lhs == 'end':
                 bounds = [int(i) for i in re_num.findall(rhs)]
                 datastart = True
                 datatype = bounds
                 datalist = []
-                continue
             elif lhs == 'longdate':
                 try:
                     parsed = parse_longdate(jcamp_dict[lhs])
@@ -207,46 +209,43 @@ def jcamp_read(filehandle) -> dict:
             elif datastart:
                 datastart = False
         elif lhs is not None and not datastart:  # multiline entry
-            jcamp_dict[lhs] += '\n{}'.format(line.strip())
+            jcamp_dict[lhs] += f'\n{line.strip()}'
 
         if datastart and (datatype == '(X++(Y..Y))'):
-            ## If the line does not start with '##' or '$$' then it should be 
-            ## a data line. The pair of lines below involve regex splitting 
-            ## on floating point numbers and integers. We can't just split on 
-            ## spaces because JCAMP allows minus signs to replace spaces in 
+            ## If the line does not start with '##' or '$$' then it should be
+            ## a data line. The pair of lines below involve regex splitting
+            ## on floating point numbers and integers. We can't just split on
+            ## spaces because JCAMP allows minus signs to replace spaces in
             ## the case of negative numbers.
 
             ## Check the first data line only if ASDF format is implemented.
-            if not len(y):
+            if len(y) > 0:
                 ## Check if the format is AFFN or ASDF:
-                if any(l in DIF_digits for l in line):
-                    ASDF_format_detected = True
-                else:
-                    ASDF_format_detected = False
+                ASDF_format_detected = any(l in DIF_digits for l in line)
             datavals = jcamp_parse(line)
 
-            ## X-check: Is the calculated x-value the same as in first value 
-            ## in line? Actual implementation checks whether difference is 
-            ## below 1. This threshold might require adjustment to higher 
+            ## X-check: Is the calculated x-value the same as in first value
+            ## in line? Actual implementation checks whether difference is
+            ## below 1. This threshold might require adjustment to higher
             ## values if needed (not encountered so far). The line_last pair
             ## will be generated after reading first line, see code below.
             ##
             ## TODO: Tidy up to remove this error
             if "line_last" in locals():
                 next_x = line_last[0] + line_last[1] * dx
-                if (abs(datavals[0] - next_x) > 1):
+                if abs(datavals[0] - next_x) > 1:
                     print("X-Check failed. Expected value is "
                           f"{datavals[0]} but {next_x} has been calculated.")
 
             ## Only for ASDF format: Do y-checks (to ensure line integrity) and
             ##                       do y-value aggregation appropriately
             if ASDF_format_detected:
-                if len(y):
+                if len(y) > 0:
                     line_last = (datavals[0], len(datavals[2:]))
-                    ## Y-check: first y-value is used to check with last 
+                    ## Y-check: first y-value is used to check with last
                     ##          y-value to ensure integrity of all DIF
                     ##          operations done on previous line
-                    if (datavals[1] != y[-1]):
+                    if datavals[1] != y[-1]:
                         print("Y-Check failed. Last value of previous line "
                               f"is {y[-1]} but first value is {datavals[1]}.")
                     ## Aggregate y-values.
@@ -263,52 +262,54 @@ def jcamp_read(filehandle) -> dict:
                 for dataval in datavals[1:]:
                     y.append(float(dataval))
 
-        elif datastart and (('xypoints' in jcamp_dict) or 
+        elif datastart and (('xypoints' in jcamp_dict) or
                             ('xydata' in jcamp_dict)) and                     \
                             (datatype == '(XY..XY)'):
                                 ## be careful not to allow empty strings
-            datavals = [v.strip() for v in re.split(r"[,;\s]", line) if v]  
-            if not all(is_float(datavals)): continue
+            datavals = [v.strip() for v in re.split(r"[,;\s]", line) if v]
+            if not all(is_float(datavals)):
+                continue
             datavals = np.array(datavals)
                                 ## every other data point starting at the 0'th
-            x.extend(datavals[0::2])        
+            x.extend(datavals[0::2])
                                 ## every other data point starting at the 1'st
             y.extend(datavals[1::2])
-            
+
         elif datastart and ('peak table' in jcamp_dict) and                   \
                             (datatype == '(XY..XY)'):
                                 # See lines above
             datavals = [v.strip() for v in re.split(r"[,;\s]", line) if v]
-            if not all(is_float(datavals)): continue
+            if not all(is_float(datavals)):
+                continue
             datavals = np.array(datavals)
             x.extend(datavals[0::2])
             y.extend(datavals[1::2])
-            
+
         elif datastart and isinstance(datatype,list):
-            ## If the line does not start with '##' or '$$' then it should be 
-            ## a data line. The pair of lines below involve regex splitting 
-            ## on floating point numbers and integers. We can't just split on 
-            ## spaces because JCAMP allows minus signs to replace spaces in 
+            ## If the line does not start with '##' or '$$' then it should be
+            ## a data line. The pair of lines below involve regex splitting
+            ## on floating point numbers and integers. We can't just split on
+            ## spaces because JCAMP allows minus signs to replace spaces in
             ## the case of negative numbers.
             datavals = jcamp_parse(line)
             datalist += datavals
 
     if ('xydata' in jcamp_dict) and (jcamp_dict['xydata'] == '(X++(Y..Y))'):
-        ## You got all of the Y-values. Next you need to figure out how to 
-        ## generate the missing X's... According to JCAMP-DX specifications, 
-        ## the metadata contains actual x-values. X-values in the xydata-table 
-        ## are used for x-checks only. The variable "xfactor" is used to 
-        ## compress x-values, so decompression of actual x-values is not 
+        ## You got all of the Y-values. Next you need to figure out how to
+        ## generate the missing X's... According to JCAMP-DX specifications,
+        ## the metadata contains actual x-values. X-values in the xydata-table
+        ## are used for x-checks only. The variable "xfactor" is used to
+        ## compress x-values, so decompression of actual x-values is not
         ## needed anymore.
-        x = np.linspace(jcamp_dict["firstx"], jcamp_dict["lastx"], 
+        x = np.linspace(jcamp_dict["firstx"], jcamp_dict["lastx"],
                         jcamp_dict["npoints"])
         y = np.array([float(yval) for yval in y])
     else:
         x = np.array([float(xval) for xval in x])
         y = np.array([float(yval) for yval in y])
-        ## The "xfactor" variables contain any scaling information that may 
+        ## The "xfactor" variables contain any scaling information that may
         ## need to be applied to the data. Go ahead and apply them.
-        if ('xfactor' in jcamp_dict):
+        if 'xfactor' in jcamp_dict:
             x = x * jcamp_dict['xfactor']
 
     ## Check if arrays are the same length.
@@ -316,16 +317,20 @@ def jcamp_read(filehandle) -> dict:
         print("Mismatch of array lengths found: "
               f"len(x) is {len(x)} and len(y) {len(y)}.")
 
-    ## The "yfactor" variables contain any scaling information that may need 
+    ## The "yfactor" variables contain any scaling information that may need
     ## to be applied to the data. Go ahead and apply them.
 
-    if ('yfactor' in jcamp_dict):
+    if 'yfactor' in jcamp_dict:
         y *= jcamp_dict['yfactor']
 
-    jcamp_dict['x'] = x
-    jcamp_dict['y'] = y
-
-    return(jcamp_dict)
+    my_spectrum.x_data   = x
+    my_spectrum.y_data   = y
+    my_spectrum.name     = jcamp_dict['title']
+    # TODO do a better job with x_label
+    my_spectrum.x_label  = f"Wavenumber ({jcamp_dict['xunits'].lower()})"
+    my_spectrum.y_label  = f"{jcamp_dict['yunits'].capitalize()}"
+    if len(jcamp_dict['children']) > 0:
+        my_spectrum.metadata['Children'] = jcamp_dict['children']
 
 ##=============================================================================
 def is_float(s: str) -> bool:
@@ -340,72 +345,74 @@ def is_float(s: str) -> bool:
     Returns
     -------
     is_float_bool : bool or list of bool
-        A single boolean or list of boolean values indicating whether each 
+        A single boolean or list of boolean values indicating whether each
         input can be converted into a float.
     '''
 
-    if isinstance(s,tuple) or isinstance(s,list):
+    if isinstance(s,(list,tuple)):
         if not all(isinstance(i, str) for i in s):
-            raise TypeError("Input {} is not a list of strings".format(s))
-        if (len(s) == 0):
-            raise ValueError('Input {} is empty'.format(s))
-        else:
-            bool = list(True for i in range(0,len(s)))
-            for i in range(0,len(s)):
-                try:
-                    float(s[i])
-                except ValueError:
-                    bool[i] = False
-        return(bool)
+            raise TypeError(f"Input {s} is not a list of strings")
+        if len(s) == 0:
+            raise ValueError(f'Input {s} is empty')
+        ret_bool = list(True for i in range(0,len(s)))
+        for elem, i in s:
+            try:
+                float(elem)
+            except ValueError:
+                ret_bool[i] = False
     else:
         if not isinstance(s, str):
-            raise TypeError("Input '%s' is not a string" % (s))
+            raise TypeError(f"Input '{s}' is not a string")
         try:
             float(s)
-            return(True)
+            ret_bool = True
         except ValueError:
-            return(False)
+            ret_bool = False
+    return ret_bool
 
 ##=============================================================================
-def get_value(num, is_dif, vals):
+
+def get_value(num, is_dif, vals) -> float :
+    """
+    Get a value either as absolute value or difference from previous one in vals.
+    """
     n = float(num)
     if is_dif:
-        lastval = vals[-1]
-        val = n + lastval
-    else:
-        val = n
-
-    return(val)
+        n += vals[-1]
+    return n
 
 ##=============================================================================
 def jcamp_parse(line):
+    """
+    Parse a line of the jcamp file
+    """
     line = line.strip()
 
     datavals = []
     num = ""
 
-    ## Convert whitespace into single space by splitting the string then 
+    ## Convert whitespace into single space by splitting the string then
     ## re-assembling with single spaces.
     line = ' '.join(line.split())
 
-    ## If there are any coded digits, then replace the codes with the 
+    ## If there are any coded digits, then replace the codes with the
     ## appropriate numbers.
-    ## 'DUP_digits': ("duplicate suppression") replaces all but first value if 
+    ## 'DUP_digits': ("duplicate suppression") replaces all but first value if
     ##               two or more adjacent y-values are identical
-    ## 'DIF_digits': ("difference form") replace delimiter, leading digit and 
+    ## 'DIF_digits': ("difference form") replace delimiter, leading digit and
     ##               sign of the difference between adjacent values
-    ## 'SQZ_digits': ("squeezed form") replace delimiter, leading digit 
+    ## 'SQZ_digits': ("squeezed form") replace delimiter, leading digit
     ##               and sign
-    DUP_set = set(DUP_digits)
+    dup_set = set(DUP_digits)
 
-    if any(c in DUP_set for c in line):
-        ## Split the line into individual characters so that you can check for 
+    if any(c in dup_set for c in line):
+        ## Split the line into individual characters so that you can check for
         ## coded characters one-by-one.
         newline = ''
         for (i,c) in enumerate(line):
-            if (c in DUP_digits):
-                ## Check for last DIF_digit which is start of last y-value by 
-                ## default, so that all characters belonging to last value is 
+            if c in DUP_digits:
+                ## Check for last DIF_digit which is start of last y-value by
+                ## default, so that all characters belonging to last value is
                 ## fully decompressed by DUP compression.
                 back = 1
                 while line[i-back] not in DIF_digits:
@@ -418,43 +425,43 @@ def jcamp_parse(line):
                 newline += c
         line = "".join(newline)
 
-    DIF = False
+    dif = False
     for c in line:
         if c.isdigit() or (c == "."):
             num += c
-        elif (c == ' '):
-            DIF = False
+        elif c == ' ':
+            dif = False
             if num:
-                n = get_value(num, DIF, datavals)
+                n = get_value(num, dif, datavals)
                 datavals.append(n)
             num = ''
-        elif (c in SQZ_digits):
-            DIF = False
+        elif c in SQZ_digits:
+            dif = False
             if num:
-                n = get_value(num, DIF, datavals)
+                n = get_value(num, dif, datavals)
                 datavals.append(n)
             num = SQZ_digits[c]
-        elif (c in DIF_digits):
+        elif c in DIF_digits:
             if num:
-                n = get_value(num, DIF, datavals)
+                n = get_value(num, dif, datavals)
                 datavals.append(n)
-            DIF = True
+            dif = True
             num = str(DIF_digits[c])
         else:
-            raise Exception("Unknown character (%s) encountered while "
-                            "parsing data" % c)
+            raise SyntaxError(f"Unknown character ({c}) encountered while "
+                            "parsing data")
 
     if num:
-        n = get_value(num, DIF, datavals)
+        n = get_value(num, dif, datavals)
         datavals.append(n)
 
-    return(datavals)
+    return datavals
 
 ##=============================================================================
 def jcamp_write(jcamp_dict: dict, linewidth=75):
     '''
-    Convert a dictionary into a JDX-format string for easy writing to a file. 
-    At a minimum, the input dictionary must contain the keys 'x' and 'y' for 
+    Convert a dictionary into a JDX-format string for easy writing to a file.
+    At a minimum, the input dictionary must contain the keys 'x' and 'y' for
     the data, and these two vectors must have the same length.
 
     Parameters
@@ -469,14 +476,14 @@ def jcamp_write(jcamp_dict: dict, linewidth=75):
     Returns
     ----------
     jcamp_str : str
-        The JCAMP_DX formatted string containing the input dictionary's 
+        The JCAMP_DX formatted string containing the input dictionary's
         information.
     '''
 
-    if ('x' not in jcamp_dict):
+    if 'x' not in jcamp_dict :
         raise ValueError('The input dictionary *must* have an "x" variable '
                          'for writing to a JCAMP file.')
-    if ('y' not in jcamp_dict):
+    if 'y' not in jcamp_dict :
         raise ValueError('The input dictionary *must* have a "y" variable '
                          'for writing to a JCAMP file.')
 
@@ -492,8 +499,8 @@ def jcamp_write(jcamp_dict: dict, linewidth=75):
 
         js += f"##{key.upper()}={str(jcamp_dict[key])}\n"
 
-    ## Determine whether the spectra have a title and a datetime field in the 
-    ## labels, by default, the title if any will be is the first string; the 
+    ## Determine whether the spectra have a title and a datetime field in the
+    ## labels, by default, the title if any will be is the first string; the
     ## timestamp will be the fist datetime.datetime.
     # x = jcamp_dict['x']
     # y = jcamp_dict['y']
@@ -532,15 +539,18 @@ def jcamp_write(jcamp_dict: dict, linewidth=75):
 #        print(npts-1, j, linewidth, len(line), f'"{line}"')
         if (len(line) >= linewidth) or (j == npts-1):
             js += line + '\n'
-            if (j < npts-1):
+            if j < npts-1:
                 line = f"{jcamp_dict['x'][j+1]:.6f} "
 
     js += '##END=\n'
-    return(js)
+    return js
 
 ## ============================================================================
 
 def main():
+    """
+    A main routine to do more or less nothing.
+    """
     print("This file provides routines for reading and writing jcamp files")
     return True
 

@@ -12,19 +12,19 @@ def base( pka, ph ):
     """
     return 10**(ph-pka)/(1+10**(ph-pka))
 
-def gauss( x_values, posn, fwhh, ext ):
+def gauss( x_values, posn: float, fwhh: float, ext: float ):
     """
     Calculate a gaussian at the x_values centered at posn and with width fwhh.
     """
     return ext * np.exp(-(math.log(2.))*(2.*(x_values-posn)/fwhh)**2)
 
-def lorentz( x_values, posn, fwhh, ext ):
+def lorentz( x_values, posn: float, fwhh: float, ext: float ):
     """
     Calculate a lorentzian at the x_values centered at posn and with width fwhh.
     """
     return ext * fwhh**2/(fwhh**2+4.0*(x_values-posn)**2)
 
-def spec_comp( x_values, posn, fwhh, ext, fg ):
+def spec_comp( x_values, posn:float, fwhh:float, ext: float, fg: float ):
     """
     Calculate a compont
     """
@@ -35,6 +35,6 @@ def main():
     """
     The main routine
     """
-
+    print('This module is part of the spectroscopy programmes and should be imported not run.')
 if __name__ == '__main__':
     main()

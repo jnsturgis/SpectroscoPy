@@ -24,11 +24,29 @@ TODO:
 """
 
 # pylint: disable=W0511, W0107
+import os
 
 import numpy as np
 
-import formats.jcamp
+from formats import jcamp, csv
+
 import spectroscopy.messages
+
+FILE_EXTS = {
+    '.csv':'csv','.tsv':'tsv',
+    '.jcamp':'jcamp','.DX0':'jcamp'
+}
+
+KNOWNFILETYPES = ('csv','jcamp')
+
+def _infer_file_type( name ):
+    """
+    Work out if possible from the file extension the possible file types.
+    """
+    name, ext = os.path.splitext(name)
+    if ext in FILE_EXTS:
+        return FILE_EXTS[ext]
+    return 'unknown'
 
 class Spectrum:
     """
@@ -56,40 +74,48 @@ class Spectrum:
 
         if len(args) == 0 :
             #     This is the empty initializer
-            self.name     = 'unnamed'
-            self.filename = ''
-            self.filetype = 'csv'
-            self.x_label  = 'Wavelength (nm)'
-            self.y_label  = 'Absorbance'
-            self.x_data   = np.empty(1)
-            self.y_data   = np.empty(1)
+            self.name        = 'unnamed'
+            self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
+            self.x_label     = 'Wavelength (nm)'
+            self.y_label     = 'Absorbance'
+            self.x_data      = np.empty(1)
+            self.y_data      = np.empty(1)
+            self.metadata    = {}
+
         elif isinstance(args[0], Spectrum ) :
             # This is the copy method - initiate from another Spectrum()
             other = args[0]
             self.name        = str(other.name)
-            self.filename    = ''
-            self.filetype    = 'csv'
+            self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
             self.x_label     = other.x_label
             self.y_label     = other.y_label
             self.x_data      = np.copy(other.x_data)
             self.y_data      = np.copy(other.y_data)
+            self.metadata    = other.metadata
+
         elif isinstance(args[0], str ) :
-            # This is the open method - initialize from a file.
-            #
-            # TODO implement file initializer
-            if len(args) > 1:
-                self.filetype = args[1]
+            # This is the open method - initialize from a file
+            # First parse the args to get filetype and full filename
+            # Len 1: filename - infer type from 1
+            # Len 2: path, filename - infer type  from 2
+            # Len 3: path, filename, type
+            if len(args) == 3:
+                self.fileinfo['PATH'] = args[0]
+                self.fileinfo['NAME'] = args[1]
+                self.fileinfo['TYPE'] = args[2]
+            elif len(args) == 2:
+                self.fileinfo['PATH'] = args[0]
+                self.fileinfo['NAME'] = args[1]
+                self.fileinfo['TYPE'] = _infer_file_type(args[0]+args[1])
+            elif len(args) == 1:
+                self.fileinfo['NAME'] = args[0]
+                self.fileinfo['TYPE'] = _infer_file_type(args[0])
+
+            # Now read the file according to type
+            if self.fileinfo['TYPE'] in KNOWNFILETYPES:
+                self.reload()
             else:
-                # TODO detect the file type!!
-                self.filetype  = "jcamp"
-            self.filename  = args[0]
-            match self.filetype :
-                case "csv":
-                    self.__reread_csv()
-                case "jcamp":
-                    self.__reread_jcamp()
-                case _:
-                    raise TypeError(f"Unknown filetype {self.filetype}")
+                raise TypeError(f"Unknown filetype {self.fileinfo['TYPE']}")
         else :
             raise TypeError("Unknown spectrum initializer")
         # TODO Should finish by checking that we have a well formed Spectrum()
@@ -372,10 +398,6 @@ class Spectrum:
             filetype = 'csv'
             x_label  = original
             y_label  = original
-            acquisition = {}
-            treatment   = {}
-            children    = {}
-
 
         """
         result = Spectrum()
@@ -450,43 +472,30 @@ class Spectrum:
 #   TODO: Populate the data structure properly from the dictionary
 #
 ##=============================================================================
+    def reload(self) -> None:
+        """
+        Reload the spectrum from the file, or load a first time after setting fileinfo
+        """
+        filename = self.fileinfo['PATH']+self.fileinfo['NAME']
+        with open( filename, 'r', encoding="utf-8") as f:
+            match self.fileinfo['TYPE']:
+                case 'jcamp':
+                    jcamp.read(f, self)
+                case 'csv':
+                    csv.read(f, self )
+                case 'tsv':
+                    csv.read(f, self, delimiter='\t')
 
-    def __reread_jcamp(self) -> None:
-
-        with open(self.filename, 'rb') as filehandle:
-            datadict = formats.jcamp.jcamp_read(filehandle)
-        self.x_data   = datadict['x']
-        self.y_data   = datadict['y']
-        self.name     = datadict['title']
-        self.x_label  = ( "Wavenumber", datadict['xunits'].lower() )
-        self.y_label  = ( datadict['yunits'].capitalize(), "" )
-
-    def __reread_csv(self) -> None:
-        pass
-
-def write_jcamp_file(filename: str, my_spectrum: Spectrum ) -> None:
-
-    linewidth=75
-
-    # Pack the data into a jcamp dictionary
-
-    jcamp_dict = {}
-    jcamp_dict['filename'] = my_spectrum.filename
-    jcamp_dict['x']        = my_spectrum.x_data
-    jcamp_dict['y']        = my_spectrum.y_data
-
-    with open(filename, 'w') as filehandle:
-        jcamp_str = formats.jcamp.jcamp_write(jcamp_dict, linewidth=linewidth)
-        filehandle.write(jcamp_str)
-
-    return
-
-##=============================================================================
-
-def write_csv_file(filename: str, my_spectrum: Spectrum) -> None:
-    np.savetxt( filename,
-               np.column_stack((my_spectrum.x_data, my_spectrum.y_data)),
-               fmt = '%.6f',
-               delimiter = ',')
-
-##=============================================================================
+    def save(self) -> None:
+        """
+        Write the spectrum to the file described by file info.
+        """
+        filename = self.fileinfo['PATH']+self.fileinfo['NAME']
+        with open(filename, 'w', encoding="utf-8") as f:
+            match self.fileinfo['TYPE']:
+                case 'jcamp':
+                    jcamp.write(f, self)
+                case 'csv':
+                    csv.write(f, self )
+                case 'tsv':
+                    csv.write(f, self, delimiter='\t')

@@ -374,7 +374,8 @@ def main():
         plt.show()
 
     if args.output:
-        np.savetxt(args.output, np.swapaxes(np.array(sum_spectrum),0,1), delimiter = ',' )
+        sum_spectrum.fileinfo['NAME']=args.output
+        sum_spectrum.save()
 
 if __name__ == '__main__':
     main()
