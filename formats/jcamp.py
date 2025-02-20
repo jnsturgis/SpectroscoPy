@@ -1,5 +1,3 @@
-#!/usr/bin/env python3
-# -*- coding: utf-8 -*-
 """
 Created on Wed Apr 24 10:08:22 2024
 
@@ -20,6 +18,8 @@ The module implements 2 public functions:
     jcamp.read(filehandle, my_spectrum) and
     jcamp.write( filehandle, my_spectrum)
 """
+
+# pylint: disable=W0511
 
 import datetime
 import re
@@ -94,7 +94,7 @@ def parse_longdate(date_string: str) -> datetime.datetime:
 
 ##=============================================================================
 
-def read(filehandle, my_spectrum ) -> None:
+def read(file, my_spectrum ) -> None:
     '''
     Read a JDX-format file, and update the spectrum my_spectrum
 
@@ -104,10 +104,6 @@ def read(filehandle, my_spectrum ) -> None:
         The object representing the JCAMP-DX filename to read.
     my_spectrum : a spectrum object
         Where to store the information
-
-    Returns
-    -------
-    nothing.
     '''
 
     jcamp_dict = {}
@@ -119,7 +115,7 @@ def read(filehandle, my_spectrum ) -> None:
     compound_block_contents = []
     re_num = re.compile(r'\d+')
     lhs = None
-    for line in filehandle:
+    for line in file:
         ## When parsing compound files, the input is an array of strings, so
         ## no need to decode it twice.
         if hasattr(line, 'decode'):
@@ -221,7 +217,7 @@ def read(filehandle, my_spectrum ) -> None:
             ## Check the first data line only if ASDF format is implemented.
             if len(y) > 0:
                 ## Check if the format is AFFN or ASDF:
-                ASDF_format_detected = any(l in DIF_digits for l in line)
+                asdf_format_detected = any(l in DIF_digits for l in line)
             datavals = jcamp_parse(line)
 
             ## X-check: Is the calculated x-value the same as in first value
@@ -230,7 +226,7 @@ def read(filehandle, my_spectrum ) -> None:
             ## values if needed (not encountered so far). The line_last pair
             ## will be generated after reading first line, see code below.
             ##
-            ## TODO: Tidy up to remove this error
+            # TODO: Tidy up to remove this error
             if "line_last" in locals():
                 next_x = line_last[0] + line_last[1] * dx
                 if abs(datavals[0] - next_x) > 1:
@@ -239,7 +235,7 @@ def read(filehandle, my_spectrum ) -> None:
 
             ## Only for ASDF format: Do y-checks (to ensure line integrity) and
             ##                       do y-value aggregation appropriately
-            if ASDF_format_detected:
+            if asdf_format_detected:
                 if len(y) > 0:
                     line_last = (datavals[0], len(datavals[2:]))
                     ## Y-check: first y-value is used to check with last
@@ -262,22 +258,10 @@ def read(filehandle, my_spectrum ) -> None:
                 for dataval in datavals[1:]:
                     y.append(float(dataval))
 
-        elif datastart and (('xypoints' in jcamp_dict) or
-                            ('xydata' in jcamp_dict)) and                     \
-                            (datatype == '(XY..XY)'):
-                                ## be careful not to allow empty strings
-            datavals = [v.strip() for v in re.split(r"[,;\s]", line) if v]
-            if not all(is_float(datavals)):
-                continue
-            datavals = np.array(datavals)
-                                ## every other data point starting at the 0'th
-            x.extend(datavals[0::2])
-                                ## every other data point starting at the 1'st
-            y.extend(datavals[1::2])
-
-        elif datastart and ('peak table' in jcamp_dict) and                   \
-                            (datatype == '(XY..XY)'):
-                                # See lines above
+        elif datastart and ((('xypoints' in jcamp_dict) or
+                            ('xydata' in jcamp_dict) or
+                            ('peak table' in jcamp_dict)) and
+                            (datatype == '(XY..XY)')):
             datavals = [v.strip() for v in re.split(r"[,;\s]", line) if v]
             if not all(is_float(datavals)):
                 continue
@@ -303,25 +287,15 @@ def read(filehandle, my_spectrum ) -> None:
         ## needed anymore.
         x = np.linspace(jcamp_dict["firstx"], jcamp_dict["lastx"],
                         jcamp_dict["npoints"])
-        y = np.array([float(yval) for yval in y])
     else:
         x = np.array([float(xval) for xval in x])
-        y = np.array([float(yval) for yval in y])
-        ## The "xfactor" variables contain any scaling information that may
-        ## need to be applied to the data. Go ahead and apply them.
-        if 'xfactor' in jcamp_dict:
-            x = x * jcamp_dict['xfactor']
+        x = x * jcamp_dict.get('xfactor', 1.0)
+    y = np.array([float(yval) for yval in y])
+    y *= jcamp_dict.get('yfactor', 1.0)
 
     ## Check if arrays are the same length.
     if len(x) != len(y):
-        print("Mismatch of array lengths found: "
-              f"len(x) is {len(x)} and len(y) {len(y)}.")
-
-    ## The "yfactor" variables contain any scaling information that may need
-    ## to be applied to the data. Go ahead and apply them.
-
-    if 'yfactor' in jcamp_dict:
-        y *= jcamp_dict['yfactor']
+        raise SyntaxError(f"Mismatch of array lengths: x has {len(x)} and y {len(y)} values.")
 
     my_spectrum.x_data   = x
     my_spectrum.y_data   = y
@@ -329,6 +303,7 @@ def read(filehandle, my_spectrum ) -> None:
     # TODO do a better job with x_label
     my_spectrum.x_label  = f"Wavenumber ({jcamp_dict['xunits'].lower()})"
     my_spectrum.y_label  = f"{jcamp_dict['yunits'].capitalize()}"
+
     if len(jcamp_dict['children']) > 0:
         my_spectrum.metadata['Children'] = jcamp_dict['children']
 
@@ -350,16 +325,9 @@ def is_float(s: str) -> bool:
     '''
 
     if isinstance(s,(list,tuple)):
-        if not all(isinstance(i, str) for i in s):
-            raise TypeError(f"Input {s} is not a list of strings")
-        if len(s) == 0:
-            raise ValueError(f'Input {s} is empty')
-        ret_bool = list(True for i in range(0,len(s)))
-        for elem, i in s:
-            try:
-                float(elem)
-            except ValueError:
-                ret_bool[i] = False
+        ret_bool = []
+        for item in s:
+            ret_bool.append( is_float(item) )
     else:
         if not isinstance(s, str):
             raise TypeError(f"Input '{s}' is not a string")
@@ -458,9 +426,37 @@ def jcamp_parse(line):
     return datavals
 
 ##=============================================================================
+def write( file, spectrum):
+    """
+    Write the information in the spectrum to a file in jcamp DX format.
+
+    This is esentially a wrapper to make the appropriate dictionary for the
+    jcamp_write() method to turn into a jcamp_DX string.
+    """
+    # TODO Think about format to use.
+    jcamp_dict = {
+        'x': spectrum.x_values,
+        'y': spectrum.y_values,
+        'firstx': spectrum.x_values[0],
+        'lastx':  spectrum.x_values[-1],
+        'maxx':   np.amax(spectrum.x_values),
+        'minx':   np.amin(spectrum.x_values),
+        'firsty': spectrum.y_values[0],
+        'lasty':  spectrum.y_values[-1],
+        'maxy':   np.amax(spectrum.y_values),
+        'miny':   np.amin(spectrum.y_values),
+        'npoints': len(spectrum.x_values),
+        'xfactor': 1,
+        'yfactor': 1,
+        ## Note this is not necessarily a good option.
+        'xydata':  '(X++(Y..Y))'
+    }
+    file.write( jcamp_write( jcamp_dict ))
+
 def jcamp_write(jcamp_dict: dict, linewidth=75):
     '''
     Convert a dictionary into a JDX-format string for easy writing to a file.
+
     At a minimum, the input dictionary must contain the keys 'x' and 'y' for
     the data, and these two vectors must have the same length.
 
@@ -480,55 +476,26 @@ def jcamp_write(jcamp_dict: dict, linewidth=75):
         information.
     '''
 
-    if 'x' not in jcamp_dict :
-        raise ValueError('The input dictionary *must* have an "x" variable '
-                         'for writing to a JCAMP file.')
-    if 'y' not in jcamp_dict :
-        raise ValueError('The input dictionary *must* have a "y" variable '
-                         'for writing to a JCAMP file.')
-
     js = ''
 
     ## Write the first line.
     js += "##JCAMP-DX=5.01\n"
-
     ## First write out the header.
     for key in jcamp_dict:
         if key in ('x','y','xydata','end'):
             continue
-
         js += f"##{key.upper()}={str(jcamp_dict[key])}\n"
 
     ## Determine whether the spectra have a title and a datetime field in the
     ## labels, by default, the title if any will be is the first string; the
-    ## timestamp will be the fist datetime.datetime.
+    ## timestamp will be the first datetime.datetime.
     # x = jcamp_dict['x']
     # y = jcamp_dict['y']
 
-    if 'firstx' not in jcamp_dict:
-        js += f"##FIRSTX={jcamp_dict['x'][0]:.6f}\n"
-    if 'lastx' not in jcamp_dict:
-        js += f"##LASTX={jcamp_dict['x'][-1]:.6f}\n"
-    if 'maxx' not in jcamp_dict:
-        js += f"##MAXX={np.amax(jcamp_dict['x']):.6f}\n"
-    if 'minx' not in jcamp_dict:
-        js += f"##MINX={np.amin(jcamp_dict['x']):.6f}\n"
-
-    if 'firsty' not in jcamp_dict:
-        js += f"##FIRSTY={jcamp_dict['y'][0]:.4f}\n"
-    if 'lasty' not in jcamp_dict:
-        js += f"##LASTY={jcamp_dict['y'][-1]:.4f}\n"
-    if 'maxy' not in jcamp_dict:
-        js += f"##MAXY={np.amax(jcamp_dict['y']):.4f}\n"
-    if 'miny' not in jcamp_dict:
-        js += f"##MINY={np.amin(jcamp_dict['y']):.4f}\n"
-
-    npts = jcamp_dict.get('npts', len(jcamp_dict['x']))
-    js += f"##NPOINTS={npts}\n"
-    js += f"##XFACTOR={jcamp_dict.get('xfactor', 1)}\n"
-    yfactor = jcamp_dict.get('yfactor', 1)
-    js += f"##YFACTOR={yfactor}\n"
-    js += "##XYDATA=(X++(Y..Y))\n"
+    key = 'xydata'
+    js += f"##{key.upper()}={jcamp_dict[key]}\n"
+    npts = jcamp_dict['npoints']
+    yfactor = jcamp_dict['yfactor']
 
     line = f"{jcamp_dict['x'][0]:.6f} "
     for j in np.arange(npts):

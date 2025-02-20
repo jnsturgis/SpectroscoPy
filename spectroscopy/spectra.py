@@ -140,7 +140,7 @@ class Spectrum:
         pass
 
     def __len__(self) -> int:       # Length of object
-        return self.npts()
+        return len(self.x_data)
 
     def __add__(self, other):
         # Check that self and other are compatible x and y ranges and scales
@@ -222,35 +222,6 @@ class Spectrum:
 
 ##=============================================================================
 #
-# Some usefull private functions.
-#
-##=============================================================================
-
-
-
-##=============================================================================
-#
-# Simple information about the spectrum.
-#
-##=============================================================================
-
-    def xmax(self) -> float:
-        return np.amax(self.x_data)
-
-    def xmin(self) -> float:
-        return np.amin(self.x_data)
-
-    def ymax(self) -> float:
-        return np.amax(self.y_data)
-
-    def ymin(self) -> float:
-        return np.amin(self.y_data)
-
-    def npts(self) -> int:
-        return len(self.x_data)
-
-##=============================================================================
-#
 #   Some functions to implement for current applications
 #
 ##=============================================================================
@@ -272,8 +243,9 @@ class Spectrum:
 #   clip( x_range )
 #   convert( new_label )
 #   peaks( method, parameters )
-    def resample( self, x_values, *args ):
-        """Change the position of the spectrum points
+    def resample( self, x_values, **kwargs ):
+        """
+        Change the position of the spectrum points
 
         Use the new series of x_values and estimate the y_values at these
         positions using one of several methods provided in the arg list.
@@ -287,7 +259,7 @@ class Spectrum:
         ----------
         x_values : numpy array of float.
             New x values at which to estimate the spectrum points.
-        *args : array of optional arguments
+        **kwargs : dictionary of optional arguments
             Information for the different possible methods to use for the
             estimation.
 
@@ -296,14 +268,6 @@ class Spectrum:
         Spectrum
             A new spectrum containing the provided x_values and calculated
             y_values.
-            name     = original + 'resampled'
-            filename = ''
-            filetype = 'csv'
-            x_label  = original
-            y_label  = original
-            acquisition = {}
-            treatment   = {}
-            children    = {}
         """
         result = Spectrum()
         result.name    = self.name + ' baseline'
@@ -312,93 +276,24 @@ class Spectrum:
         result.x_data  = x_values
         result.y_data = np.zeros(len(x_values))
 
-        # Version 0.0
-        # Linear inter/extra polation using 2 closest points.
-        # TODO more advanced version with polynomial fits to series of points
-
-        n = len(args)
-        if n > 0 :
-            if args[0] == "linear":
-                control = 0
-            elif args[0] == "polynomial":
-                if n < 2 :
-                    raise ValueError("Spectrum resample 'polynomial' requires a control value")
-                control = int(args[1])
-            pass
-        else:
-            # Use default method
-            method = "linear"
-            control = 0
-            pass
-
-        # TODO implement choice of methods using args
-        # get closest points from self
-        for i in range(len(x_values)):
-            x = x_values[i]
-            d = abs(self.x_data[0] - x) + 1 # Ensure first test true
-            for j in range(len(self.x_data)):
-                if d > abs(self.x_data[j] - x):
-                    d = abs(self.x_data[j] - x)
-                    index0 = j
-                else :
-                    break
-
-            # index0 is the index of the closest x value in self.x_data.
-
-            if index0 == 0:
-                index1 = 1
-            elif index0 == len(self.x_data) - 1:
-                index1 = index0
-                index0 = index1 - 1
-            elif abs(self.x_data[index0+1] - x) > abs(self.x_data[index0-1] - x):
-                index1 = index0
-                index0 = index0 - 1
-            else:
-                index1 = index0 + 1
-
-            assert index0 < index1
-            assert index0 >= 0
-            assert index1 < len(self.x_data)
-
-            r = (x - self.x_data[index0])/(self.x_data[index1]-self.x_data[index1])
-            delta = self.y_data[index0] - self.y_data[index1]
-            result.y_data[i] = self.y_data[index0] + r * delta
-
-        # TODO Check we have a well formed spectrum
         return result
 
-    def baseline(self, method, *args ):
-        """Create a baseline spectrum
+    def baseline(self, **kwargs ):
+        """
+        Create a baseline spectrum
 
         Create a baseline spectrum using a method and a set of control
         points possibly using the spectrum to find them.
 
         Parameters
         ----------
-        method : a tuple of string and parameters
-            Describes how to construct the baseline methods include
-            1. "polynomial", order - use a polynomial of order n to fit the
-            points given the args array(s).
-            2. "spline", order - use a spline function to interpolate the
-            control points given the args array(s).
-        *args : a list of one or two lists of values.
-            If there is one list it is interpreted as the set of x_values
-            for the control points, the y values are extracted from the
-            current spectrum.
-            If there are two lists, they are interpreted as a set of x_values
-            and a set of y_values for the control points.
+        **kwargs : a dictionary of optional parameters.
 
         Returns
         -------
         Spectrum
             returns a baseline spectrum constructed using the defined method
             and control points at x_values defined by the current spectrum.
-            name     = original + 'baseline'
-            filename = ''
-            filetype = 'csv'
-            x_label  = original
-            y_label  = original
-
         """
         result = Spectrum()
         result.name    = self.name + ' baseline'
@@ -406,48 +301,6 @@ class Spectrum:
         result.y_label = self.y_label
         result.x_data  = self.x_data
 
-        if len(args) == 1:
-            x_values = args[0]
-            y_values = np.zeros(len(x_values))
-
-            # Version 0.0
-            # get closest points from self
-            for i in range(len(x_values)):
-                x = x_values[i]
-                d = abs(self.x_data[0] - x) + 1 # Ensure first test true
-                for j in range(len(self.x_data)):
-                    if d > abs(self.x_data[j] - x):
-                        d = abs(self.x_data[j] - x)
-                        xv = self.x_data[j]
-                        yv = self.y_data[j]
-                    else :
-                        break
-                x_values[i] = xv
-                y_values[i] = yv
-        elif len(args) == 2:
-            x_values = args[0]
-            y_values = args[1]
-        else :
-            # Should never arrive here throw an error
-            raise ValueError("Spectrum baseline requires control value array")
-
-        # Have the control points
-        if method[0] == "polynomial" :
-            order = method[1]
-            assert order < len(x_values)
-            p_coef = np.polyfit(x_values, y_values, order)
-            result.y_data = np.polyval(p_coef, result.x_data)
-            pass
-        elif method[0] == "spline" :
-            order = method[1]
-            raise NotImplementedError("Spline interpolation is not yet implemented")
-            pass
-        else:
-            # Should never arrive here
-            raise ValueError("Spectrum baseline requires a method tuple")
-            pass
-
-        # TODO Check we have a well formed spectrum
         return result
 
 ##=============================================================================
