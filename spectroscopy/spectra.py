@@ -37,7 +37,14 @@ FILE_EXTS = {
     '.jcamp':'jcamp','.DX0':'jcamp'
 }
 
-KNOWNFILETYPES = ('csv','jcamp')
+KNOWNFILETYPES = ('csv','tsv','jcamp')
+KNOWNSPECTYPES = {
+    'FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
+    'ATR-FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
+    'UV-Vis':{'x_label':r'Wavelength (nm)','y_label':'Absorbance'},
+    'Raman':{'x_label':r'Raman shift (cm$^{-1})','y_label':'Signal (AU)'},
+    'Fluorescence':{'x_label':r'Wavelength (nm)','y_label':'Fluorescence (AU)'}
+}
 
 def _infer_file_type( name ):
     """
@@ -99,14 +106,25 @@ class Spectrum:
             # Len 1: filename - infer type from 1
             # Len 2: path, filename - infer type  from 2
             # Len 3: path, filename, type
+
+            self.name        = args[0]
+            self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
+            self.x_label     = 'Wavelength (nm)'
+            self.y_label     = 'Absorbance'
+            self.x_data      = np.empty(1)
+            self.y_data      = np.empty(1)
+            self.metadata    = {}
+
             if len(args) == 3:
                 self.fileinfo['PATH'] = args[0]
                 self.fileinfo['NAME'] = args[1]
                 self.fileinfo['TYPE'] = args[2]
+                self.name             = args[1]
             elif len(args) == 2:
                 self.fileinfo['PATH'] = args[0]
                 self.fileinfo['NAME'] = args[1]
                 self.fileinfo['TYPE'] = _infer_file_type(args[0]+args[1])
+                self.name             = args[1]
             elif len(args) == 1:
                 self.fileinfo['NAME'] = args[0]
                 self.fileinfo['TYPE'] = _infer_file_type(args[0])
@@ -133,7 +151,7 @@ class Spectrum:
 ##=============================================================================
 
     def __str__(self) -> str:       # Users string version of object
-        return f"Spectrum :{self.name} {self.y_label()} vs {self.x_label()}"
+        return f"Spectrum :{self.name} {self.y_label} vs {self.x_label}"
 
     def __repr__(self) -> str:      # Developper string version of object
         # TODO
@@ -219,6 +237,23 @@ class Spectrum:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
 
+##=============================================================================
+#
+#   Some samples that manipulate the data.
+#
+##=============================================================================
+    def subtract_reference(self, other) -> None:
+        """
+        Subtract a reference spectrum.
+        """
+        # Check compatible type and x axes
+        if self.metadata['reference'] == other.metadata['reference']:
+            self.metadata['reference'] = other.metadata['sample']
+        else:
+            self.metadata['reference'] = (f'{other.metadata['sample']} ',
+                f'+ {self.metadata['reference']} ',
+                f'- {other.metadata['reference']}')
+        self.y_data -= other.y_data
 
 ##=============================================================================
 #
@@ -226,11 +261,11 @@ class Spectrum:
 #
 ##=============================================================================
 
-    def plot(self, ax, **kwargs) -> None:
+    def plot(self, ax, *args) -> None:
         """
         A routine to plot a spectrum on some matplotlib axes.
         """
-        ax.plot(self.x_data, self.y_data, label=self.name, **kwargs)
+        ax.plot(self.x_data, self.y_data, *args)
 
 ##=============================================================================
 #
@@ -317,6 +352,49 @@ class Spectrum:
 #   adjust_components()
 #   display()
 
+    def set_sample( self, info ) -> None:
+        """
+        Set the information string about the sample in the metadata.
+        """
+        self.metadata['sample'] = info
+
+    def set_reference( self, ref_name ) -> None:
+        """
+        Set the information string about the reference in the metadata.
+        """
+        self.metadata['reference'] = ref_name
+
+    def set_type( self, spec_type ) -> None:
+        """
+        Update the x and y labels and metadata for different spectrum types
+        using the dictionary values
+        """
+        if spec_type in KNOWNSPECTYPES:
+            data = KNOWNSPECTYPES[spec_type]
+            self.x_label = data['x_label']
+            self.y_label = data['y_label']
+            self.metadata['spec_type'] = spec_type
+        else:
+            raise TypeError(f"Unknown spectrum type {spec_type}")
+
+    def get_info( self ) -> str:
+        """
+        Get information about the spectrum as a (multiline) string
+        """
+        spec_type = self.metadata.get('spec_type')
+        sample    = self.metadata.get('sample')
+        reference = self.metadata.get('reference')
+        info = ""
+        if spec_type:
+            info = info + spec_type + ' spectrum'
+        if sample:
+            info = f'{info} of {sample} '
+        if reference:
+            info = f'{info} - {reference}'
+        info = f'{info}{self.y_label} vs {self.x_label}'
+        info = f'{info}\n{self.metadata}'
+        return info
+
 ##=============================================================================
 #
 #   Here are the routines to interface to different file formats and returned
@@ -338,6 +416,8 @@ class Spectrum:
                     csv.read(f, self )
                 case 'tsv':
                     csv.read(f, self, delimiter='\t')
+                case 'dpt':
+                    csv.read(f, self, skiprows=0, delimiter='\t')
 
     def save(self) -> None:
         """

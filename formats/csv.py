@@ -35,7 +35,7 @@ def read(  filehandle, my_spectrum, **kwargs):
         if len(line) > 0:
             if line[0]==options['comments']:
                 continue
-            if skiprows == 1:
+            if skiprows == 1: # TODO count rows - but also permit ignoring this.
                 try:
                     cols = line.split(options['delimiter'])
                     my_spectrum.x_label = cols[options['usecols'][0]]
