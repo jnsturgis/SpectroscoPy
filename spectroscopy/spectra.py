@@ -28,7 +28,7 @@ import os
 
 import numpy as np
 
-from formats import jcamp, csv
+from formats import jcamp, csv, spy
 
 import spectroscopy.messages
 
@@ -37,7 +37,7 @@ FILE_EXTS = {
     '.jcamp':'jcamp','.DX0':'jcamp'
 }
 
-KNOWNFILETYPES = ('csv','tsv','jcamp')
+KNOWNFILETYPES = ('csv','tsv','jcamp','spy')
 KNOWNSPECTYPES = {
     'FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
     'ATR-FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
@@ -407,7 +407,7 @@ class Spectrum:
         """
         Reload the spectrum from the file, or load a first time after setting fileinfo
         """
-        filename = self.fileinfo['PATH']+self.fileinfo['NAME']
+        filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
         with open( filename, 'r', encoding="utf-8") as f:
             match self.fileinfo['TYPE']:
                 case 'jcamp':
@@ -418,12 +418,23 @@ class Spectrum:
                     csv.read(f, self, delimiter='\t')
                 case 'dpt':
                     csv.read(f, self, skiprows=0, delimiter='\t')
+                case 'spy':
+                    spy.read(f, self, format='0.0')
+
+    def save_as(self, filename, file_type = 'spy') -> None:
+        """
+        Set the path name and type for the spectrum and then save the
+        spectrum in the designated spot.
+        """
+        self.fileinfo['PATH'],self.fileinfo['NAME'] = os.path.split(filename)
+        self.fileinfo['TYPE'] = file_type
+        self.save()
 
     def save(self) -> None:
         """
         Write the spectrum to the file described by file info.
         """
-        filename = self.fileinfo['PATH']+self.fileinfo['NAME']
+        filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
         with open(filename, 'w', encoding="utf-8") as f:
             match self.fileinfo['TYPE']:
                 case 'jcamp':
@@ -432,3 +443,5 @@ class Spectrum:
                     csv.write(f, self )
                 case 'tsv':
                     csv.write(f, self, delimiter='\t')
+                case 'spy':
+                    spy.write(f, self )
