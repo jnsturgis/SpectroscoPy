@@ -6,11 +6,9 @@ build-backend = "hatchling.build"
 name = "spectroscopy"
 description = "A common framework for handling and analysing spectra from different instruments"
 readme = "README.md"
-# 3.12 because spectra.py:subtract_reference uses f-strings that reuse the
-# outer quote character (PEP 701, 3.12+). That code is defect D6 and is due to
-# be rewritten in Phase 0.5; lower this floor to ">=3.10" as part of that fix,
-# and widen the CI matrix to match roadmap section 6.
-requires-python = ">=3.12"
+# Lowered from 3.12 once defect D6 was fixed: subtract_reference no longer uses
+# f-strings that reuse the outer quote character (PEP 701, 3.12+).
+requires-python = ">=3.10"
 license = "MPL-2.0"
 license-files = ["LICENSE"]
 authors = [{ name = "James N. Sturgis" }]
@@ -21,6 +19,10 @@ classifiers = [
     "Topic :: Scientific/Engineering :: Chemistry",
     "Topic :: Scientific/Engineering :: Physics",
     "Programming Language :: Python :: 3",
+    "Programming Language :: Python :: 3.10",
+    "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
 ]
 dependencies = [
     "numpy>=1.24",
@@ -83,7 +85,7 @@ exclude = ["/data", "/tools_stand_alone", "/toto", "/.github"]
 # ---------------------------------------------------------------------------
 [tool.ruff]
 line-length = 100
-target-version = "py312"
+target-version = "py310"
 # Not part of the package: a GUI scratch snippet and the pre-Spectrum-class
 # standalone tool, both superseded. Left in the tree, out of the build.
 exclude = ["spectroscopy/gui", "tools_stand_alone"]
@@ -105,6 +107,9 @@ ignore = [
 "spectroscopy/__init__.py" = ["F401", "F403"]
 # Vendored from github.com/nzhagen/jcamp; keep the diff to upstream small.
 "spectroscopy/io/jcamp.py" = ["E", "F", "W", "I", "UP"]
+# Contains a verbatim copy of the original notebook code, which is the thing
+# being compared against -- tidying it would defeat the comparison.
+"scripts/validate_ftir_sugars.py" = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

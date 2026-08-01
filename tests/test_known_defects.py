@@ -12,6 +12,8 @@ and drop the marker. Nothing here should be read as endorsing the behaviour.
 See SpectroscoPy_Codebase_Review.md section 3.2 for D1-D7.
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -147,23 +149,46 @@ def test_accumulate_in_a_loop_keeps_sources_clean():
 
 
 # --------------------------------------------------------------------------
-# D3 -- no axis compatibility checking
+# D3 -- FIXED in Phase 1: axis compatibility is checked
 # --------------------------------------------------------------------------
 
-def test_mismatched_axis_lengths_raise_a_numpy_error():
+def test_mismatched_axis_lengths_raise_a_helpful_error():
+    """Used to be a bare numpy 'could not be broadcast' with no way forward."""
     short = _spectrum([1, 2, 3], [1, 1, 1])
     long_ = _spectrum([1, 2, 3, 4], [1, 1, 1, 1])
-    with pytest.raises(ValueError, match="broadcast"):
+    with pytest.raises(ValueError, match="different lengths"):
+        _ = short + long_
+    with pytest.raises(ValueError, match="resample"):
         _ = short + long_
 
 
-def test_differently_positioned_axes_are_silently_wrong():
-    """Same length, different x -- arithmetic proceeds and the result is junk."""
+def test_differently_positioned_axes_warn():
+    """Same length, different x: used to proceed silently and produce junk."""
     here = _spectrum([1000, 1001, 1002], [1, 1, 1])
     there = _spectrum([2000, 2001, 2002], [1, 1, 1])
-    result = here + there
-    assert np.allclose(result.y, 2.0)              # no complaint at all
+    with pytest.warns(RuntimeWarning, match="different x positions"):
+        result = here + there
     assert np.allclose(result.x, [1000, 1001, 1002])
+
+
+def test_float_noise_on_the_axis_does_not_warn():
+    """
+    Spectra off one instrument differ in the last decimal; refusing or nagging
+    about those would break real workflows.
+    """
+    here = _spectrum([1000.0, 1001.0, 1002.0], [1, 1, 1])
+    there = _spectrum([1000.0000001, 1001.0000001, 1002.0000001], [1, 1, 1])
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        _ = here + there
+
+
+def test_resample_makes_incompatible_spectra_combinable():
+    coarse = _spectrum([1000, 1002, 1004], [1, 1, 1])
+    fine = _spectrum([1000, 1001, 1002, 1003, 1004], [2, 2, 2, 2, 2])
+    combined = coarse + fine.resample(coarse.x)
+    assert len(combined) == 3
+    assert np.allclose(combined.y, 3.0)
 
 
 # --------------------------------------------------------------------------

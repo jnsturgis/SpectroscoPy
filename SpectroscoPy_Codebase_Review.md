@@ -722,9 +722,9 @@ relabelled all eight.
 | D2 | metadata aliasing on arithmetic | **fixed** |
 | D5 | dispatch tables disagree; silent truncation | **fixed** |
 | D4 | `.spy` doesn't round-trip name/labels | open — Phase 2 |
-| D3 | no axis compatibility checking | open — Phase 1 |
-| D6 | `subtract_reference` tuple bug + PEP 701 f-strings | open — also gates `requires-python` back to 3.10 |
-| D7 | assorted minor (incl. `baseline('RB')` needing a dummy arg) | open — Phase 1 |
+| D3 | no axis compatibility checking | **fixed** |
+| D6 | `subtract_reference` tuple bug + PEP 701 f-strings | **fixed** — floor now 3.10, CI 3.10-3.13 |
+| D7 | assorted minor | **fixed** |
 
 Suite is 59 passed / 1 xfailed. **Phase 0.5 is complete** except for D6, which is bundled with
 the Phase 1 rewrite of `subtract_reference` (it needs a scale-factor argument anyway, per
@@ -732,7 +732,125 @@ friction item #7).
 
 ---
 
-## 8. Environment note — where scikit-learn actually is
+## 8. Phase 1 — core spike (done)
+
+`ProcessingStep`/`history`, units split from labels, the processing operations from the top of
+the §1.3 frequency table, `PeakTable`, and `SpectrumCollection`. D3 and D6 fixed along the way,
+so **the whole defect list is now closed except D4** (`.spy` round-trip, Phase 2).
+
+New modules: `spectroscopy/history.py`, `spectroscopy/peaks.py`, `spectroscopy/collection.py`,
+`spectroscopy/processing/common.py`. Suite is 117 passed / 1 xfailed.
+
+### 8.1 The validation, and what it turned up
+
+The point of Phase 1 was never the unit tests — it was re-running a real analysis. I
+re-implemented three samples from `FTIR_sugars` (load → average replicates → crop → scaled water
+subtraction → rubberband → normalise → 2nd-derivative peaks) against the new API and diffed it
+against the original notebook code on the real `.dpt` files:
+
+```
+Glucose  (6 replicates)   y identical, max |diff| = 6.7e-16
+Chitin   (2 replicates)   y identical, max |diff| = 0
+Alginate (3 replicates)   y identical, max |diff| = 1.5e-14
+```
+
+**The spectra reproduce bit-for-bit.** The peak *positions* do not, and that turned out to
+matter.
+
+### 8.2 ⚠️ Your reported peak positions are biased low by ~1 cm⁻¹
+
+Every peak-picking cell in every notebook calls
+
+```python
+savgol_filter(y, 10, 3, deriv=2)
+```
+
+`window_length=10` is **even**. An even-length Savitzky-Golay window is not symmetric about its
+centre point, so the filter has a half-sample group delay and shifts every recovered feature.
+scipy accepts it without complaint, which is why it survived being copy-pasted into fourteen
+notebooks.
+
+Measured on synthetic Gaussians at known positions, using the real `.dpt` sampling of
+1.928 cm⁻¹:
+
+| window | mean signed error | RMS error |
+|---|---|---|
+| 10 (even, as in the notebooks) | **−0.965 cm⁻¹** | 1.139 |
+| 11 (odd) | +0.192 cm⁻¹ | 0.561 |
+
+−0.965 is half the sample spacing (1.928 / 2 = 0.964) to three decimal places. This is a
+systematic bias, not noise: **every band position reported from these notebooks is about one
+wavenumber too low**, consistently, and the error does not average out across replicates.
+
+`common._as_odd_at_least` now rounds any even window up to the next odd one, so
+`smooth(window_length=10)` silently becomes 11. That is why the validation's peak lists differ
+from the originals by ~2 cm⁻¹ on some bands and not others — a sub-sample bias rounds to a
+different sample for some peaks and not others. A regression test pins the whole argument.
+
+Two consequences worth deciding on:
+
+- Peak tables already published from these notebooks carry the bias. Whether that matters depends
+  on how they were quoted — at ±2 cm⁻¹ instrument resolution it is within error; quoted to the
+  wavenumber it is not.
+- If you ever want to reproduce an old figure exactly, pass an explicitly even window; the
+  correction only applies to the default path.
+
+### 8.3 What the rewrite looks like
+
+The FTIR_sugars per-sample block, which in the notebook is ~40 lines of indexed arithmetic,
+boolean-mask cropping and a pasted `rubberband`:
+
+```python
+water = SpectrumCollection.from_files(ROOT + "14/H2O.[0-2].dpt",
+                                      technique='ATR-FTIR').mean()
+
+result = (SpectrumCollection.from_files(ROOT + "13/Glucose.[1-6].dpt",
+                                        technique='ATR-FTIR')
+          .mean()
+          .crop(900, 1800)
+          .subtract_reference(water.crop(900, 1800), factor=0.7)
+          .baseline_correct('rubberband')
+          .normalize('max', window=(1050, 1080)))
+
+peaks = result.find_peaks(height=1e-5, distance=10, prominence=1e-4)
+```
+
+and `result.describe_history()` prints the recipe back, with the hand-tuned water factor now a
+recorded parameter rather than a positional entry in a bare list:
+
+```
+1. mean(n_spectra=6)
+2. crop(x_max=1800, x_min=900)
+3. subtract_reference(factor=0.7, reference={'kind': 'spectrum', ..., 'sample': 'H2O'})
+4. baseline_correct(method='rubberband')
+5. normalize(method='max', window=[1050, 1080])
+```
+
+That is the §2.3 requirement met: structured `(name, params)`, JSON round-trippable, enough to
+rebuild a `Pipeline`. The one honest gap is that a spectrum operand is recorded *by reference*
+(name and sample), not by value — replaying a reference subtraction needs the reference supplied
+from outside. Embedding the data would make history unbounded.
+
+### 8.4 Smaller things found while building it
+
+- **`rubberband` crashed on a flat or perfectly linear spectrum** with a page of raw
+  `QhullError` diagnostics — there is no 2-D convex hull of collinear points. Now falls back to
+  the endpoint interpolation, which is exactly right for a straight line.
+- **The ALS baseline works for the first time.** The pasted copy referenced `sparse`/`spsolve`
+  without importing them and was never called from any notebook.
+- **`find_peaks` returns a `PeakTable`**, not something written into `metadata` — analysis
+  results and acquisition facts do not belong in the same dictionary. `PeakTable.annotate(ax)`
+  replaces the six-line label loop pasted into ~10 notebooks.
+- **`plot()` now sets the axis labels and reverses the x axis for FTIR/Raman**, the two lines
+  typed by hand in every figure cell.
+- **`baseline('RB')` no longer needs a dummy second argument** (D7).
+- `x_label`/`y_label` are now composed from a quantity plus a machine-readable unit, so
+  `Wavenumber (cm$^{-1}$)` renders correctly — the old `KNOWNSPECTYPES` string was missing its
+  closing `$`.
+
+---
+
+## 9. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 
