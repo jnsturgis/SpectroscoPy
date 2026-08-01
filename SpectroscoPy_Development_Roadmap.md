@@ -356,3 +356,103 @@ particular is the kind of thing a reviewer remembers.
 - Nothing here changes the §14.1 rule: each of these still needs a real example
   on real data before it is rolled out. The difference is that the paper
   supplies the examples, because they are the paper's own figures.
+
+---
+
+## 14. The road to 1.0.0 and JOSS (settled 2026-08-02, James)
+
+Three decisions, which together replace §13's framing:
+
+1. **The two papers are decoupled.** The JOSS paper does not wait on joint
+   decomposition. See the dual-publication document §6.2.
+2. **The domain paper is the biofilm work, enhanced** — a rewrite of the earlier
+   FTIR-only publication with new data and an extra level of complexity: paired
+   fluorescence and FTIR spectra of the same samples, decomposed jointly by NMF.
+   This resolves the ambiguity flagged in that document's §6.4; there is one
+   biological study, not two.
+3. **JOSS is submitted against shipped capabilities at 1.0.0, in about three
+   months** — target **early November 2026**.
+
+### 14.1 What decoupling actually buys
+
+It is worth being explicit about the consequence, because it is larger than it
+looks: **the road to 1.0.0 now contains almost no new features.**
+
+Everything on §13.3's list — library lookup, `concentration()`, OPUS binary,
+`.spc`, A260/A280, line narrowing — is *additive*. None of it changes an
+existing signature, so all of it can ship in 1.1 without breaking anybody. It
+belongs to the domain-paper track, which has its own timetable.
+
+What 1.0.0 actually is: **a promise not to break things**. So the next three
+months are a scoping, documentation and freezing exercise, not a build. Three
+months is realistic for that. It is not realistic for that *plus* features, and
+the main way this deadline gets missed is by letting feature work leak into it
+because features are more interesting than deciding what `spectroscopy.__all__`
+should contain.
+
+### 14.2 Blockers to an API freeze, found by checking
+
+Not a wish list — these were verified against the tree on 2026-08-02.
+
+**1. The public namespace leaks seventeen modules.** `spectroscopy/__init__.py`
+does `from .spectra import *`, `spectra.py` has no `__all__`, and star-import
+therefore re-exports everything the module imported. Today `import spectroscopy`
+gives you `spectroscopy.os`, `spectroscopy.copy`, `spectroscopy.np`,
+`spectroscopy.warnings`, `spectroscopy.operator` — 40 public names of which 17
+are modules. **Freezing this at 1.0 makes `spc.np` part of the API**, and
+someone will use it. The package needs an explicit top-level `__all__` and
+`spectra.py` needs one, before anything is frozen. This is also §14.4's fourth
+doc trap (a test that every exported name is documented), which cannot be
+written until the export list exists.
+
+**2. ADR-0001 was never written** (§2.4), and §9's Phase 6 is literally defined
+as "revisit ADR-0001 in light of tester feedback". The decisions all exist,
+scattered through review §5, §9.1 and this document — this is a consolidation
+job, but it is the document a reviewer and a future contributor check before
+proposing a breaking change, so it has to exist by 1.0.
+
+**3. `Pipeline` is settled but unbuilt.** §2.3 and §2.5 call it decided, and
+`ProcessingStep` exists and carries structured `(name, params)` — the expensive
+part. `Pipeline.from_history()` does not exist. Since it is additive it *can*
+wait, but the decision must be conscious, because the `.history` format and
+`.spy` serialisation freeze at 1.0 and they are what a later `Pipeline` has to
+be reconstructible from.
+
+**4. `fit_peaks()` / `FitResult` do not exist.** §2.5 left the return type open;
+`find_peaks()` and `PeakTable` shipped, peak *fitting* did not. Additive, so
+defer — but say so explicitly in ADR-0001 rather than leaving it looking like an
+oversight.
+
+**5. The deprecated shims say "removed in 0.2".** `calc`, `formats` and
+`tools_spc` emit a DeprecationWarning promising removal in 0.2. There is now no
+0.2 — the next release is 1.0. Either they go before the freeze, or that promise
+is rewritten. They cannot silently survive into a version that promises
+stability.
+
+### 14.3 Sequence, backwards from early November
+
+| When | What | Why then |
+|---|---|---|
+| **August, immediately** | Hand 0.1.0 to the testers | The whole critical path. An API frozen without tester friction is a guess, and §9's entire structure exists to avoid that. Nothing else in this table can start it |
+| August | Define the public surface: `__all__` at top level and in `spectra.py`; audit the 40 names | Blocker 1. Independent of feedback, so it can run in parallel |
+| August–September | Collect and triage friction; relay reports into issues by proxy (review §14.5) | Feedback has to be *in hand* by mid-September to inform the freeze |
+| September | Make every breaking change there is going to be: shims removed, names settled, signatures fixed | Last window. After this, breaking anything costs a major version |
+| September | Write ADR-0001, including the explicit deferrals (`Pipeline`, `fit_peaks`) | Blocker 2. Needs the feedback to be honest about what was validated |
+| October | JOSS-facing gaps: `CONTRIBUTING.md`, `CODE_OF_CONDUCT.md`, `CITATION.cff`, repository description | Cheap, mechanical, and reviewers check them by name |
+| October | The §14.4 documentation traps and the §14.2 comparison pages of the review | Documentation quality is an explicit JOSS review criterion, not a nicety |
+| October | Draft `paper.md` (250–1000 words). The README "Why" is the statement of need; the comparison draft §1–§5 is the state of the field | Both already written, which is why this is a small job |
+| **Early November** | Tag **1.0.0**, archive to Zenodo for a DOI, submit to JOSS | |
+
+### 14.4 The risk, named
+
+**The schedule has one dependency it does not control: the testers.** If
+feedback has not arrived by mid-September, the choice is to slip 1.0 or to
+freeze an API that no outsider has exercised — and the second is the option that
+looks fine now and hurts for years, because §9's whole premise is that the core
+must be validated by real use before it is locked.
+
+Mitigation is unglamorous: hand the alpha over *this week*, ask each tester for
+one concrete workflow rather than general impressions, and chase in early
+September rather than waiting politely. The three named in review §9.5 cover the
+four techniques between them, which is the minimum for a freeze that claims to
+serve all four.

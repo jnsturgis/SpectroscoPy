@@ -263,12 +263,18 @@ analysis whose novelty is measured against "the earlier FTIR-only publication",
 targeted at *Journal of Bacteriology* on a "cell-envelope/peptidoglycan
 structural finding".
 
-**These may be the same paper described twice, or two different studies.** It
-matters for sequencing: biofilm work and cell-envelope work are different sample
-preparations, and §2 step 2 (acquire complementary fluorescence data on matched
-samples) is a different experiment in each case. Flagged rather than resolved —
-James to say which, after which §13 should be rewritten as a pointer to this
-document rather than a parallel account of it.
+**Resolved (James, 2026-08-02): one study, the biofilm one.** Workflow B is an
+enhanced rewrite of the earlier FTIR-only biofilm publication, with new data and
+an added level of complexity — paired fluorescence and FTIR spectra of the same
+samples, decomposed jointly. So §2 step 2 is one experiment: acquire the
+fluorescence half of the pairs on the biofilm samples.
+
+Decided at the same time: **the two workflows are decoupled** (per §6.2), and
+**JOSS is submitted against shipped capabilities at 1.0.0, targeted early
+November 2026**. Roadmap §14 is the schedule that follows from that, including
+the five things found to be blocking an API freeze. The consequence worth
+carrying back here: joint decomposition is no longer on the JOSS critical path
+at all, so §1 step 5 lapses and §0 belongs entirely to Workflow B.
 
 Everything else in §13 survives unchanged: the feature list there (library
 lookup coupled to decomposition, Beer–Lambert against Bradford, OPUS binary,
