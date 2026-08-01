@@ -59,4 +59,5 @@ what-do-you-want-to-know
 tutorials/index
 guide/index
 api
+adr/index
 ```

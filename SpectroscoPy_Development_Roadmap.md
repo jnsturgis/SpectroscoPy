@@ -405,11 +405,31 @@ someone will use it. The package needs an explicit top-level `__all__` and
 doc trap (a test that every exported name is documented), which cannot be
 written until the export list exists.
 
-**2. ADR-0001 was never written** (§2.4), and §9's Phase 6 is literally defined
-as "revisit ADR-0001 in light of tester feedback". The decisions all exist,
-scattered through review §5, §9.1 and this document — this is a consolidation
-job, but it is the document a reviewer and a future contributor check before
-proposing a breaking change, so it has to exist by 1.0.
+**2. ADR-0001 — written 2026-08-02**, at `docs/adr/0001-core-data-model.md` and
+published with the docs. It consolidates the decisions that were scattered
+through review §5 and §9.1: numpy rather than xarray, native units rather than
+`pint`, structured provenance, the `.spy` format, the mutability split, the
+dependency policy, and the ten-name public surface. It also records `Pipeline`,
+`fit_peaks`/`FitResult`, hyperspectral maps and `to_netcdf` as **explicit
+deferrals** rather than leaving them to look like oversights — all four are
+additive and can arrive in 1.1.
+
+Writing it against the code rather than against the plan turned up **two freeze
+blockers nobody had listed**, now items 6 and 7 below.
+
+**6. ⚠️ A `Spectrum` cannot be built from arrays.** `__init__(self, *args)`
+takes nothing, a `Spectrum`, or one to three strings. Roadmap §2.5's primary
+constructor — `Spectrum(x, y, x_unit=...)` — does not exist, so anyone with
+computed data must construct an empty object and assign `.x` and `.y`, which is
+what the test fixtures do. Freezing `*args` as the only entry point makes
+empty-then-assign the API. Fix before November: add a keyword constructor and a
+`Spectrum.read()` classmethod, keeping the string forms.
+
+**7. ⚠️ The two-argument constructor is documented wrong.** The docstring says
+`Spectrum(filename, filetype)`; the code reads two arguments as `(path, name)`.
+The documented call raises `TypeError: Unknown filetype unknown` — verified.
+One of the two is wrong and the signature cannot be frozen until it is decided
+which.
 
 **3. `Pipeline` is settled but unbuilt.** §2.3 and §2.5 call it decided, and
 `ProcessingStep` exists and carries structured `(name, params)` — the expensive
