@@ -1,40 +1,25 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-calc.py this module contains various useful calculations for spectroscopy
+Deprecated alias for :mod:`spectroscopy.lineshapes`.
 
+``calc`` moved into the package as ``spectroscopy.lineshapes``. Importing
+``calc`` still works but emits a DeprecationWarning and will be removed in 0.2.
+
+Old:  ``import calc``            ->  ``calc.gauss(...)``
+New:  ``from spectroscopy import lineshapes``  ->  ``lineshapes.gauss(...)``
 """
 
-import math
-import numpy as np
+import warnings
 
-def base( pka, ph ):
-    """
-    Use Henderson Hasselbach equation to calculate the fraction of base form.
-    """
-    return 10**(ph-pka)/(1+10**(ph-pka))
+from spectroscopy.lineshapes import base, gauss, lorentz, spec_comp
 
-def gauss( x_values, posn: float, fwhh: float, ext: float ):
-    """
-    Calculate a gaussian at the x_values centered at posn and with width fwhh.
-    """
-    return ext * np.exp(-(math.log(2.))*(2.*(x_values-posn)/fwhh)**2)
+warnings.warn(
+    "The top-level 'calc' module is deprecated; use 'spectroscopy.lineshapes' "
+    "instead. 'calc' will be removed in 0.2.",
+    DeprecationWarning,
+    stacklevel=2,
+)
 
-def lorentz( x_values, posn: float, fwhh: float, ext: float ):
-    """
-    Calculate a lorentzian at the x_values centered at posn and with width fwhh.
-    """
-    return ext * fwhh**2/(fwhh**2+4.0*(x_values-posn)**2)
-
-def spec_comp( x_values, posn:float, fwhh:float, ext: float, fg: float ):
-    """
-    Calculate a compont
-    """
-    return fg * gauss(x_values, posn, fwhh, ext) + \
-        (1.0 - fg) * ext * lorentz( x_values, posn, fwhh, ext )
-
-def main():
-    """
-    The main routine
-    """
-    print('This module is part of the spectroscopy programmes and should be imported not run.')
-if __name__ == '__main__':
-    main()
+__all__ = ['base', 'gauss', 'lorentz', 'spec_comp']

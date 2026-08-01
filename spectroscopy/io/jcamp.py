@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 Created on Wed Apr 24 10:08:22 2024
 
@@ -25,7 +28,6 @@ import datetime
 import re
 
 import numpy as np
-import spectroscopy as spc
 
 ## In SQZ_digits, '+' or '-' is for PAC, ',' for CSV.
 SQZ_digits = {'@':'+0', 'A':'+1', 'B':'+2', 'C':'+3', 'D':'+4', 'E':'+5',
@@ -141,7 +143,10 @@ def read(file, my_spectrum ) -> None:
             ## Detect the end of the compound block.
             if line.upper().startswith('##END'):
                 ## Process the entire block and put it into the children array.
-                child_spec = spc.Spectrum()
+                ## Imported here rather than at module scope: the io layer must
+                ## not depend on core at import time (see review C1/C4).
+                from spectroscopy.spectra import Spectrum   # pylint: disable=C0415
+                child_spec = Spectrum()
                 read(compound_block_contents, child_spec)
                 jcamp_dict['children'].append( child_spec )
                 in_compound_block = False

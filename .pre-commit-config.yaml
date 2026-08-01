@@ -1,0 +1,26 @@
+# Install once with:  pre-commit install
+# Run over everything: pre-commit run --all-files
+repos:
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      - id: trailing-whitespace
+        exclude: ^data/
+      - id: end-of-file-fixer
+        exclude: ^data/
+      - id: check-yaml
+      - id: check-toml
+      - id: check-added-large-files
+        args: ["--maxkb=2048"]
+      - id: check-merge-conflict
+
+  - repo: https://github.com/astral-sh/ruff-pre-commit
+    rev: v0.16.1
+    hooks:
+      - id: ruff
+        args: [--fix]
+      - id: ruff-format
+        # Formatting is not enforced yet: it would reformat the whole legacy
+        # tree and bury the Phase 0.5 defect fixes in style churn. Enable per
+        # module as each is rewritten in Phase 1+.
+        stages: [manual]

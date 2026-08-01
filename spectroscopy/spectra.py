@@ -1,3 +1,6 @@
+# This Source Code Form is subject to the terms of the Mozilla Public
+# License, v. 2.0. If a copy of the MPL was not distributed with this
+# file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """Spectra structure to hold a spectrum and associated metadata.
 
 The spectrum structure
@@ -29,13 +32,12 @@ Todo:
 import os
 
 import numpy as np
-
-from formats import jcamp, csv, spy
-from scipy.signal import savgol_filter, find_peaks
 from scipy.interpolate import CubicSpline
+from scipy.signal import savgol_filter
 from scipy.spatial import ConvexHull
 
 import spectroscopy.messages
+from spectroscopy.io import csv, jcamp, spy
 
 FILE_EXTS = {
     '.csv':'csv','.tsv':'tsv',
@@ -520,7 +522,7 @@ class Spectrum:
         Reload the spectrum from the file, or load a first time after setting fileinfo
         """
         filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
-        with open( filename, 'r', encoding="utf-8") as f:
+        with open( filename, encoding="utf-8") as f:
             match self.fileinfo['TYPE']:
                 case 'jcamp':
                     jcamp.read(f, self)
