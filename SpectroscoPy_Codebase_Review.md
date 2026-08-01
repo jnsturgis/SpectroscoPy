@@ -1360,6 +1360,52 @@ here; it changes how you launch Jupyter and that should be your call.
 
 ---
 
+## 16. The name — `spectroscopy` is taken on PyPI (checked 2026-08-02)
+
+`pip install spectroscopy` already installs something. It is not a competitor:
+
+| | |
+|---|---|
+| Project | `spectroscopy` 0.10 |
+| Last release | **2017-04-04** — nine years dormant |
+| Author | Joseph Goodknight, `joey.goodknight@gmail.com` |
+| Summary | "Spectroscopy of systems with explicit vibrational degrees of Freedom" — quantum dynamics simulation, not data analysis |
+| Downloads | 60 last month, 6 last week, 0 last day — mirror and bot traffic, not users |
+
+Two separate problems hide behind one name. The **distribution** name is what
+`pip install` takes; the **import** name is what `import spectroscopy` binds.
+The dead package occupies both, so a user who somehow has both installed gets a
+silent module collision. In practice the risk is negligible — nobody installs
+it — but it is the reason a mismatched pair (`pip install pyspectroscopy`,
+`import spectroscopy`) is only half a solution.
+
+### 16.1 Options, in the order worth trying
+
+1. **Ask the owner directly.** His address is public and the package is a
+   graduate-era artefact. A one-paragraph email asking him to transfer the name
+   costs nothing and, if he answers, resolves this in days rather than months.
+2. **PEP 541 request** to `github.com/pypi/support` if he does not answer.
+   This is close to the textbook case the process exists for — abandoned,
+   unrelated field, no dependents, negligible downloads — but it is slow, and
+   PyPI requires evidence that contact was attempted first, which is why (1)
+   comes first and should be kept as a record.
+3. **A different distribution name.** Free as of this check: `pyspectroscopy`,
+   `spectroscopy-py`, `spectroscopypy`, `spectrolab`, `spectrobench`,
+   `spectrokit`, `spectroscope`, `benchspec`. Taken: `spectropy`, `specpy`,
+   `spectra`, `spectrapy`, `pyspectra`, `spectrochempy`, `spectrolib`.
+
+**Recommendation: start (1) now and register a fallback name immediately.**
+Registering a placeholder is free and stops the fallback being taken while the
+request sits; the project keeps calling itself SpectroscoPy in prose either way,
+since the displayed name and the `pip install` name need not match.
+
+The reason this is urgent rather than tidy-up: roadmap §13 puts a paper in the
+plan, and **a paper must cite a name that still resolves years later**. Renaming
+after publication breaks the citation. Renaming now costs one commit — there are
+no testers holding installs yet, and 0.1.0 is 20 minutes old.
+
+---
+
 ## Appendix — files consulted
 
 Notebook source was extracted to text for analysis; the extraction script and dumps are in this

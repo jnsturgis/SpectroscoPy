@@ -284,3 +284,67 @@ Handing over this roadmap plus that ordered brief means Claude Code's first outp
 ---
 
 *Share the existing codebase (zip or key files, notebooks included) whenever you'd like a second opinion here first — I can also do the §11 notebook-inventory pass and layer-boundary check directly, before you hand things to Claude Code, if that'd be useful as a sanity check on the brief itself.*
+
+---
+
+## 13. Validation Publication (added 2026-08, James)
+
+A target that reorders §9 rather than extending it: **a methods/application paper,
+written once a draft GUI exists**, based on multivariate analysis of fluorescence
+and FTIR spectra of *Pseudomonas aeruginosa* biofilms.
+
+### 13.1 Why this target changes the plan
+
+§7 of the codebase review notes that the one credibility signal SpectroscoPy
+lacks and RamanSPy has is a peer-reviewed citation. This supplies it. But it
+also does something more useful than credibility: **a paper is a deadline with a
+fixed feature list**, and the list is not the same as the one the phases would
+have produced on their own. Everything in §13.3 is there because the paper needs
+it, not because it was next.
+
+The scientific angle is the sell: **NMF is little used in biology**, and a
+biofilm system — where the spectra are genuinely mixtures of a few components
+in varying proportion — is close to the ideal case for it. The library already
+has decomposition with bootstrap stability testing (`stability(...)`), which is
+the part most published NMF applications get wrong or skip, so the methods
+section has something to say beyond "we ran scikit-learn".
+
+### 13.2 What the paper must sell, and the one thing it cannot
+
+- **Versatility** — one object model across fluorescence and FTIR in the same
+  analysis, which is exactly what the biofilm study does anyway. Demonstrable.
+- **Fluidity for scripting** — chaining, provenance, `.spy` round-trip. A figure
+  produced from a `describe_history()` listing makes this visible on the page.
+- **GUI ease of use** — **not demonstrable in an article.** A screenshot proves
+  a GUI exists, not that it is pleasant. Worth stating plainly rather than
+  padding the paper with interface figures: the honest move is to make the GUI
+  the thing a reader can go and try, and spend the paper's space on the analysis
+  that a reader can check.
+
+### 13.3 Features the paper needs (priority follows from this list)
+
+Ordered by how much the paper depends on them, not by difficulty.
+
+| | Feature | Why the paper needs it |
+|---|---|---|
+| 1 | **Library/reference lookup *and* decomposition** | Competitors offer spectrum-vs-library matching; none couple it to decomposition. Identify the components NMF pulls out by matching them against references, rather than assigning them by eye — that pairing is the methodological novelty, not the lookup alone |
+| 2 | **`concentration()` — Beer–Lambert** | Cross-validated against **Bradford protein assays** on the same samples. This turns a convenience helper into a validation figure: spectroscopic concentration vs a wet-chemistry standard |
+| 3 | **OPUS native binary (`.0`, `.1`, `.2`)** | The biofilm FTIR data arrives this way. `.dpt` export is a step the paper's readers should not have to be told to perform, and review §3 already names this as the honest I/O gap |
+| 4 | **Galactic `.spc`** | The other format reviewers will ask about; `spc-spectra` exists but is unmaintained since 2018, so this is a read-it-ourselves job |
+| 5 | **A260/A280 decomposition** | Openly a hoop to jump through — the number is close to worthless as a purity measure and the two-component decomposition is three lines. It is asked for often enough that its absence reads as a gap, so it costs less to have than to keep explaining |
+| 6 | **Fluorescence line narrowing / hole burning** | For the fun of it, and there is old data. Compared against Raman and FTIR of the same system, it is a genuinely unusual thing for a general-purpose package to handle, and it exercises the "one data model, many instruments" claim harder than four routine techniques do |
+
+Items 1–3 are load-bearing for the paper. Items 4–6 strengthen it; 6 in
+particular is the kind of thing a reviewer remembers.
+
+### 13.4 Dependencies and ordering
+
+- The GUI (§9 Phase 8) moves **before** the paper rather than after public
+  release — a draft is enough, it does not need to be finished.
+- The **name must be settled before submission**. A paper naming a package that
+  later gets renamed on PyPI is a citation that stops resolving. See review §16.
+- Bradford assays on the biofilm samples are a **wet-lab dependency**, not a
+  code one, and they gate item 2's validation figure rather than the feature.
+- Nothing here changes the §14.1 rule: each of these still needs a real example
+  on real data before it is rolled out. The difference is that the paper
+  supplies the examples, because they are the paper's own figures.
