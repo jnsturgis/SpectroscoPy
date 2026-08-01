@@ -49,6 +49,28 @@ What a reviewer finds convincing, roughly in order:
 substantive items each, spread over the weeks between now and the November
 submission. It is the spread and the substance that read as real, not the count.
 
+### Second-degree testers are worth the most
+
+Email A asks the GitHub group to pass it on to anyone they know who actually
+measures spectra. This is the highest-value part of the whole exercise, for two
+separate reasons.
+
+**Scientifically:** someone at one remove has no investment in the project and no
+idea what it is supposed to do. They hit the things a colleague has already
+stopped being able to see — and they are the population the library claims to
+serve, which nobody in the first ring is.
+
+**For the paper:** a report from someone James has never met is qualitatively
+different evidence from a report by a colleague doing him a favour. It is the
+difference between "his friends tried it" and "it reached someone", and that
+distinction is exactly what a JOSS reviewer is looking for when asking whether
+the software has users.
+
+The relay works the same way as in Email B, just in the other direction: the
+non-nerdy user tells the nerdy one, who files it. Both directions of the same
+pairing — the technically confident person is a translator, not a gatekeeper,
+and the report should be in the user's own words with the relay stated plainly.
+
 ---
 
 ## 2. The brief — copy this to your GitHub-registered colleagues

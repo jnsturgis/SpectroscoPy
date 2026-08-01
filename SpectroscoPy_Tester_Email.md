@@ -97,6 +97,18 @@ to me than a long generous one — this material goes in front of reviewers, and
 more to the point, an issue written by someone who did not run the code finds
 nothing, which defeats the entire object.
 
+**And one thing worth more than your own 45 minutes:** if you know someone who
+actually measures spectra — a colleague, a student, anyone who owns a
+spectrometer and does not enjoy the software that came with it — please point
+them at it. They do not need to know Python or want to learn it; the
+documentation starts from "you can copy text into a terminal" and no further.
+
+If they hit something and would rather not write it up, they can tell you and
+you can pass it on — that route works fine, and I would rather have the finding
+second-hand than not at all. Their report is worth more to me than either of
+ours, because they will hit the things you and I have both stopped being able to
+see.
+
 If you can get to it before **[EARLY SEPTEMBER DATE]** that would fit the
 timetable; after that I am into freezing things and it is too late for your
 report to change anything, which would be a waste of your 45 minutes.
