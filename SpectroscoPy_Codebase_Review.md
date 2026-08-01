@@ -1288,6 +1288,37 @@ The residual risk after all four is prose that describes behaviour without
 showing it — the "what to change for your own data" tables at the end of each
 tutorial are exactly this shape, and nothing can check them but a reader.
 
+### 14.5 A way to answer back
+
+The docs currently ask for feedback without providing any means of giving it.
+`what-do-you-want-to-know.md` ends by saying a missing question is "useful
+information" and "worth reporting" — and then names no address. The intended
+readers are the reason this matters: the codephobic user §14.3 is written for
+will not open a GitHub issue, and the tester who hits a bug at the bench wants
+to say so in one click, not to acquire an account first.
+
+Wanted: a **`mailto:` feedback link, present on every page**, covering the
+three things worth hearing — a bug, a missing feature, or a wish ("I want to
+know X and it is not in your list"). Three distinct links rather than one
+generic "contact", because a pre-filled subject is what makes the difference
+between mail that can be triaged and mail that cannot:
+
+- `mailto:…?subject=[SpectroscoPy] Bug` — with the page and version in the
+  body, prefilled.
+- `mailto:…?subject=[SpectroscoPy] Feature request`
+- `mailto:…?subject=[SpectroscoPy] I want to know…` — aimed squarely at the
+  gaps in the question index, which is where the roadmap actually comes from.
+
+Implementation notes: it belongs in the theme footer (`html_theme_options` /
+a small `_static` include) so it cannot go stale page by page, with the
+version string filled from the package at build time so a report says which
+release it came from. The end of `what-do-you-want-to-know.md` should link it
+explicitly rather than relying on the footer, since that page asks the question.
+
+The address is James's decision — a personal address gets read but does not
+survive him; a project alias survives but needs setting up. GitHub issues stay
+the channel for anyone who prefers them, and the footer should offer both.
+
 ---
 
 ## 15. Environment note — where scikit-learn actually is
