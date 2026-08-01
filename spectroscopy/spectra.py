@@ -33,6 +33,7 @@ Todo:
 """
 
 # pylint: disable=W0511, W0107
+import copy
 import os
 
 import numpy as np
@@ -114,7 +115,14 @@ class Spectrum:
             self.y_label     = other.y_label
             self.x      = np.copy(other.x)
             self.y      = np.copy(other.y)
-            self.metadata    = other.metadata
+            # deepcopy, not a bare assignment: this constructor is what every
+            # arithmetic operator uses to build its result, so sharing the dict
+            # meant `avg = (a+b)/2; avg.metadata['sample'] = "avg"` silently
+            # renamed a as well (defect D2). Deep rather than shallow because
+            # values can be containers -- e.g. metadata['file_header'] from the
+            # .dpt reader -- and because this branch is documented above as
+            # "a deepcopy of the original".
+            self.metadata    = copy.deepcopy(other.metadata)
 
         elif isinstance(args[0], str ) :
             # This is the open method - initialize from a file

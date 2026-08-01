@@ -527,6 +527,39 @@ Phase 0.5 actions: add `LICENSE` (MPL-2.0 full text), `license = "MPL-2.0"` in `
 the standard MPL header comment in each source file, and **fix the `ABOUT` string in
 `messages.py`**, which currently asserts GPL v3 and also reads "Copyright (C) 2023-2924".
 
+### 5.6 Dependency policy: numpy-native core, pandas at arm's length
+
+**Settled: scikit-learn is an optional extra; pandas is not a dependency at all.**
+
+```toml
+dependencies  = ["numpy", "scipy", "matplotlib"]
+[multivariate] = ["scikit-learn"]      # Phase 4 PCA/NMF/ICA only
+```
+
+The pandas half of this is a design decision, not just a packaging one, and it **resolves an
+open question from Roadmap §2.5**. That section left `PeakTable`/`FitResult` as "lightweight
+dataclasses *or* DataFrames" and sketched `to_dataframe()` on both `Spectrum` and
+`SpectrumCollection`. The concern raised — *"if we use it it will get everywhere"* — is correct
+and worth taking seriously: a DataFrame return type is contagious, because every caller then
+needs pandas to do anything with the result, and pandas' API surface starts leaking into
+docstrings, tests and tutorials.
+
+So the rule for Phase 1 onward:
+
+- **Core returns numpy arrays and dataclasses.** `PeakTable` and `FitResult` are dataclasses
+  over numpy arrays, not DataFrames. `SpectrumCollection.to_matrix()` returns
+  `(wavenumbers, X)` as plain arrays — which is exactly what scikit-learn wants anyway.
+- **`to_dataframe()` survives as an explicit escape hatch**, on `Spectrum`, `SpectrumCollection`
+  and `PeakTable`, importing pandas *inside the method*. If you never call it, you never need
+  pandas installed.
+- Nothing in `core`, `io` or `processing` may import pandas at module scope. Worth a lint rule
+  or an AST test like the io/core layering check already in `tests/test_packaging.py`.
+
+This costs one thing worth naming: the CK notebooks build their component-contribution tables in
+pandas and run ANOVA/Tukey off them, so the Phase 4 statistics helpers will hand back arrays plus
+a `to_dataframe()`, and those notebooks keep their own `import pandas` — which is the right place
+for it, since that is analysis-specific rather than library behaviour.
+
 ---
 
 ## 6. Phase 0 — Status (done, branch `phase0-foundations`)
@@ -650,19 +683,52 @@ Making `'dpt'` reachable turned a latent bug into a live one, so both had to lan
   destroyed the target file before raising. There is a regression test that writes real content
   to a file, attempts an invalid save, and asserts the content survived.
 
-### 7.4 Status of the review's defect list
+### 7.4 D2 fixed — and no saved output was corrupted
+
+The copy constructor now does `copy.deepcopy(other.metadata)` instead of a bare assignment. Deep
+rather than shallow because metadata values can be containers — `metadata['file_header']` from
+the new `.dpt` reader is a list — and because the constructor's own docstring already promised
+*"a deepcopy of the original"*. The code simply never did it.
+
+Because every arithmetic operator builds its result through this constructor, one line fixes all
+of them; there is a parametrised test over `+ - * /`, the scalar forms, `__rsub__` and `__neg__`.
+
+**Did this corrupt real results?** Worth answering rather than assuming, so I replayed the exact
+metadata sequences from the affected notebooks under both semantics and diffed them:
+
+| notebook | saved outputs | in-memory source labels |
+|---|---|---|
+| `FTIR_sugars` | **identical** — every `savetxt` filename correct | **corrupted**: `spectra[0]` `PG_coli2`→`PG_coli`, `spectra[17]` `Alginate`→`NaAlginate` |
+| `Biofilm_CK` | **identical** — filenames passed explicitly | all 8 averages shared *one* dict (the water spectrum's) |
+| `Membrane_Analysis` | **identical** — sources were inline temporaries | n/a |
+
+So the conclusion is reassuring but narrowly so: **no figure or exported file is wrong.** In
+FTIR_sugars the two corrupted labels were overwritten only *after* the last time they were read —
+the alginate-filtering cell (`if spectrum.metadata['sample'] == "Alginate"`) runs earlier in the
+notebook and saw the correct values, verified by counting matches both ways. That is luck of
+cell ordering, not safety by design.
+
+Biofilm_CK is the clearer warning. Its `Average()` helper starts each result from
+`H2O_average * WFactor`, so under the old semantics **all eight sample averages shared a single
+metadata dict**. Nothing broke only because that function never writes to metadata — it takes the
+output filename as an argument. One `Sample1_av.metadata['sample'] = ...` would have silently
+relabelled all eight.
+
+### 7.5 Status of the review's defect list
 
 | | | |
 |---|---|---|
 | D1 | `.dpt` loses first point / can't read comma files | **fixed** |
+| D2 | metadata aliasing on arithmetic | **fixed** |
 | D5 | dispatch tables disagree; silent truncation | **fixed** |
-| D2 | metadata aliasing on arithmetic | open — `xfail(strict)` in place |
 | D4 | `.spy` doesn't round-trip name/labels | open — Phase 2 |
 | D3 | no axis compatibility checking | open — Phase 1 |
 | D6 | `subtract_reference` tuple bug + PEP 701 f-strings | open — also gates `requires-python` back to 3.10 |
 | D7 | assorted minor (incl. `baseline('RB')` needing a dummy arg) | open — Phase 1 |
 
-Suite is 48 passed / 2 xfailed.
+Suite is 59 passed / 1 xfailed. **Phase 0.5 is complete** except for D6, which is bundled with
+the Phase 1 rewrite of `subtract_reference` (it needs a scale-factor argument anyway, per
+friction item #7).
 
 ---
 

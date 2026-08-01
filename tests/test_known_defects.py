@@ -65,11 +65,11 @@ def test_dpt_reading_via_tsv_still_loses_a_point(dpt_file):
 
 
 # --------------------------------------------------------------------------
-# D2 -- arithmetic results alias the left operand's metadata dict
+# D2 -- FIXED in Phase 0.5: copies no longer alias the source metadata
 # --------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D2: fixed in Phase 0.5 by copying metadata")
 def test_arithmetic_does_not_alias_metadata():
+    """The idiom from FTIR_sugars / Membrane_Analysis / Biofilm_CK."""
     left = _spectrum([1, 2, 3], [1, 1, 1])
     right = _spectrum([1, 2, 3], [2, 2, 2])
     left.set_sample("original")
@@ -78,17 +78,72 @@ def test_arithmetic_does_not_alias_metadata():
     average.metadata["sample"] = "average"
 
     assert left.metadata["sample"] == "original"
+    assert average.metadata is not left.metadata
 
 
-def test_arithmetic_currently_aliases_metadata():
+def test_explicit_copy_does_not_alias_metadata():
+    original = _spectrum([1, 2, 3], [1, 1, 1])
+    original.set_sample("original")
+
+    duplicate = Spectrum(original)
+    duplicate.metadata["sample"] = "duplicate"
+
+    assert original.metadata["sample"] == "original"
+
+
+def test_copy_is_deep_so_nested_values_are_independent():
+    """
+    metadata values can be containers -- the .dpt reader stores the '#' header
+    block as a list -- so a shallow copy would still share them.
+    """
+    original = _spectrum([1, 2, 3], [1, 1, 1])
+    original.metadata["file_header"] = ["#\tSample\t\tbuffer"]
+
+    duplicate = Spectrum(original)
+    duplicate.metadata["file_header"].append("#\tOperator\tsomeone else")
+
+    assert original.metadata["file_header"] == ["#\tSample\t\tbuffer"]
+
+
+@pytest.mark.parametrize("operation", [
+    lambda a, b: a + b,
+    lambda a, b: a - b,
+    lambda a, b: a * b,
+    lambda a, b: a / b,
+    lambda a, b: a + 1.0,
+    lambda a, b: a * 2.0,
+    lambda a, b: 1.0 - a,
+    lambda a, b: -a,
+])
+def test_every_operator_returns_independent_metadata(operation):
     left = _spectrum([1, 2, 3], [1, 1, 1])
     right = _spectrum([1, 2, 3], [2, 2, 2])
     left.set_sample("original")
 
-    average = (left + right) / 2.0
-    assert average.metadata is left.metadata
-    average.metadata["sample"] = "average"
-    assert left.metadata["sample"] == "average"      # <- the bug
+    result = operation(left, right)
+    result.metadata["sample"] = "changed"
+
+    assert left.metadata["sample"] == "original"
+
+
+def test_accumulate_in_a_loop_keeps_sources_clean():
+    """
+    The averaging pattern from Biofilm_CK: `acc = a - a; acc += s/n`, where
+    every step went through the copy constructor and so shared one dict.
+    """
+    sources = []
+    for index in range(4):
+        spec = _spectrum([1, 2, 3], [index, index, index])
+        spec.set_sample(f"sample_{index}")
+        sources.append(spec)
+
+    accumulator = sources[0] - sources[0]
+    for spec in sources:
+        accumulator += spec / len(sources)
+    accumulator.metadata["sample"] = "mean"
+
+    assert [s.metadata["sample"] for s in sources] == \
+        ["sample_0", "sample_1", "sample_2", "sample_3"]
 
 
 # --------------------------------------------------------------------------
