@@ -266,8 +266,13 @@ class SpectrumCollection(Sequence):
             })
         raise ValueError("orientation must be 'wide' or 'long'")
 
-    def plot(self, ax, *args, **kwargs):
-        """Plot every spectrum on one axes."""
-        for spectrum in self._spectra:
-            spectrum.plot(ax, *args, **kwargs)
-        return ax
+    def plot(self, ax=None, **kwargs):
+        """
+        Overlay every spectrum on one axes, with a legend.
+
+        See also :func:`spectroscopy.viz.stack` for offset traces and
+        :func:`spectroscopy.viz.grid` for one panel per sample, which read
+        better than an overlay past a handful of spectra.
+        """
+        from spectroscopy import viz  # pylint: disable=C0415
+        return viz.plot_collection(self, ax, **kwargs)

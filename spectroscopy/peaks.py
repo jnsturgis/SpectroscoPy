@@ -116,17 +116,12 @@ class PeakTable:
             columns['width'] = self.width
         return pd.DataFrame(columns)
 
-    def annotate(self, ax, *, fmt="{:.0f}", offset=0.0, rotation=270,
-                 marker="ro", markersize=4, fontsize=8, label_peaks=True):
+    def annotate(self, ax, **kwargs):
         """
         Mark and label these peaks on a matplotlib axes.
 
-        Replaces the six-line annotate loop copy-pasted into ~10 notebooks.
+        Delegates to :func:`spectroscopy.viz.annotate_peaks`; replaces the
+        six-line label loop copy-pasted into about ten notebooks.
         """
-        ax.plot(self.position, self.height, marker, ms=markersize)
-        if label_peaks:
-            for position, height in zip(self.position, self.height):
-                ax.text(position, height + offset, fmt.format(position),
-                        ha='center', va='bottom', fontsize=fontsize,
-                        rotation=rotation)
-        return ax
+        from spectroscopy import viz  # pylint: disable=C0415
+        return viz.annotate_peaks(ax, self, **kwargs)

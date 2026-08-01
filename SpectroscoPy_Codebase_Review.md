@@ -1083,7 +1083,67 @@ you ever build synthetic mixtures to test something.
 
 ---
 
-## 12. Environment note — where scikit-learn actually is
+## 12. Phase 4b — the `viz` module (done)
+
+234 tests. `Spectrum.plot` no longer puts matplotlib inside the data model — **crossing C2 is
+closed**, with an AST test asserting no core module imports matplotlib at module scope.
+`Spectrum.plot(ax)`, `collection.plot(ax)` and `peaks.annotate(ax)` all still work; they
+delegate.
+
+What is in it is what the notebooks draw by hand, repeatedly:
+
+| function | replaces |
+|---|---|
+| `plot` | `ax.plot(...)` + `set_xlabel` + `set_xlim((1800, 900))` in every figure cell |
+| `plot_collection` | the overlay-with-legend loop |
+| `stack` | the offset-trace figure, e.g. Figure S5 panel A with its hand-typed `shifts` list |
+| `grid` | the "one panel per sample" overview at the top of most notebooks |
+| `annotate_peaks` | the six-line label loop, in ~10 notebooks |
+| `annotate_bands` | the `{1650: "Amide I", …}` assignment figure from the Chloé notebook |
+| `plot_baseline` | spectrum + baseline + corrected, worth looking at every time |
+| `plot_decomposition` | the NMF three-panel figure built by hand in Biofilm_CK |
+| `plot_scores` | the PCA/NMF scores scatter with sample labels |
+
+### 12.1 The palette was validated, not chosen by eye
+
+The default cycle is the six chromatic Okabe–Ito colours — the standard CVD-safe qualitative set
+in scientific publishing — **ordered** so adjacent pairs stay separated under deuteranopia. Run
+through a palette validator:
+
+```
+lightness band       PASS
+chroma floor         PASS
+CVD separation       PASS   worst adjacent pair ΔE 9.6 (deutan)
+normal-vision floor  PASS   worst adjacent pair ΔE 20.0
+contrast vs white    WARN   three hues below 3:1
+```
+
+The ordering matters: the obvious sequence puts pink next to green at ΔE 7.6, below the
+threshold. Okabe–Ito's yellow and black are excluded — the yellow is too light against white,
+the black has no chroma. The contrast warning is why a legend is always drawn for ≥2 series and
+why `stack` direct-labels its traces: identity never rests on colour alone. Beyond six series
+the colours repeat but the line style advances, so (colour, style) stays unique to 24 traces.
+
+### 12.2 ⚠️ Where the notebooks' magic peak-detection numbers come from
+
+Rendering a real figure turned up something worth knowing. With the default second-derivative
+method, `height` and `prominence` apply to **the second derivative**, not the spectrum — and on
+a spectrum normalised to 1.0 the second derivative spans about ±0.005. So:
+
+```python
+spectrum.find_peaks(prominence=0.02)     #  0 peaks -- looks sensible, finds nothing
+spectrum.find_peaks(prominence=0.0001)   # 24 peaks
+```
+
+That four-order-of-magnitude gap is where `height=0.00001, prominence=0.0001` in the notebooks
+comes from — arrived at empirically, with nothing recording why. There is now a
+`relative=True` option that interprets those thresholds as fractions of the detection signal's
+range, so `prominence=0.05` means the same thing whichever method is in use and whatever the
+spectrum is scaled by. The absolute form is unchanged, so existing numbers still work.
+
+---
+
+## 13. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 

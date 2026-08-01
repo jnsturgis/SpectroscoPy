@@ -249,3 +249,40 @@ def test_even_savgol_window_biases_peak_positions_by_half_a_sample():
     assert common._as_odd_at_least(10, 3) == 11
     assert common._as_odd_at_least(11, 3) == 11
     assert common._as_odd_at_least(2, 3) == 5
+
+
+def test_peak_thresholds_apply_to_the_detection_signal(synthetic):
+    """
+    A trap worth pinning: with the default method, height/prominence apply to
+    the *second derivative*, which is orders of magnitude smaller than the
+    spectrum. A value that looks sensible in spectrum units finds nothing.
+    This is where the unexplained small constants in the notebooks come from.
+    """
+    spec, _, _, _ = synthetic
+    corrected = spec.baseline_correct('rubberband').normalize('max')
+
+    assert len(corrected.find_peaks(prominence=0.02)) == 0        # spectrum units
+    assert len(corrected.find_peaks(prominence=1e-4)) > 0         # d2 units
+
+
+def test_relative_thresholds_are_scale_free(synthetic):
+    """relative=True means 'a fraction of the detection signal's range'."""
+    spec, _, _, _ = synthetic
+    corrected = spec.baseline_correct('rubberband').normalize('max')
+
+    assert len(corrected.find_peaks(prominence=0.02, relative=True)) > 0
+
+    # Fewer peaks as the bar rises, and the same answer whatever the spectrum
+    # is scaled by -- which is the point of it being relative.
+    loose = len(corrected.find_peaks(prominence=0.02, relative=True))
+    strict = len(corrected.find_peaks(prominence=0.30, relative=True))
+    assert strict < loose
+
+    scaled = corrected * 1000.0
+    assert len(scaled.find_peaks(prominence=0.02, relative=True)) == loose
+
+
+def test_relative_works_for_direct_detection_too(synthetic):
+    spec, _, _, _ = synthetic
+    found = spec.find_peaks(method='direct', prominence=0.1, relative=True)
+    assert len(found) > 0

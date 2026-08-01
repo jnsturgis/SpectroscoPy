@@ -304,8 +304,13 @@ def normalize(x, y, method='max', window=None):
 # peak detection
 # ---------------------------------------------------------------------------
 
+#: find_peaks arguments that are a y-magnitude, and so need rescaling when
+#: thresholds are given relative to the signal.
+_MAGNITUDE_ARGUMENTS = ('height', 'prominence', 'threshold')
+
+
 def detect_peaks(x, y, method='second_derivative', *, troughs=False,
-                 window_length=11, polyorder=3, **kwargs):
+                 window_length=11, polyorder=3, relative=False, **kwargs):
     """
     Locate peaks and return ``(indices, properties)``.
 
@@ -317,6 +322,21 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=False,
     ``troughs=True`` finds minima instead. Extra keyword arguments go straight
     to :func:`scipy.signal.find_peaks` (``height``, ``distance``,
     ``prominence``, ``width`` ...).
+
+    Parameters
+    ----------
+    relative : bool
+        Interpret ``height``, ``prominence`` and ``threshold`` as fractions of
+        the detection signal's range rather than as absolute values.
+
+        Worth knowing about: with the default method those thresholds apply to
+        the *second derivative*, whose magnitude is typically four orders
+        smaller than the spectrum. On a spectrum normalised to 1.0 the second
+        derivative spans about +/-0.005, so ``prominence=0.02`` -- a reasonable
+        guess in spectrum units -- silently finds nothing, while the value that
+        works is ``0.0001``. That is where the unexplained small constants in
+        the notebooks come from. With ``relative=True``, ``prominence=0.02``
+        means 2% of the detection signal's range whichever method is in use.
     """
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
@@ -334,6 +354,13 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=False,
 
     if troughs:
         signal = -signal
+
+    if relative:
+        span = float(np.nanmax(signal) - np.nanmin(signal))
+        kwargs = {key: (np.asarray(value) * span
+                        if key in _MAGNITUDE_ARGUMENTS and value is not None
+                        else value)
+                  for key, value in kwargs.items()}
 
     indices, properties = _find_peaks(signal, **kwargs)
     return indices, properties

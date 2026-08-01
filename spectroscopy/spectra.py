@@ -675,7 +675,7 @@ class Spectrum:
         )
 
     def find_peaks(self, method='second_derivative', *, troughs=False,
-                   **kwargs) -> PeakTable:
+                   relative=False, **kwargs) -> PeakTable:
         """
         Detect peaks and return a :class:`~spectroscopy.peaks.PeakTable`.
 
@@ -687,9 +687,16 @@ class Spectrum:
         Unlike the old :meth:`peaks` stub, the result is a return value rather
         than something written into ``metadata``: analysis results and
         acquisition facts do not belong in the same dictionary.
+
+        Note that ``height``/``prominence`` apply to the *detection signal*,
+        which for the default method is the second derivative and so is orders
+        of magnitude smaller than the spectrum. Pass ``relative=True`` to give
+        them as fractions of that signal's range instead -- see
+        :func:`spectroscopy.processing.common.detect_peaks`.
         """
         indices, properties = common.detect_peaks(
-            self.x, self.y, method=method, troughs=troughs, **kwargs)
+            self.x, self.y, method=method, troughs=troughs,
+            relative=relative, **kwargs)
         return PeakTable(
             position=self.x[indices],
             height=self.y[indices],
@@ -708,25 +715,19 @@ class Spectrum:
 #
 ##=============================================================================
 
-    def plot(self, ax, *args, label=None, apply_labels=True, **kwargs):
+    def plot(self, ax=None, *args, **kwargs):
         """
         Plot on a matplotlib axes.
 
-        Also sets the axis labels from this spectrum's own quantity and unit,
-        and reverses the x axis for techniques conventionally drawn high-to-low
-        (FTIR, Raman) -- the two lines typed by hand in every figure cell in
-        the notebooks. Pass ``apply_labels=False`` to suppress that.
+        A thin delegator to :func:`spectroscopy.viz.plot`, which sets the axis
+        labels from this spectrum and reverses x for the techniques that are
+        quoted high-to-low. Keeping the drawing in the viz layer is review
+        crossing C2; ``ax`` stays first and optional so existing notebook calls
+        (``spectrum.plot(ax)``) are unchanged.
         """
-        lines = ax.plot(self.x, self.y, *args,
-                        label=self.name if label is None else label, **kwargs)
-        if apply_labels:
-            ax.set_xlabel(self.x_label)
-            ax.set_ylabel(self.y_label)
-            if self.reversed_x and not ax.xaxis_inverted():
-                ax.invert_xaxis()
-        return lines
+        from spectroscopy import viz  # pylint: disable=C0415
+        return viz.plot(self, ax, *args, **kwargs)
 
-##=============================================================================
 ##=============================================================================
 #
 #   Resampling
