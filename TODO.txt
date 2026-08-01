@@ -1,8 +1,9 @@
 # Next steps
 
-1. Make a .spy file format to load and save the spectra this should probably be
-   json, xml style human readable and csv compatible.
+1. Test the first version of the .spy file format to load and save the spectra.
 2. Top down programming for notebook readability for fitting
+  * Peak table from a spectrum
+  * Smoothing a spectrum: Savitsky-Golay smoothing
   * Background subtraction
   * Add metadata
   * Multicomponent spectral analysis (decomposition)
@@ -24,5 +25,4 @@ Edit SpectroscoPy
 * Handle csv formats (version 1.0 OK)
 
 Add multicomponent fitting of spectra
-Add Savitsky-Golay smoothing
 Add compatibility tests and adjustments

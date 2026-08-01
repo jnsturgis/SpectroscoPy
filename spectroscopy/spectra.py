@@ -1,4 +1,4 @@
-""" Spectra structure to hold a spectrum and associated metadata
+"""Spectra structure to hold a spectrum and associated metadata.
 
 The spectrum structure
 The metadata associated with the spectrum and default values:
@@ -17,9 +17,11 @@ information on the acquisition parameters.
 Treatment metadata - is it interesting to have the history? Certainly not
 for the moment.
 
-TODO:
+Todo:
     Should define functions for jcamp required info and use it.
     Should make sanity checks and die gracefully
+
+-------------------------------------------------------------
 
 """
 
@@ -29,6 +31,9 @@ import os
 import numpy as np
 
 from formats import jcamp, csv, spy
+from scipy.signal import savgol_filter, find_peaks
+from scipy.interpolate import CubicSpline
+from scipy.spatial import ConvexHull
 
 import spectroscopy.messages
 
@@ -47,20 +52,17 @@ KNOWNSPECTYPES = {
 }
 
 def _infer_file_type( name ):
-    """
-    Work out if possible from the file extension the possible file types.
-    """
+    """Work out if possible from the file extension the possible file types."""
     name, ext = os.path.splitext(name)
     if ext in FILE_EXTS:
         return FILE_EXTS[ext]
     return 'unknown'
 
 class Spectrum:
-    """
-    A class for spectra
-    """
+    """A class for spectra."""
+
     def __init__(self, *args):
-        """ Initialize a Spectrum object
+        """Initialize a Spectrum object.
 
         Simulate overloading the different possitilities for initializing
         a spectrum:
@@ -76,7 +78,6 @@ class Spectrum:
         Spectrum( filename, filetype ) : a file where filetype can be from
                  ('jcamp','csv')
         Spectrum( a_spectrum )         : a deepcopy of the original
-
         """
 
         if len(args) == 0 :
@@ -162,7 +163,7 @@ class Spectrum:
 
     def __add__(self, other):
         # Check that self and other are compatible x and y ranges and scales
-        # And copy almost all of self to new
+        # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
             # Resample data if necessary
@@ -178,7 +179,7 @@ class Spectrum:
 
     def __sub__(self, other ):
         # Check that self and other are compatible x and y ranges and scales
-        # And copy almost all of self to new
+        # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
             new_spectrum.y_data = self.y_data - other.y_data
@@ -204,7 +205,7 @@ class Spectrum:
 
     def __mul__(self, other):
         # Check that self and other are compatible x and y ranges and scales
-        # And copy almost all of self to new
+        # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
             new_spectrum.y_data = self.y_data * other.y_data
@@ -219,7 +220,7 @@ class Spectrum:
 
     def __truediv__(self, other):
         # Check that self and other are compatible x and y ranges and scales
-        # And copy almost all of self to new
+        # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
             new_spectrum.y_data = self.y_data / other.y_data
@@ -274,11 +275,80 @@ class Spectrum:
 ##=============================================================================
 
 #   smooth( method_name, parameteres)
+    def smooth( self, method, parameters ):
+        """
+        Return a smoothed version of the spectrum
+
+        Parameters
+        ----------
+        method : the smoothing method used, currently recognised are
+                 'SG' : Savitsky Golay
+        parameters : the parameters for the smoothing method
+                 'SG' : (order, n_points)
+
+        Returns
+        -------
+        Spectrum
+            A new spectrum containing the same x_values and new calculated
+            y_values
+        """
+        match method :
+            case 'SG':
+                result = Spectrum()
+                result.name    = self.name + ' smooth'
+                result.x_label = self.x_label
+                result.y_label = self.y_label
+                result.x_data  = self.x_data
+                result.y_data  = savgol_filter( self.y_data,
+                    parameters[1], parameters[0])
+            case _:
+                raise ValueError(f'Unknown smoothing method {method} try "SG".')
+        return result
+
 #   derivative( method_name, parameters )
-#   clip( x_range )
 #   convert( new_label )
-#   peaks( method, parameters )
-    def resample( self, x_values, **kwargs ):
+
+    def peaks( self, parameters ):
+        """Identify peaks in the spectrum.
+
+        This the parameter list includes the following elements.
+        1. A list of elements for peak detection: height, distance and
+           prominence, if height is negative then troughs will be detected.
+        2. An optional list of elements for derivative calculation using
+           the savgol_filter method: points, order and derivative.
+
+        The resulting peak list is stored in the metadata as "peaks" or
+        "troughs" according to the sign of the height element.
+        """
+        # # Check Parameters
+        # use_deriv = False
+        #
+        # # Calculate derivative or use normal
+        # y_data = self.y_data
+        # if use_deriv:
+        #     y_data = -savgol_filter( y_data, *parameters[1], deriv=2)
+        # # Check for troughs or peaks
+        # is_troughs = parameters[0][0] < 0.0
+        # if is_troughs:
+        #     my_height = abs(parameters[0][0])
+        #     y_data = -y_data
+        # peaks, props = find_peaks(y_data, height=my_height,
+        #     distance=my_distance, prominence=my_prominence)
+        # # Calculate list
+        # px = self.x_data[peaks]
+        # py = self.y_data[peaks]
+        # # Save in metadata
+
+        pass
+
+    def clip( self, region ):
+        """
+        Clip a spectrum to only include points for which region is true.
+        """
+        self.x_data = self.x_data[region]
+        self.y_data = self.y_data[region]
+
+    def resample( self, x_values ):
         """
         Change the position of the spectrum points
 
@@ -294,26 +364,24 @@ class Spectrum:
         ----------
         x_values : numpy array of float.
             New x values at which to estimate the spectrum points.
-        **kwargs : dictionary of optional arguments
-            Information for the different possible methods to use for the
-            estimation.
 
         Returns
         -------
         Spectrum
             A new spectrum containing the provided x_values and calculated
-            y_values.
+            y_values using a cubic spline interpolation and extrapolation.
         """
+        cs = CubicSpline( self.x_data, self.y_data )
         result = Spectrum()
         result.name    = self.name + ' baseline'
         result.x_label = self.x_label
         result.y_label = self.y_label
         result.x_data  = x_values
-        result.y_data = np.zeros(len(x_values))
+        result.y_data  = cs(x_values)
 
         return result
 
-    def baseline(self, **kwargs ):
+    def baseline(self, method, parameters ):
         """
         Create a baseline spectrum
 
@@ -322,20 +390,64 @@ class Spectrum:
 
         Parameters
         ----------
-        **kwargs : a dictionary of optional parameters.
+        method : the method used, currently recognised are
+                 'POLY' : a polynomial equation
+        parameters : the parameters for the smoothing method
+                 'POLY' : an array of polynomial coefficients [a, b] for ax + b
+                          or [a, b, c] for ax^2 + bx + c etc... any order
 
         Returns
         -------
         Spectrum
             returns a baseline spectrum constructed using the defined method
-            and control points at x_values defined by the current spectrum.
+            and the x_values defined by the current spectrum.
         """
-        result = Spectrum()
-        result.name    = self.name + ' baseline'
-        result.x_label = self.x_label
-        result.y_label = self.y_label
-        result.x_data  = self.x_data
+        match method :
+            case 'POLY':
+                result = Spectrum()
+                result.name    = self.name + ' baseline'
+                result.x_label = self.x_label
+                result.y_label = self.y_label
+                result.x_data  = self.x_data
+                result.y_data  = np.zeros( len(self.x_data) )
+                for coef in parameters:
+                    result.y_data = result.y_data * self.x_data + coef
+            case 'RB':
+                result = Spectrum()
+                result.x_data = self.x_data
+                pts = np.column_stack((self.x_data, self.y_data))
+                # convex hull
+                hull = ConvexHull(pts)
+                hv = hull.vertices  # indices in CCW order
 
+                # find positions of leftmost and rightmost points in the hull vertex list
+                pos_l = np.where(hv == np.argmin(self.x_data))[0][0]
+                pos_r = np.where(hv == np.argmax(self.x_data))[0][0]
+
+                # two possible hull arcs connecting left<->right (one is upper, one lower)
+                if pos_l < pos_r:
+                    arc1 = hv[pos_l : pos_r + 1]
+                    arc2 = np.concatenate((hv[pos_r:], hv[: pos_l + 1]))
+                else:
+                    arc1 = hv[pos_r : pos_l + 1]
+                    arc2 = np.concatenate((hv[pos_l:], hv[: pos_r + 1]))
+
+                # choose the arc with the lower mean y (lower envelope)
+                if np.mean(self.y_data[arc1]) < np.mean(self.y_data[arc2]):
+                    lower_arc = arc1
+                else:
+                    lower_arc = arc2
+
+                # ensure the arc points are sorted by x for interpolation and remove duplicate x
+                order = np.argsort(self.x_data[lower_arc])
+                lower_arc = lower_arc[order]
+                xu, iu = np.unique(self.x_data[lower_arc], return_index=True)
+                yu = self.y_data[lower_arc][iu]
+
+                result.y_data = np.interp(result.x_data, xu, yu)
+
+            case _:
+                raise ValueError(f'Unknown smoothing method {method} try "POLY".')
         return result
 
 ##=============================================================================
