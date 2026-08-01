@@ -25,7 +25,8 @@ from __future__ import annotations
 import os
 
 __all__ = ['available', 'describe', 'path', 'load', 'load_pair',
-           'ftir_replicates', 'replicate_directory', 'DATASETS']
+           'ftir_replicates', 'replicate_directory', 'emission_series',
+           'DATASETS']
 
 #: name -> (relative path, technique, one-line description)
 DATASETS = {
@@ -147,6 +148,37 @@ def ftir_replicates():
 
     return SpectrumCollection.from_files(
         os.path.join(replicate_directory(), '*.dpt'), technique='ATR-FTIR')
+
+
+def emission_series():
+    """
+    A fluorescence excitation-emission series: 18 emission spectra, one per
+    excitation wavelength from 290 to 455 nm.
+
+    Recorded by Chloe (Sturgis group) on a candidate flavoprotein, and used
+    with permission. The file is a wide export with paired (wavelength,
+    intensity) columns, which is what makes it a good demonstration of the
+    generic table reader.
+
+    Returns
+    -------
+    SpectrumCollection
+    """
+    from spectroscopy.io import read_spectra                # pylint: disable=C0415
+
+    path_ = os.path.join(_root(), 'fluorescence', 'J_Peri.csv')
+    if not os.path.exists(path_):
+        raise FileNotFoundError(f"Example emission series is missing ({path_})")
+
+    series = read_spectra(path_, 'table', paired=True)
+    wanted = [s for s in series if '_EX_' in s.name]
+    for spectrum in wanted:
+        spectrum.set_type('Fluorescence')
+        spectrum.metadata['excitation_nm'] = float(
+            spectrum.name.rsplit('_', 1)[-1])
+        spectrum.name = f"ex {spectrum.metadata['excitation_nm']:.0f} nm"
+    from spectroscopy.collection import SpectrumCollection   # pylint: disable=C0415
+    return SpectrumCollection(wanted, name='J-peri emission series')
 
 
 def load_pair():

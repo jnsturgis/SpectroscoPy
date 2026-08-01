@@ -14,11 +14,9 @@ the `.ipynb` and edit it directly.
 atr-ftir
 uv-vis
 raman
+fluorescence
 ```
 
 ## Planned
-
-- **Fluorescence** — emission series, excitation-emission maps, and the
-  absorptance-versus-excitation comparison for transfer efficiency.
 - **Multivariate** — NMF across a sample series, choosing the number of
   components, and reading the contributions.
