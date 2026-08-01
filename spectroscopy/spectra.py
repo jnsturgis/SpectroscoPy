@@ -48,6 +48,14 @@ from spectroscopy.io import registry
 from spectroscopy.peaks import PeakTable
 from spectroscopy.processing import common
 
+#: The one name this module exports. Everything below -- the lookup tables, the
+#: label helper, the imports above -- is implementation. Without this list,
+#: ``from .spectra import *`` in the package __init__ re-exported all of it,
+#: including ``os``, ``copy``, ``np`` and ``CubicSpline``, which made
+#: ``spectroscopy.np`` a public name the 1.0 freeze would have promised to keep.
+#: See roadmap section 14.2.
+__all__ = ['Spectrum']
+
 
 #: Extension -> file type, and the set of known types. Both are now *derived*
 #: from the format registry rather than maintained here. There used to be four
