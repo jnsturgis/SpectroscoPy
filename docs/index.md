@@ -23,7 +23,9 @@ result = (spectra.group_by('sample')['PG_coli']
 peaks = result.find_peaks(prominence=0.05, relative=True)
 ```
 
-**New here? Start with [Getting started](getting-started.md).** It goes from
+**New here? Start with [Getting started](getting-started.md).** If you know what
+you want to find out but not how, try
+[What do you want to know?](what-do-you-want-to-know.md). It goes from
 `pip install` to a labelled figure, and assumes only that you can copy text
 into a terminal.
 
@@ -53,6 +55,7 @@ fluorescence.
 :hidden:
 
 getting-started
+what-do-you-want-to-know
 tutorials/index
 guide/index
 api
