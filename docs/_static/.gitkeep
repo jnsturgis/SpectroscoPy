@@ -1,0 +1,3 @@
+Keeps docs/_static/ in the repository: Sphinx's html_static_path
+points here, and an untracked empty directory fails the CI docs
+build with 'html_static_path entry _static does not exist'.
