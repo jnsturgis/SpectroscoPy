@@ -164,7 +164,7 @@ def emission_series():
     -------
     SpectrumCollection
     """
-    from spectroscopy.io import read_spectra                # pylint: disable=C0415
+    from spectroscopy.io import read_spectra  # pylint: disable=C0415
 
     path_ = os.path.join(_root(), 'fluorescence', 'J_Peri.csv')
     if not os.path.exists(path_):
@@ -177,7 +177,7 @@ def emission_series():
         spectrum.metadata['excitation_nm'] = float(
             spectrum.name.rsplit('_', 1)[-1])
         spectrum.name = f"ex {spectrum.metadata['excitation_nm']:.0f} nm"
-    from spectroscopy.collection import SpectrumCollection   # pylint: disable=C0415
+    from spectroscopy.collection import SpectrumCollection  # pylint: disable=C0415
     return SpectrumCollection(wanted, name='J-peri emission series')
 
 
