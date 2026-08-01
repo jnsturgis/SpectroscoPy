@@ -29,8 +29,8 @@ def dpt_file(tmp_path):
 
 def _spectrum(xs, ys):
     spec = Spectrum()
-    spec.x_data = np.asarray(xs, dtype=float)
-    spec.y_data = np.asarray(ys, dtype=float)
+    spec.x = np.asarray(xs, dtype=float)
+    spec.y = np.asarray(ys, dtype=float)
     return spec
 
 
@@ -42,16 +42,16 @@ def _spectrum(xs, ys):
 def test_dpt_keeps_all_points(dpt_file):
     path, xs = dpt_file
     spec = Spectrum(str(path.parent) + "/", path.name, "tsv")
-    assert len(spec.x_data) == len(xs)
-    assert spec.x_data[0] == xs[0]
+    assert len(spec.x) == len(xs)
+    assert spec.x[0] == xs[0]
 
 
 def test_dpt_currently_loses_first_point(dpt_file):
     """Pin the damage precisely, so the Phase 0.5 fix can be verified."""
     path, xs = dpt_file
     spec = Spectrum(str(path.parent) + "/", path.name, "tsv")
-    assert len(spec.x_data) == len(xs) - 1
-    assert spec.x_data[0] == xs[1]
+    assert len(spec.x) == len(xs) - 1
+    assert spec.x[0] == xs[1]
     # ... and the first data row was consumed as a header:
     assert spec.x_label == "1000.0"
     assert spec.y_label == "1.0000"
@@ -100,8 +100,8 @@ def test_differently_positioned_axes_are_silently_wrong():
     here = _spectrum([1000, 1001, 1002], [1, 1, 1])
     there = _spectrum([2000, 2001, 2002], [1, 1, 1])
     result = here + there
-    assert np.allclose(result.y_data, 2.0)              # no complaint at all
-    assert np.allclose(result.x_data, [1000, 1001, 1002])
+    assert np.allclose(result.y, 2.0)              # no complaint at all
+    assert np.allclose(result.x, [1000, 1001, 1002])
 
 
 # --------------------------------------------------------------------------
@@ -132,8 +132,8 @@ def test_spy_currently_round_trips_data_but_not_identity(tmp_path):
     back = Spectrum("", str(target), "spy")
 
     # data and metadata survive ...
-    assert np.allclose(back.x_data, spec.x_data)
-    assert np.allclose(back.y_data, spec.y_data)
+    assert np.allclose(back.x, spec.x)
+    assert np.allclose(back.y, spec.y)
     assert back.metadata == spec.metadata
     # ... identity does not
     assert back.name != "MySpectrum"

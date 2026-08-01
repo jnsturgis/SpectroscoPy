@@ -208,8 +208,8 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
     """
     my_spectrum = Spectrum()
     count = int(abs(wn_info[1]-wn_info[0])/wn_info[2]+1)
-    my_spectrum.x_data = np.linspace(wn_info[0], wn_info[1], count)
-    my_spectrum.y_data = np.zeros(count)
+    my_spectrum.x = np.linspace(wn_info[0], wn_info[1], count)
+    my_spectrum.y = np.zeros(count)
     my_spectrum.name = resid
     my_spectrum.x_label = 'Wavenumber (cm$^{-1}$)'
     my_spectrum.y_label = 'Absorbance'
@@ -233,8 +233,8 @@ def calc_resid_spectrum(resid, ph:float, d2o: bool, wn_info ):
 
     weights = np.concatenate(( h_weights * int(not d2o), d_weights * int(d2o)))
     for weight, component in zip(weights, data[COMP]):
-        my_spectrum.y_data = my_spectrum.y_data + \
-                    weight * lineshapes.spec_comp(my_spectrum.x_data, component[FREQ],
+        my_spectrum.y = my_spectrum.y + \
+                    weight * lineshapes.spec_comp(my_spectrum.x, component[FREQ],
                         component[FWHH], component[INTE], component[FG])
     return my_spectrum
 
@@ -283,8 +283,8 @@ def ftir_sidechain(sequence, wn_range=(LOW_FREQ, HIGH_FREQ), **kwargs ):
     composition = get_composition(sequence)
     sum_spectrum = Spectrum()
     count = int(abs(wn_range[1]-wn_range[0])/res+1)
-    sum_spectrum.x_data  = np.linspace(wn_range[0], wn_range[1], count)
-    sum_spectrum.y_data  = np.zeros(count)
+    sum_spectrum.x  = np.linspace(wn_range[0], wn_range[1], count)
+    sum_spectrum.y  = np.zeros(count)
     sum_spectrum.sum     = 'Sum'
     sum_spectrum.x_label = 'Wavenumber (cm$^{-1}$)'
     sum_spectrum.y_label = 'Absorbance'

@@ -22,3 +22,6 @@ htmlcov/
 # Environments
 .venv/
 venv/
+
+# Migration script backups (git already has the history)
+*.bak

@@ -302,8 +302,8 @@ def read(file, my_spectrum ) -> None:
     if len(x) != len(y):
         raise SyntaxError(f"Mismatch of array lengths: x has {len(x)} and y {len(y)} values.")
 
-    my_spectrum.x_data   = x
-    my_spectrum.y_data   = y
+    my_spectrum.x   = x
+    my_spectrum.y   = y
     my_spectrum.name     = jcamp_dict['title']
     # TODO do a better job with x_label
     my_spectrum.x_label  = f"Wavenumber ({jcamp_dict['xunits'].lower()})"

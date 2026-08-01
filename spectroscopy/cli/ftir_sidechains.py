@@ -76,7 +76,7 @@ def _plot_components(sequence, args, kwargs, sum_spectrum):
         resid_spectrum = calc_resid_spectrum(residue[0],
             options.get("pH"), options.get("D2O"),
             (args.wn_range[0], args.wn_range[1], options.get("res"))) * residue[1]
-        if np.any(resid_spectrum.y_data):
+        if np.any(resid_spectrum.y):
             components.append(resid_spectrum)
 
     fig, ax = plt.subplots()

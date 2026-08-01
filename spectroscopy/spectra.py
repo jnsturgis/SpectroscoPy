@@ -11,8 +11,12 @@ filename the name of the file the spectrum came from.
 x_labels a list of 2 tuples giving (label, units) for each x dimension.
 y_label  a 2 tuple describing the y data (name, units)
 
-x_data   a numpy array of x values ordered along all axes
-y_data   a numpy array of y values at positions given by the x values
+x        a numpy array of x values ordered along all axes
+y        a numpy array of y values at positions given by the x values
+
+         Renamed from x_data/y_data in 0.1 (roadmap section 2.5). They are
+         plain attributes for now; Phase 1 makes them properties so that the
+         backing store can change without breaking callers.
 
 Acquisition metadata - for original untreated data it is interesting to have
 information on the acquisition parameters.
@@ -88,8 +92,8 @@ class Spectrum:
             self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
             self.x_label     = 'Wavelength (nm)'
             self.y_label     = 'Absorbance'
-            self.x_data      = np.empty(1)
-            self.y_data      = np.empty(1)
+            self.x      = np.empty(1)
+            self.y      = np.empty(1)
             self.metadata    = {}
 
         elif isinstance(args[0], Spectrum ) :
@@ -99,8 +103,8 @@ class Spectrum:
             self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
             self.x_label     = other.x_label
             self.y_label     = other.y_label
-            self.x_data      = np.copy(other.x_data)
-            self.y_data      = np.copy(other.y_data)
+            self.x      = np.copy(other.x)
+            self.y      = np.copy(other.y)
             self.metadata    = other.metadata
 
         elif isinstance(args[0], str ) :
@@ -114,8 +118,8 @@ class Spectrum:
             self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
             self.x_label     = 'Wavelength (nm)'
             self.y_label     = 'Absorbance'
-            self.x_data      = np.empty(1)
-            self.y_data      = np.empty(1)
+            self.x      = np.empty(1)
+            self.y      = np.empty(1)
             self.metadata    = {}
 
             if len(args) == 3:
@@ -161,7 +165,7 @@ class Spectrum:
         pass
 
     def __len__(self) -> int:       # Length of object
-        return len(self.x_data)
+        return len(self.x)
 
     def __add__(self, other):
         # Check that self and other are compatible x and y ranges and scales
@@ -169,9 +173,9 @@ class Spectrum:
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
             # Resample data if necessary
-            new_spectrum.y_data = self.y_data + other.y_data
+            new_spectrum.y = self.y + other.y
         elif isinstance(other, int | float):
-            new_spectrum.y_data = self.y_data + other
+            new_spectrum.y = self.y + other
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -184,9 +188,9 @@ class Spectrum:
         # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
-            new_spectrum.y_data = self.y_data - other.y_data
+            new_spectrum.y = self.y - other.y
         elif isinstance(other, int | float):
-            new_spectrum.y_data = self.y_data - other
+            new_spectrum.y = self.y - other
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -194,7 +198,7 @@ class Spectrum:
     def __rsub__(self, other ):
         new_spectrum = Spectrum(self)
         if isinstance(other, int | float):
-            new_spectrum.y_data = other - self.y_data
+            new_spectrum.y = other - self.y
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -210,9 +214,9 @@ class Spectrum:
         # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
-            new_spectrum.y_data = self.y_data * other.y_data
+            new_spectrum.y = self.y * other.y
         elif isinstance(other, int | float):
-            new_spectrum.y_data = self.y_data * other
+            new_spectrum.y = self.y * other
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -225,9 +229,9 @@ class Spectrum:
         # And copy almost all self to new
         new_spectrum = Spectrum(self)
         if isinstance(other, Spectrum):
-            new_spectrum.y_data = self.y_data / other.y_data
+            new_spectrum.y = self.y / other.y
         elif isinstance(other, int | float):
-            new_spectrum.y_data = self.y_data / other
+            new_spectrum.y = self.y / other
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -235,7 +239,7 @@ class Spectrum:
     def __rtruediv__(self, other):
         new_spectrum = Spectrum(self)
         if isinstance(other, int | float):
-            new_spectrum.y_data = other / self.y_data
+            new_spectrum.y = other / self.y
         else:
             raise TypeError(spectroscopy.messages.SPEC_MATH_ERR)
         return new_spectrum
@@ -256,7 +260,7 @@ class Spectrum:
             self.metadata['reference'] = (f'{other.metadata['sample']} ',
                 f'+ {self.metadata['reference']} ',
                 f'- {other.metadata['reference']}')
-        self.y_data -= other.y_data
+        self.y -= other.y
 
 ##=============================================================================
 #
@@ -268,7 +272,7 @@ class Spectrum:
         """
         A routine to plot a spectrum on some matplotlib axes.
         """
-        ax.plot(self.x_data, self.y_data, *args)
+        ax.plot(self.x, self.y, *args)
 
 ##=============================================================================
 #
@@ -300,8 +304,8 @@ class Spectrum:
                 result.name    = self.name + ' smooth'
                 result.x_label = self.x_label
                 result.y_label = self.y_label
-                result.x_data  = self.x_data
-                result.y_data  = savgol_filter( self.y_data,
+                result.x  = self.x
+                result.y  = savgol_filter( self.y,
                     parameters[1], parameters[0])
             case _:
                 raise ValueError(f'Unknown smoothing method {method} try "SG".')
@@ -326,7 +330,7 @@ class Spectrum:
         # use_deriv = False
         #
         # # Calculate derivative or use normal
-        # y_data = self.y_data
+        # y_data = self.y
         # if use_deriv:
         #     y_data = -savgol_filter( y_data, *parameters[1], deriv=2)
         # # Check for troughs or peaks
@@ -337,8 +341,8 @@ class Spectrum:
         # peaks, props = find_peaks(y_data, height=my_height,
         #     distance=my_distance, prominence=my_prominence)
         # # Calculate list
-        # px = self.x_data[peaks]
-        # py = self.y_data[peaks]
+        # px = self.x[peaks]
+        # py = self.y[peaks]
         # # Save in metadata
 
         pass
@@ -347,8 +351,8 @@ class Spectrum:
         """
         Clip a spectrum to only include points for which region is true.
         """
-        self.x_data = self.x_data[region]
-        self.y_data = self.y_data[region]
+        self.x = self.x[region]
+        self.y = self.y[region]
 
     def resample( self, x_values ):
         """
@@ -373,13 +377,13 @@ class Spectrum:
             A new spectrum containing the provided x_values and calculated
             y_values using a cubic spline interpolation and extrapolation.
         """
-        cs = CubicSpline( self.x_data, self.y_data )
+        cs = CubicSpline( self.x, self.y )
         result = Spectrum()
         result.name    = self.name + ' baseline'
         result.x_label = self.x_label
         result.y_label = self.y_label
-        result.x_data  = x_values
-        result.y_data  = cs(x_values)
+        result.x  = x_values
+        result.y  = cs(x_values)
 
         return result
 
@@ -410,21 +414,21 @@ class Spectrum:
                 result.name    = self.name + ' baseline'
                 result.x_label = self.x_label
                 result.y_label = self.y_label
-                result.x_data  = self.x_data
-                result.y_data  = np.zeros( len(self.x_data) )
+                result.x  = self.x
+                result.y  = np.zeros( len(self.x) )
                 for coef in parameters:
-                    result.y_data = result.y_data * self.x_data + coef
+                    result.y = result.y * self.x + coef
             case 'RB':
                 result = Spectrum()
-                result.x_data = self.x_data
-                pts = np.column_stack((self.x_data, self.y_data))
+                result.x = self.x
+                pts = np.column_stack((self.x, self.y))
                 # convex hull
                 hull = ConvexHull(pts)
                 hv = hull.vertices  # indices in CCW order
 
                 # find positions of leftmost and rightmost points in the hull vertex list
-                pos_l = np.where(hv == np.argmin(self.x_data))[0][0]
-                pos_r = np.where(hv == np.argmax(self.x_data))[0][0]
+                pos_l = np.where(hv == np.argmin(self.x))[0][0]
+                pos_r = np.where(hv == np.argmax(self.x))[0][0]
 
                 # two possible hull arcs connecting left<->right (one is upper, one lower)
                 if pos_l < pos_r:
@@ -435,18 +439,18 @@ class Spectrum:
                     arc2 = np.concatenate((hv[pos_l:], hv[: pos_r + 1]))
 
                 # choose the arc with the lower mean y (lower envelope)
-                if np.mean(self.y_data[arc1]) < np.mean(self.y_data[arc2]):
+                if np.mean(self.y[arc1]) < np.mean(self.y[arc2]):
                     lower_arc = arc1
                 else:
                     lower_arc = arc2
 
                 # ensure the arc points are sorted by x for interpolation and remove duplicate x
-                order = np.argsort(self.x_data[lower_arc])
+                order = np.argsort(self.x[lower_arc])
                 lower_arc = lower_arc[order]
-                xu, iu = np.unique(self.x_data[lower_arc], return_index=True)
-                yu = self.y_data[lower_arc][iu]
+                xu, iu = np.unique(self.x[lower_arc], return_index=True)
+                yu = self.y[lower_arc][iu]
 
-                result.y_data = np.interp(result.x_data, xu, yu)
+                result.y = np.interp(result.x, xu, yu)
 
             case _:
                 raise ValueError(f'Unknown smoothing method {method} try "POLY".')

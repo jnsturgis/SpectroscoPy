@@ -50,8 +50,8 @@ def read(  filehandle, my_spectrum, **kwargs):
                 x.append(float(cols[options['usecols'][0]]))
                 y.append(float(cols[options['usecols'][1]]))
         skiprows -= 1
-    my_spectrum.x_data = np.array(x)
-    my_spectrum.y_data = np.array(y)
+    my_spectrum.x = np.array(x)
+    my_spectrum.y = np.array(y)
 
 def write( filehandle, my_spectrum, **kwargs):
     """
@@ -65,7 +65,7 @@ def write( filehandle, my_spectrum, **kwargs):
         options.update({k: v for k, v in kwargs.items() if k in options})
     delimiter = options['delimiter']
     filehandle.write(f'{my_spectrum.x_label}{delimiter}{my_spectrum.y_label}\n')
-    for x,y in zip(my_spectrum.x_data, my_spectrum.y_data):
+    for x,y in zip(my_spectrum.x, my_spectrum.y):
         filehandle.write(f'{x:.3f}{delimiter}{y:.5f}\n')
 
 ## ============================================================================

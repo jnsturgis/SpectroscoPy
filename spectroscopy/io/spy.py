@@ -54,8 +54,8 @@ def read(  filehandle, my_spectrum, **kwargs):
         elif meta:                  # Read metadata
             the_metadata += ' ' + line.strip()
 
-    my_spectrum.x_data = np.array(x)
-    my_spectrum.y_data = np.array(y)
+    my_spectrum.x = np.array(x)
+    my_spectrum.y = np.array(y)
     my_spectrum.metadata = ast.literal_eval(the_metadata)
 
 def write( filehandle, my_spectrum, **kwargs):
@@ -72,7 +72,7 @@ def write( filehandle, my_spectrum, **kwargs):
     filehandle.write(f'{my_spectrum.name}\n')
     filehandle.write(f'{my_spectrum.x_label}\t{my_spectrum.y_label}\n')
     filehandle.write('# x,y data\n')
-    for x,y in zip(my_spectrum.x_data, my_spectrum.y_data):
+    for x,y in zip(my_spectrum.x, my_spectrum.y):
         filehandle.write(f'{x:.3f}\t{y:.5f}\n')
     filehandle.write('# metadata\n')
     filehandle.write(f'{repr(my_spectrum.metadata)}\n')

@@ -569,29 +569,33 @@ longer applies to the tool, only to `Spectrum.plot`.
   `'tsv'` correctly. The real defect is that `reload()` knows five file types and `save()` only
   four, and an unhandled type silently truncates the output file to zero bytes.
 
-### 6.2 The `x`/`y` rename is built and proven, but not yet applied
+### 6.2 The `x`/`y` rename — applied (Phase 1.1, first item)
 
-`scripts/migrate_rename_xy.py` handles both `.py` and `.ipynb` (rewriting code-cell source only,
-leaving outputs and markdown alone, with `.bak` backups). Dry run:
+`spectrum.x_data` / `spectrum.y_data` are now `spectrum.x` / `spectrum.y`, with no alias period
+as settled in §5.1. Applied to both trees in one pass via `scripts/migrate_rename_xy.py`, which
+handles `.py` and `.ipynb` (code-cell source only — outputs and markdown untouched):
 
 ```
-repo        90 references across 6 files
+repo       102 references across 7 files   (incl. tests)
 notebooks  359 references across 9 files   (exactly the 9 predicted in §5.1)
 ```
 
-No ambiguous cases — no `x_data`/`y_data` appears as a string literal or dict key anywhere.
+Verified afterwards: 22 tests pass / 4 xfail; no `.x_data` or `.y_data` remains anywhere in the
+package or the notebooks; all 64 notebooks in the tree are still valid JSON; all 129 code cells
+across the 9 migrated notebooks still parse; and a live pipeline (load → average → mask-crop →
+smooth → rubberband baseline → 2nd-derivative peak pick) runs on the renamed attributes.
 
-**Not applied yet, deliberately.** The library and the notebooks have to flip in the same pass:
-renaming the notebooks while `Spectrum` still exposes `x_data`/`y_data` breaks all nine, and
-renaming the library first breaks them equally. This is Phase 1.1, and it is one command over
-both trees when you want it:
+`.bak` copies of all 9 notebooks sit alongside the originals — delete them once you are happy.
 
-```bash
-python3 scripts/migrate_rename_xy.py \
-    spectroscopy tools_spc calc.py \
-    ~/Documents/Research/Notebook ~/Documents/Research/Students \
-    ~/Documents/Research/Collaborations --apply
-```
+Two notes:
+
+- **`scripts/` must be excluded from its own migration.** The script's regex literals
+  (`r"\.x_data\b"`) contain the text `.x_data` and would be rewritten by their own pattern. The
+  paths passed deliberately name `spectroscopy tools_spc calc.py tests` rather than the repo
+  root.
+- `x` and `y` are plain attributes for now, not properties. Making them properties — so the
+  backing store can change without breaking callers — is the rest of Phase 1.1, along with the
+  `x_unit`/`y_unit` split, which §5.1 established costs nothing in the notebooks.
 
 ---
 
