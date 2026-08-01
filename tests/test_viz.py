@@ -335,3 +335,24 @@ def test_frame_propagates_through_a_collection(collection):
     _, ax = plt.subplots()
     viz.plot_collection(collection, ax, frame=True)
     assert ax.spines['top'].get_visible()
+
+
+@pytest.mark.parametrize("draw", [
+    lambda c, ax: viz.plot(c[0], ax, frame=True),
+    lambda c, ax: viz.plot_collection(c, ax, frame=True),
+    lambda c, ax: viz.stack(c, ax, frame=True),
+])
+def test_every_drawing_entry_point_accepts_frame(collection, draw):
+    """
+    frame= was threaded through plot() and plot_collection() but not stack(),
+    where it fell into **kwargs and reached Line2D. Found by a tutorial.
+    """
+    _, ax = plt.subplots()
+    draw(collection, ax)
+    assert ax.spines['top'].get_visible()
+
+
+def test_grid_accepts_frame(collection):
+    _, axes = viz.grid(collection, ncols=2, frame=True)
+    visible = [p for p in axes.ravel() if p.get_visible()]
+    assert all(p.spines['top'].get_visible() for p in visible)

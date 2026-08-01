@@ -24,7 +24,8 @@ from __future__ import annotations
 
 import os
 
-__all__ = ['available', 'describe', 'path', 'load', 'load_pair', 'DATASETS']
+__all__ = ['available', 'describe', 'path', 'load', 'load_pair',
+           'ftir_replicates', 'replicate_directory', 'DATASETS']
 
 #: name -> (relative path, technique, one-line description)
 DATASETS = {
@@ -113,6 +114,39 @@ def load(name):
     spectrum.name = name
     spectrum.set_sample(name)
     return spectrum
+
+
+def replicate_directory():
+    """
+    Folder holding the ATR-FTIR replicate files, for glob-based loading.
+
+        >>> import spectroscopy as spc
+        >>> folder = spc.datasets.replicate_directory()
+        >>> spectra = spc.SpectrumCollection.from_files(folder + "/*.dpt")
+    """
+    folder = os.path.join(_root(), 'ftir_replicates')
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(f"Example replicates are missing ({folder})")
+    return folder
+
+
+def ftir_replicates():
+    """
+    Nine real ATR-FTIR spectra: three replicates each of glucose, cellulose
+    and water.
+
+    Enough to demonstrate the whole workflow the library exists for -- group by
+    sample, average the replicates, subtract the water contribution, baseline
+    correct, normalise, pick peaks -- without needing a folder of your own.
+
+    Returns
+    -------
+    SpectrumCollection
+    """
+    from spectroscopy.collection import SpectrumCollection  # pylint: disable=C0415
+
+    return SpectrumCollection.from_files(
+        os.path.join(replicate_directory(), '*.dpt'), technique='ATR-FTIR')
 
 
 def load_pair():

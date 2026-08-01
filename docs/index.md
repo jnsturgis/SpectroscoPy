@@ -53,4 +53,5 @@ fluorescence.
 :hidden:
 
 getting-started
+tutorials/index
 ```

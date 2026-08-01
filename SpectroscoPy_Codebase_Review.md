@@ -1143,7 +1143,69 @@ spectrum is scaled by. The absolute form is unchanged, so existing numbers still
 
 ---
 
-## 13. Environment note — where scikit-learn actually is
+## 13. Design notes for later (raised, not yet built)
+
+Two things came out of discussing the absorption/excitation workflow. Recorded
+here so they are not lost between phases.
+
+### 13.1 Transfer efficiency from absorptance ÷ excitation
+
+The workflow: compare **(1−T)%** against an excitation spectrum, normalise
+both, divide to get transfer efficiency as a percentage. `absorptance` and
+`%absorptance` now exist as units (§ commit `f339db5`); the analysis function
+does not, and belongs in `processing.fluorescence` in Phase 7.
+
+Proposed shape:
+
+```python
+efficiency = transfer_efficiency(absorptance, excitation,
+                                 reference_band=(820, 870),
+                                 threshold=0.05)
+```
+
+Two things it must get right:
+
+- **Normalisation reference.** Normalising both to their maximum works when the
+  scan runs far enough into the red that the maximum *is* the terminal
+  acceptor's band — which is James's own practice, and why it has never bitten
+  him. It is not generally true: if the maximum falls on a band with incomplete
+  transfer, every efficiency in the spectrum is silently rescaled. So
+  `reference_band` should be the parameter and `'max'` an explicit opt-in, not
+  the reverse.
+- **The division is numerically hostile.** Where absorptance approaches zero
+  the ratio explodes, and an unwary reader sees "200 % efficiency" in the
+  wings. Below `threshold` the result should be NaN — a visible gap is better
+  than a confident wrong number.
+
+### 13.2 Signal-adaptive smoothing
+
+Noise in the denominator is, in practice, the serious problem. A fixed
+Savitzky-Golay window is the wrong instrument for it: wide enough to tame the
+wings, it flattens the peaks; narrow enough to keep the peaks, it leaves the
+wings unusable.
+
+Wanted: a smoother whose strength varies with the local signal-to-noise —
+gentle where the signal is strong, aggressive where it is not. Candidates worth
+comparing when this is built:
+
+- **Adaptive-window Savitzky-Golay** — window chosen per point from a local
+  noise estimate. Simple, and stays in the family already in use.
+- **Total-variation denoising** — preserves edges and peak shape well, one
+  regularisation parameter, but can flatten genuinely smooth regions into
+  staircases.
+- **Wavelet shrinkage** with a level-dependent threshold — the standard answer
+  to exactly this problem in analytical chemistry, and it degrades gracefully.
+- **Whittaker smoother with per-point weights** — the same machinery already
+  used by the ALS baseline, weights driven by local variance, so it fits the
+  existing code well.
+
+Whichever is chosen, it should record its parameters in `.history` like every
+other step, and there should be a synthetic test showing peak positions and
+areas survive it — a smoother that shifts a band is worse than noise.
+
+---
+
+## 14. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 

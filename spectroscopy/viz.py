@@ -180,7 +180,7 @@ def plot_collection(collection, ax=None, labels=None, colors=None,
 
 
 def stack(collection, ax=None, offsets=None, gap=None, labels=None,
-          colors=None, direct_labels=True, **kwargs):
+          colors=None, direct_labels=True, frame=None, **kwargs):
     """
     Offset traces vertically -- the stacked-spectra figure.
 
@@ -197,7 +197,7 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
     # end is on the right, and inverting afterwards would put them all on the
     # wrong side.
     if len(collection):
-        apply_axes(ax, collection[0])
+        apply_axes(ax, collection[0], frame=frame)
 
     if offsets is None:
         if gap is None:
@@ -225,13 +225,19 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
                         va='center', fontsize='small', annotation_clip=False)
 
     ax.set_yticks([])
-    ax.spines['left'].set_visible(False)
+    if not (FRAME_AXES if frame is None else frame):
+        # The y scale is arbitrary once traces are offset, so the left spine
+        # is noise -- unless a full box was asked for, where it is the point.
+        ax.spines['left'].set_visible(False)
+    else:
+        ax.tick_params(left=False, right=False)
     if not direct_labels and len(collection) > 1:
         ax.legend(frameon=False, fontsize='small')
     return ax
 
 
-def grid(collection, key='sample', ncols=2, figsize=None, sharex=True, **kwargs):
+def grid(collection, key='sample', ncols=2, figsize=None, sharex=True,
+         frame=None, **kwargs):
     """
     One panel per group -- the overview figure at the top of every notebook.
 
@@ -249,8 +255,8 @@ def grid(collection, key='sample', ncols=2, figsize=None, sharex=True, **kwargs)
     flat = axes.ravel()
     for panel, (name, group) in zip(flat, groups.items()):
         for index, spectrum in enumerate(group):
-            plot(spectrum, panel, apply_labels=(index == 0),
-                 label=None, **{**series_style(index), **kwargs})
+            plot(spectrum, panel, apply_labels=(index == 0), label=None,
+                 frame=frame, **{**series_style(index), **kwargs})
         panel.set_title(str(name), fontsize='small', loc='left')
     for panel in flat[count:]:
         panel.set_visible(False)
