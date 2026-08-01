@@ -12,13 +12,12 @@ the `.ipynb` and edit it directly.
 :maxdepth: 1
 
 atr-ftir
+uv-vis
+raman
 ```
 
 ## Planned
 
-- **UV-Vis** — pooled fractions, scatter correction, two-component
-  concentration from A260/A280.
-- **Raman** — cosmic-ray removal, fluorescence background, band assignment.
 - **Fluorescence** — emission series, excitation-emission maps, and the
   absorptance-versus-excitation comparison for transfer efficiency.
 - **Multivariate** — NMF across a sample series, choosing the number of
