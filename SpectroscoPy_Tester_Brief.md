@@ -53,6 +53,12 @@ submission. It is the spread and the substance that read as real, not the count.
 
 ## 2. The brief — copy this to your GitHub-registered colleagues
 
+> **The sendable version is `SpectroscoPy_Tester_Email.md`.** Use that one; it
+> is the same four steps written as a personal email, with the personalisation
+> points marked and a note on the one thing that must be done before sending
+> (the documentation is not published anywhere yet). What follows is the
+> earlier, terser draft, kept because it states the asks compactly.
+
 > **Subject: 45 minutes of nerd favour, in exchange for a coffee**
 >
 > I'm submitting a Python spectroscopy library to a peer-reviewed software
