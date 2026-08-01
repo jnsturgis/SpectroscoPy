@@ -121,7 +121,6 @@ class SpectrumCollection(Sequence):
             if technique is not None:
                 spectrum.set_type(technique)
             spectrum.set_sample(sample_from(path))
-            spectrum.metadata.setdefault('source_path', path)
             spectra.append(spectrum)
         return cls(spectra)
 

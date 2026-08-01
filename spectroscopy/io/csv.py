@@ -14,6 +14,8 @@ for my spectroscopy programmes and utilities.
 # pylint: disable=W0718
 import numpy as np
 
+from spectroscopy.io.registry import register_reader, register_writer
+
 
 def looks_like_a_header(line, delimiter, usecols):
     """
@@ -32,6 +34,7 @@ def looks_like_a_header(line, delimiter, usecols):
     return False
 
 
+@register_reader('csv', extensions=['.csv'], description='comma separated, header row sniffed')
 def read(  filehandle, my_spectrum, **kwargs):
     """
     Update the contents of my_spectrum based on the file.
@@ -88,6 +91,7 @@ def read(  filehandle, my_spectrum, **kwargs):
     my_spectrum.x = np.array(x)
     my_spectrum.y = np.array(y)
 
+@register_writer('csv')
 def write( filehandle, my_spectrum, **kwargs):
     """
     Write my_spectrum to a file.
@@ -114,3 +118,13 @@ def main():
 
 if __name__ == '__main__':
     main()
+
+
+# 'tsv' is the same reader with a tab separator, registered under its own name
+# because the notebooks name it explicitly. '.txt' lands here too: it is what
+# np.savetxt writes, and those files travel between notebooks.
+register_reader('tsv', extensions=['.tsv', '.txt'], delimiter='\t',
+                description='tab separated, header row sniffed')(read)
+register_writer('tsv', extensions=['.tsv', '.txt'])(
+    lambda handle, spectrum, **kwargs: write(handle, spectrum,
+                                             **{'delimiter': '\t', **kwargs}))

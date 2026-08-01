@@ -40,6 +40,8 @@ import json
 
 import numpy as np
 
+from spectroscopy.io.registry import register_reader, register_writer
+
 CURRENT_VERSION = "1.0"
 
 #: Simple attributes carried through the header, name -> default when absent.
@@ -160,6 +162,7 @@ def _read_v0(lines, my_spectrum):
             my_spectrum.metadata = {}
 
 
+@register_reader('spy', extensions=['.spy'], description='native format, carries units and processing history')
 def read(filehandle, my_spectrum, **kwargs):
     """
     Read a .spy file into ``my_spectrum``.
@@ -185,6 +188,7 @@ def read(filehandle, my_spectrum, **kwargs):
         )
 
 
+@register_writer('spy')
 def write(filehandle, my_spectrum, **kwargs):
     """Write ``my_spectrum`` as a .spy 1.0 file."""
     _ = kwargs

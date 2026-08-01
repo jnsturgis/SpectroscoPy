@@ -16,4 +16,28 @@ This package was previously the top-level ``formats`` package; that name still
 works but is deprecated.
 """
 
-__all__ = ['jcamp', 'csv', 'dpt', 'spy']
+# Importing the format modules is what populates the registry -- each one
+# registers itself with a decorator. Anything added here becomes visible to
+# read_spectrum()/write_spectrum() and to Spectrum's file-type inference with
+# no other change anywhere.
+from spectroscopy.io import csv, dpt, jcamp, spy, table  # noqa: F401,E402
+from spectroscopy.io.registry import (  # noqa: F401,E402
+    describe_formats,
+    detect_encoding,
+    infer_file_type,
+    known_extensions,
+    known_types,
+    read_spectra,
+    read_spectrum,
+    register_reader,
+    register_writer,
+    write_spectrum,
+)
+
+__all__ = [
+    'jcamp', 'csv', 'dpt', 'spy', 'table',
+    'read_spectrum', 'read_spectra', 'write_spectrum',
+    'register_reader', 'register_writer',
+    'known_types', 'known_extensions', 'infer_file_type', 'describe_formats',
+    'detect_encoding',
+]

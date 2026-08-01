@@ -301,7 +301,12 @@ def test_saving_an_unhandled_type_raises_without_touching_the_file(tmp_path):
     target = tmp_path / "precious.xyz"
     target.write_text("existing data that must not be destroyed\n")
 
-    with pytest.raises(ValueError, match="Cannot write"):
+    # TypeError for a name nobody registered, ValueError for a format that is
+    # registered but read-only ('table'). Either way the file is untouched.
+    with pytest.raises(TypeError, match="Unknown filetype"):
         spec.save_as(str(target), "xyz")
+    assert target.read_text().startswith("existing data")
 
+    with pytest.raises(ValueError, match="Cannot write"):
+        spec.save_as(str(target), "table")
     assert target.read_text().startswith("existing data")

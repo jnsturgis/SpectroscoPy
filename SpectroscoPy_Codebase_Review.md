@@ -935,7 +935,81 @@ real version instead of `0.0.1.dev15+g…`.
 
 ---
 
-## 10. Environment note — where scikit-learn actually is
+## 10. Phase 3 — the I/O registry (done)
+
+186 tests. The four hand-kept dispatch tables are gone; there is one registry and everything
+else derives from it.
+
+### 10.1 One table instead of four
+
+`FILE_EXTS`, `KNOWNFILETYPES`, and the `match` statements in `reload()` and `save()` all had to
+be edited in step, and had already drifted apart — that was defect D5, and it cost a silently
+truncated file. Now:
+
+```python
+@register_reader('dpt', extensions=['.dpt'], description='Bruker OPUS data point table')
+def read(handle, spectrum, **kwargs): ...
+```
+
+and `Spectrum` picks it up with no other change anywhere. There is a test that registers a
+throwaway format and asserts `Spectrum` immediately infers it from the extension.
+
+`Spectrum.reload()`/`save()` are now thin adapters over `registry.read_spectra()` /
+`write_spectrum()`. `FILE_EXTS` and `KNOWNFILETYPES` survive as derived snapshots because some
+notebooks inspect them. `io.describe_formats()` prints what is supported, which is the sort of
+thing a tester asks first:
+
+```
+format   r/w  extensions             description
+csv      rw   .csv                   comma separated, header row sniffed
+dpt      rw   .dpt                   Bruker OPUS data point table (separator sniffed)
+jcamp    rw   .jdx, .dx, .jcamp      JCAMP-DX spectroscopic exchange format
+spy      rw   .spy                   native format, carries units and processing history
+table    r-   —                      generic delimited text, wide or paired columns
+tsv      rw   .tsv, .txt             tab separated, header row sniffed
+```
+
+### 10.2 Many spectra from one file
+
+Everything goes through `read_spectra() -> SpectrumCollection`; a one-spectrum file is just a
+collection of length 1. `read_spectrum()` is the convenience wrapper, and it **raises** if the
+file turns out to hold several rather than silently returning the first — that would be exactly
+the quiet-wrong this library exists to remove.
+
+### 10.3 The generic table reader, checked against the three files that motivated it
+
+| file | shape | result |
+|---|---|---|
+| `J_Peri.csv` (Chloé) | 173 columns as (x,y) **pairs**, sparse name row | **86 spectra**, named `Sample 6_EX_345.00` etc., labels `Wavelength (nm)` / `Intensity (a.u.)` |
+| `sfGFP.csv` (GFP binding) | **shared** x column, named sample columns | **13 spectra**, named `GFP 0.5uM (150ul)` etc. |
+| `Sepharose … .csv` (ÄKTA) | **UTF-16-LE + BOM**, 2 header rows, tab separated, paired | **3 traces** — `UV`, `Conductivity`, … at 30 100 points |
+
+Three things had to be decided by looking rather than assumed:
+
+- **Encoding.** BOM sniffing first (the ÄKTA files are UTF-16-LE, and reading them as UTF-8 gives
+  nonsense rather than an error), then UTF-8, then latin-1 as a backstop that cannot itself fail.
+- **Which header row names the series.** The two real files disagree: Chloé's row 0 holds the
+  sample names while row 1 repeats `Wavelength (nm)`/`Intensity (a.u.)`; the ÄKTA file has it the
+  other way round, row 0 repeating the run name `Chrom.1` and row 1 holding `UV`/`Conductivity`.
+  So the reader picks **the row whose values actually distinguish the series** — the one with the
+  most distinct entries. A fixed choice would have been wrong for one of them.
+- **Which row supplies axis labels.** Only a row whose x and y entries *differ*, which
+  distinguishes a real label row (`Wavelength (nm)` vs `Intensity (a.u.)`) from a run name
+  repeated across every column. Otherwise `Chrom.1` would have become an axis label.
+
+Chloé's EEM is still a stack of 1-D spectra rather than a 2-D object — hyperspectral/EEM support
+is Post-1.0 in the roadmap, and this is enough to load and plot the series meanwhile.
+
+### 10.4 A design note
+
+`source_path` was briefly written into `metadata` by the registry, which broke `.spy` round-trip
+equality: reload added a key the original did not have. `fileinfo` already records where a
+spectrum came from, so the duplicate is gone and `Spectrum.path` exposes it as a property.
+Provenance about *the file* belongs in `fileinfo`; `metadata` is about the sample.
+
+---
+
+## 11. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 

@@ -32,6 +32,8 @@ reference spectra carry a Sample/Reference/Operator/Date/Machine block there.
 
 import numpy as np
 
+from spectroscopy.io.registry import register_reader, register_writer
+
 #: Separators tried, in order, when sniffing. ``None`` means "any whitespace".
 CANDIDATE_DELIMITERS = ('\t', ',', ';', None)
 
@@ -67,6 +69,7 @@ def sniff_delimiter(line, usecols=(0, 1)):
     return False, None
 
 
+@register_reader('dpt', extensions=['.dpt'], description='Bruker OPUS data point table (separator sniffed)')
 def read(filehandle, my_spectrum, **kwargs):
     """
     Read a .dpt file and populate ``my_spectrum``.
@@ -136,6 +139,7 @@ def read(filehandle, my_spectrum, **kwargs):
         my_spectrum.metadata['file_header'] = header
 
 
+@register_writer('dpt')
 def write(filehandle, my_spectrum, **kwargs):
     """
     Write ``my_spectrum`` as a .dpt file: two columns, no header.

@@ -29,6 +29,8 @@ import re
 
 import numpy as np
 
+from spectroscopy.io.registry import register_reader, register_writer
+
 ## In SQZ_digits, '+' or '-' is for PAC, ',' for CSV.
 SQZ_digits = {'@':'+0', 'A':'+1', 'B':'+2', 'C':'+3', 'D':'+4', 'E':'+5',
               'F':'+6', 'G':'+7', 'H':'+8', 'I':'+9', 'a':'-1', 'b':'-2',
@@ -130,6 +132,7 @@ def parse_longdate(date_string: str) -> datetime.datetime:
 
 ##=============================================================================
 
+@register_reader('jcamp', extensions=['.jdx', '.dx', '.jcamp'], description='JCAMP-DX spectroscopic exchange format')
 def read(file, my_spectrum ) -> None:
     '''
     Read a JDX-format file, and update the spectrum my_spectrum
@@ -480,6 +483,7 @@ def jcamp_parse(line):
     return datavals
 
 ##=============================================================================
+@register_writer('jcamp')
 def write( file, spectrum):
     """
     Write the information in the spectrum to a file in jcamp DX format.

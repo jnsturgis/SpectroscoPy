@@ -44,27 +44,28 @@ from scipy.interpolate import CubicSpline
 import spectroscopy.messages
 from spectroscopy import units
 from spectroscopy.history import ProcessingStep, describe_operand
-from spectroscopy.io import csv, dpt, jcamp, spy
+from spectroscopy.io import registry
 from spectroscopy.peaks import PeakTable
 from spectroscopy.processing import common
 
-#: Map file extension -> file type. Keys must be lower case; lookup lower-cases
-#: the extension so that .DPT and .CSV work as well as .dpt and .csv.
-FILE_EXTS = {
-    '.csv':   'csv',
-    '.tsv':   'tsv',
-    '.txt':   'tsv',
-    '.dpt':   'dpt',
-    '.jcamp': 'jcamp',
-    '.jdx':   'jcamp',
-    '.dx':    'jcamp',
-    '.spy':   'spy',
-}
 
-#: Every type here must be handled by BOTH Spectrum.reload() and
-#: Spectrum.save(). The two match statements used to disagree, which meant an
-#: unhandled type silently truncated the output file -- see review defect D5.
-KNOWNFILETYPES = ('csv','tsv','dpt','jcamp','spy')
+#: Extension -> file type, and the set of known types. Both are now *derived*
+#: from the format registry rather than maintained here. There used to be four
+#: hand-kept tables (these two plus the match statements in reload() and
+#: save()); they drifted apart, which is what defect D5 was. Registering a
+#: reader is now the only step needed to teach Spectrum a new format.
+def _file_exts():
+    return registry.known_extensions()
+
+
+def _known_file_types():
+    return registry.known_types()
+
+
+#: Kept as module attributes for backwards compatibility -- some notebooks
+#: inspect them. They are snapshots; call the registry for the live view.
+FILE_EXTS = registry.known_extensions()
+KNOWNFILETYPES = registry.known_types()
 #: Rendering of each unit for a matplotlib axis label. An empty string means
 #: dimensionless, so the label is just the quantity with no parentheses.
 UNIT_LABELS = {
@@ -120,8 +121,7 @@ def compose_label(quantity, unit):
 
 def _infer_file_type( name ):
     """Work out if possible from the file extension the possible file types."""
-    name, ext = os.path.splitext(name)
-    return FILE_EXTS.get(ext.lower(), 'unknown')
+    return registry.infer_file_type(name)
 
 class Spectrum:
     """A class for spectra."""
@@ -282,6 +282,14 @@ class Spectrum:
     @y_label.setter
     def y_label(self, value) -> None:
         self._y_label_override = value
+
+    @property
+    def path(self):
+        """Where this spectrum was read from, or None if built in memory."""
+        name = self.fileinfo.get('NAME')
+        if not name:
+            return None
+        return os.path.join(self.fileinfo.get('PATH', ''), name)
 
     @property
     def reversed_x(self) -> bool:
@@ -833,45 +841,26 @@ class Spectrum:
 ##=============================================================================
     def reload(self) -> None:
         """
-        Reload the spectrum from the file, or load a first time after setting fileinfo
+        Load (or re-load) this spectrum from the file named in ``fileinfo``.
+
+        Dispatch, encoding detection and the multi-spectrum question all live
+        in :mod:`spectroscopy.io.registry` now; this is a thin adapter that
+        keeps the existing in-place semantics.
         """
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
+        spectra = registry.read_spectra(filename, self.fileinfo['TYPE'])
 
-        # Vendor exports are not reliably UTF-8 -- JCAMP files from older
-        # instruments carry latin-1 bytes in their comment fields. Falling back
-        # beats refusing a file whose numbers are perfectly readable. latin-1
-        # is the fallback because it maps every byte, so it cannot itself fail.
-        for encoding in ("utf-8", "latin-1"):
-            try:
-                with open(filename, encoding=encoding) as handle:
-                    self._dispatch_read(handle)
-                return
-            except UnicodeDecodeError:
-                continue
-        raise UnicodeDecodeError(                       # pragma: no cover
-            "utf-8", b"", 0, 1, f"could not decode {filename} as utf-8 or latin-1")
+        if len(spectra) != 1:
+            raise ValueError(
+                f"{self.fileinfo['NAME']} holds {len(spectra)} spectra; use "
+                f"spectroscopy.io.read_spectra() to load them all"
+            )
 
-    def _dispatch_read(self, f) -> None:
-        """Read from an open handle according to the recorded file type."""
-        match self.fileinfo['TYPE']:
-            case 'jcamp':
-                jcamp.read(f, self)
-            case 'csv':
-                csv.read(f, self )
-            case 'tsv':
-                csv.read(f, self, delimiter='\t')
-            case 'dpt':
-                # Separator is sniffed per file: 140 of the 825 .dpt files in
-                # the notebooks are comma separated, not tab. See
-                # spectroscopy/io/dpt.py.
-                dpt.read(f, self)
-            case 'spy':
-                spy.read(f, self)
-            case _:
-                raise ValueError(
-                    f"Cannot read '{self.fileinfo['TYPE']}' files; "
-                    f"known types are {', '.join(KNOWNFILETYPES)}"
-                )
+        loaded = spectra[0]
+        for attribute in ('x', 'y', 'name', 'technique', 'metadata', 'history',
+                          'x_quantity', 'x_unit', 'y_quantity', 'y_unit',
+                          '_x_label_override', '_y_label_override'):
+            setattr(self, attribute, getattr(loaded, attribute))
 
     def save_as(self, filename, file_type = 'spy') -> None:
         """
@@ -884,29 +873,11 @@ class Spectrum:
 
     def save(self) -> None:
         """
-        Write the spectrum to the file described by file info.
+        Write the spectrum to the file described by ``fileinfo``.
+
+        The registry resolves the format *before* opening the file, so an
+        unwritable type raises instead of truncating the target to nothing --
+        the second half of defect D5.
         """
-        file_type = self.fileinfo['TYPE']
-
-        # Validate BEFORE opening. open(..., 'w') truncates immediately, so a
-        # check inside the `with` would already have destroyed the target -- an
-        # unhandled type used to leave a 0-byte file behind with no error.
-        if file_type not in KNOWNFILETYPES:
-            raise ValueError(
-                f"Cannot write '{file_type}' files; "
-                f"known types are {', '.join(KNOWNFILETYPES)}"
-            )
-
-        filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
-        with open(filename, 'w', encoding="utf-8") as f:
-            match file_type:
-                case 'jcamp':
-                    jcamp.write(f, self)
-                case 'csv':
-                    csv.write(f, self )
-                case 'tsv':
-                    csv.write(f, self, delimiter='\t')
-                case 'dpt':
-                    dpt.write(f, self)
-                case 'spy':
-                    spy.write(f, self )
+        filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
+        registry.write_spectrum(self, filename, self.fileinfo['TYPE'])
