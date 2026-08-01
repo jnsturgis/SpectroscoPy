@@ -258,3 +258,80 @@ def test_core_modules_do_not_import_matplotlib_at_module_scope():
             offenders += [f"{name}: {m}" for m in modules
                           if m.startswith("matplotlib")]
     assert not offenders, offenders
+
+
+def test_stack_labels_the_right_hand_end_whatever_the_data_order():
+    """
+    Vendor files are not all stored ascending -- UV-Vis exports commonly run
+    high to low. Anchoring the label to x[-1] put it on the wrong side of the
+    figure for those, and pinned it to an unrelated y value.
+    """
+    ascending = _spectrum("UV-Vis", name="up")
+    ascending.x = np.linspace(600.0, 900.0, 301)
+    ascending.y = np.linspace(0.0, 1.0, 301)
+
+    descending = _spectrum("UV-Vis", name="down")
+    descending.x = ascending.x[::-1].copy()
+    descending.y = ascending.y[::-1].copy()
+
+    for spectrum in (ascending, descending):
+        _, ax = plt.subplots()
+        viz.stack(SpectrumCollection([spectrum]), ax)
+        label = ax.texts[0]
+        assert label.xy[0] == pytest.approx(900.0), \
+            "label belongs at the right-hand end of the axis"
+        assert label.xy[1] == pytest.approx(1.0), \
+            "label belongs at that end's own y value"
+
+
+def test_stack_labels_follow_a_reversed_axis():
+    """On FTIR the axis is inverted, so the right-hand end is the *smallest* x."""
+    spectrum = _spectrum("ATR-FTIR", name="ir")
+    _, ax = plt.subplots()
+    viz.stack(SpectrumCollection([spectrum]), ax)
+    assert ax.xaxis_inverted()
+    assert ax.texts[0].xy[0] == pytest.approx(spectrum.x.min())
+
+
+# ---------------------------------------------------------------------------
+# framed axes
+# ---------------------------------------------------------------------------
+
+def test_frame_draws_a_full_box():
+    _, ax = plt.subplots()
+    viz.plot(_spectrum(), ax, frame=True)
+    assert all(ax.spines[side].get_visible()
+               for side in ('top', 'right', 'bottom', 'left'))
+
+
+def test_no_frame_by_default():
+    _, ax = plt.subplots()
+    viz.plot(_spectrum(), ax)
+    assert not ax.spines['top'].get_visible()
+    assert not ax.spines['right'].get_visible()
+
+
+def test_frame_axes_can_be_set_once_for_a_session():
+    """For anyone who always wants a box, rather than passing frame= every time."""
+    original = viz.FRAME_AXES
+    try:
+        viz.FRAME_AXES = True
+        _, ax = plt.subplots()
+        viz.plot(_spectrum(), ax)
+        assert ax.spines['top'].get_visible()
+    finally:
+        viz.FRAME_AXES = original
+
+
+def test_set_frame_works_on_a_foreign_axes():
+    _, ax = plt.subplots()
+    viz.set_frame(ax, True)
+    assert ax.spines['right'].get_visible()
+    viz.set_frame(ax, False)
+    assert not ax.spines['right'].get_visible()
+
+
+def test_frame_propagates_through_a_collection(collection):
+    _, ax = plt.subplots()
+    viz.plot_collection(collection, ax, frame=True)
+    assert ax.spines['top'].get_visible()

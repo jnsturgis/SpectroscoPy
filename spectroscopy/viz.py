@@ -51,7 +51,8 @@ from __future__ import annotations
 import numpy as np
 
 __all__ = [
-    'PALETTE', 'LINE_STYLES', 'apply_axes', 'series_style',
+    'PALETTE', 'LINE_STYLES', 'FRAME_AXES', 'apply_axes', 'set_frame',
+    'series_style',
     'plot', 'plot_collection', 'stack', 'grid',
     'annotate_peaks', 'annotate_bands', 'plot_baseline',
     'plot_decomposition', 'plot_scores',
@@ -64,6 +65,12 @@ PALETTE = ('#0072B2', '#E69F00', '#009E73', '#D55E00', '#56B4E9', '#CC79A7')
 LINE_STYLES = ('-', '--', '-.', ':')
 
 DEFAULT_LINEWIDTH = 1.2
+
+#: Draw a full box (all four spines) rather than just left and bottom.
+#: Physical-chemistry journals overwhelmingly frame their axes; a lot of modern
+#: plotting advice does not. Set ``viz.FRAME_AXES = True`` once and every figure
+#: from then on is framed, or pass ``frame=True`` to a single call.
+FRAME_AXES = False
 
 
 def _pyplot():
@@ -82,31 +89,61 @@ def series_style(index):
             'linestyle': LINE_STYLES[(index // len(PALETTE)) % len(LINE_STYLES)]}
 
 
-def apply_axes(ax, spectrum, reverse=None):
+def apply_axes(ax, spectrum, reverse=None, frame=None):
     """
     Label the axes from the spectrum, and reverse x where convention wants it.
 
     FTIR and Raman are quoted high-to-low; every figure cell in the notebooks
     sets ``ax.set_xlim((1800, 900))`` and the wavenumber label by hand.
+
+    Parameters
+    ----------
+    frame : bool, optional
+        Draw a full box around the plot instead of only the left and bottom
+        spines. Defaults to :data:`FRAME_AXES`, which you can set once at the
+        top of a session rather than passing this everywhere. Ticks are drawn
+        inwards on all four sides when framed, which is the usual convention
+        that goes with it.
     """
     ax.set_xlabel(spectrum.x_label)
     ax.set_ylabel(spectrum.y_label)
     should_reverse = spectrum.reversed_x if reverse is None else reverse
     if should_reverse and not ax.xaxis_inverted():
         ax.invert_xaxis()
-    for side in ('top', 'right'):
-        ax.spines[side].set_visible(False)
+    set_frame(ax, FRAME_AXES if frame is None else frame)
     return ax
 
 
-def plot(spectrum, ax=None, *args, label=None, apply_labels=True, **kwargs):
-    """Plot one spectrum. Returns the matplotlib line list."""
+def set_frame(ax, framed=True):
+    """
+    Turn the box around a plot on or off.
+
+    Useful on an axes this module did not draw -- an inset, or a panel you
+    built yourself.
+    """
+    for side in ('top', 'right'):
+        ax.spines[side].set_visible(bool(framed))
+    if framed:
+        ax.tick_params(direction='in', top=True, right=True)
+    else:
+        ax.tick_params(direction='out', top=False, right=False)
+    return ax
+
+
+def plot(spectrum, ax=None, *args, label=None, apply_labels=True, frame=None,
+         **kwargs):
+    """
+    Plot one spectrum. Returns the matplotlib line list.
+
+    ``frame=True`` draws a full box around the plot; see :data:`FRAME_AXES` to
+    make that the default for a whole session.
+    """
     ax = _axes(ax)
     kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
     lines = ax.plot(spectrum.x, spectrum.y, *args,
                     label=spectrum.name if label is None else label, **kwargs)
     if apply_labels:
-        apply_axes(ax, spectrum)
+        apply_axes(ax, spectrum, frame=frame)
     return lines
 
 
@@ -117,7 +154,7 @@ def _labels_for(collection, labels):
 
 
 def plot_collection(collection, ax=None, labels=None, colors=None,
-                    legend=None, **kwargs):
+                    legend=None, frame=None, **kwargs):
     """
     Overlay a collection on one axes.
 
@@ -133,7 +170,7 @@ def plot_collection(collection, ax=None, labels=None, colors=None,
         if colors is not None:
             style['color'] = colors[index % len(colors)]
         plot(spectrum, ax, label=name, apply_labels=(index == 0),
-             **{**style, **kwargs})
+             frame=frame, **{**style, **kwargs})
 
     if legend is None:
         legend = len(collection) > 1
@@ -156,6 +193,12 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
     names = _labels_for(collection, labels)
     kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
 
+    # Set the axis direction first: the direct labels below ask the axes which
+    # end is on the right, and inverting afterwards would put them all on the
+    # wrong side.
+    if len(collection):
+        apply_axes(ax, collection[0])
+
     if offsets is None:
         if gap is None:
             spans = [float(np.nanmax(s.y) - np.nanmin(s.y)) for s in collection]
@@ -170,15 +213,17 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
         ax.plot(spectrum.x, spectrum.y + offset, label=name,
                 **{**style, **kwargs})
         if direct_labels:
-            # Text in ink, not the series colour; the trace beside it carries
-            # the identity.
-            edge = spectrum.x[-1] if not ax.xaxis_inverted() else spectrum.x[0]
-            ax.annotate(name, xy=(edge, spectrum.y[0] + offset),
+            # Anchor the label to whichever end of the trace is drawn on the
+            # right, and to that end's own y value. Using x[-1] would assume
+            # the data is stored in ascending order, which plenty of vendor
+            # files are not -- UV-Vis exports commonly run high to low, and the
+            # labels then land on the wrong side of the figure.
+            end = (int(np.argmin(spectrum.x)) if ax.xaxis_inverted()
+                   else int(np.argmax(spectrum.x)))
+            ax.annotate(name, xy=(spectrum.x[end], spectrum.y[end] + offset),
                         xytext=(4, 0), textcoords='offset points',
                         va='center', fontsize='small', annotation_clip=False)
 
-    if len(collection):
-        apply_axes(ax, collection[0])
     ax.set_yticks([])
     ax.spines['left'].set_visible(False)
     if not direct_labels and len(collection) > 1:

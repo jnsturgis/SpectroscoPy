@@ -25,3 +25,7 @@ venv/
 
 # Migration script backups (git already has the history)
 *.bak
+
+# Built documentation
+docs/_build/
+docs/jupyter_execute/

@@ -17,6 +17,7 @@ Layout (see SpectroscoPy_Codebase_Review.md):
 from importlib.metadata import PackageNotFoundError
 from importlib.metadata import version as _version
 
+from . import datasets  # noqa: F401
 from .collection import SpectrumCollection  # noqa: F401
 from .history import ProcessingStep  # noqa: F401
 from .messages import *  # noqa: F401,F403

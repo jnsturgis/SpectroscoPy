@@ -42,6 +42,13 @@ multivariate = [
 # SpectroscoPy_Codebase_Review.md section 5.6: the core stays numpy-native and
 # pandas is confined to explicit .to_dataframe() escape hatches that import it
 # lazily, so it never becomes something a user has to have installed.
+docs = [
+    "sphinx>=7.0",
+    "pydata-sphinx-theme>=0.15",
+    "myst-nb>=1.0",
+    "numpydoc>=1.6",
+    "sphinx-copybutton>=0.5",
+]
 dev = [
     "pytest>=7.0",
     "pytest-cov>=4.0",
@@ -67,6 +74,10 @@ packages = ["spectroscopy", "formats", "tools_spc"]
 # force-include, not include: 'packages' already fixes the source set, so a
 # bare top-level module has to be added explicitly.
 force-include = { "calc.py" = "calc.py" }
+# spectroscopy/data/ is a ~100 kB curated subset of data/, shipped so that every
+# example in the documentation runs for someone who has just pip-installed and
+# has no data of their own. The full 5.6 MB collection stays in the repo only.
+artifacts = ["spectroscopy/data/**"]
 # spectroscopy/gui/splash.py is a 2024 scratch snippet, not a module: it has no
 # __init__.py, references undefined names, and opens a Tk window at import.
 # GUI work is late-phase by design (roadmap section 9), so it is not shipped.

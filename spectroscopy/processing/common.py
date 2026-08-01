@@ -61,23 +61,35 @@ def _as_odd_at_least(value, minimum):
 # baselines
 # ---------------------------------------------------------------------------
 
-def rubberband_baseline(x, y, return_points=False):
+def rubberband_baseline(x, y, return_points=False, side='lower'):
     """
-    Convex-hull ("rubberband") baseline: the lower hull arc, interpolated.
+    Convex-hull ("rubberband") baseline: one hull arc, interpolated.
 
     This is the function that was pasted verbatim into twelve notebooks.
 
     Parameters
     ----------
+    side : {'lower', 'upper'}
+        Which envelope to take. **This depends on which way the bands point.**
+        In absorbance the baseline is the *lower* hull, tending to zero; in
+        transmittance it is the *upper* hull, tending to 100%. Taking the lower
+        hull of a transmittance spectrum traces the tips of the absorption
+        bands and is meaningless.
+
+        :meth:`~spectroscopy.spectra.Spectrum.baseline` picks this from the
+        spectrum's y unit, so it is usually not something to think about.
     return_points : bool
         Also return the (x, y) anchor points the baseline passes through, so
         they can be inspected, plotted, adjusted by eye, and fed back to
         :func:`poly_baseline` as explicit guide points.
     """
+    if side not in ('lower', 'upper'):
+        raise ValueError(f"side must be 'lower' or 'upper', not {side!r}")
     x = np.asarray(x, dtype=float)
     y = np.asarray(y, dtype=float)
     if len(x) < 3:
-        base = np.full_like(y, y.min() if len(y) else 0.0)
+        edge = (y.min() if side == 'lower' else y.max()) if len(y) else 0.0
+        base = np.full_like(y, edge)
         return (base, x.copy(), y.copy()) if return_points else base
 
     try:
@@ -107,11 +119,14 @@ def rubberband_baseline(x, y, return_points=False):
         arc_a = vertices[right:left + 1]
         arc_b = np.concatenate((vertices[left:], vertices[:right + 1]))
 
-    lower = arc_a if np.mean(y[arc_a]) < np.mean(y[arc_b]) else arc_b
+    if side == 'lower':
+        chosen = arc_a if np.mean(y[arc_a]) < np.mean(y[arc_b]) else arc_b
+    else:
+        chosen = arc_a if np.mean(y[arc_a]) > np.mean(y[arc_b]) else arc_b
 
-    lower = lower[np.argsort(x[lower])]
-    anchor_x, keep = np.unique(x[lower], return_index=True)
-    anchor_y = y[lower][keep]
+    chosen = chosen[np.argsort(x[chosen])]
+    anchor_x, keep = np.unique(x[chosen], return_index=True)
+    anchor_y = y[chosen][keep]
 
     base = np.interp(x, anchor_x, anchor_y)
     return (base, anchor_x, anchor_y) if return_points else base
@@ -195,6 +210,21 @@ def als_baseline(y, lam=1e6, p=0.01, niter=10):
     return base
 
 
+#: Units in which bands point *down* from a high baseline, so the rubberband
+#: envelope is the upper hull. Everything else is treated as absorbance-like.
+INVERTED_Y_UNITS = ('transmittance', '%t', 'reflectance')
+
+
+def baseline_side_for(y_unit):
+    """
+    Which hull arc is the baseline for data in ``y_unit``.
+
+    Note the entries are compared lower-cased, so '%T' has to be stored as
+    '%t' -- an easy way to write a check that silently never matches.
+    """
+    return 'upper' if str(y_unit).lower() in INVERTED_Y_UNITS else 'lower'
+
+
 #: Accepted spellings for each baseline method, so that both the legacy
 #: uppercase codes and readable names work.
 BASELINE_ALIASES = {
@@ -214,7 +244,8 @@ def baseline(x, y, method='rubberband', *, return_points=False, **kwargs):
         )
 
     if canonical == 'rubberband':
-        return rubberband_baseline(x, y, return_points=return_points)
+        return rubberband_baseline(x, y, return_points=return_points,
+                                   side=kwargs.pop('side', 'lower'))
 
     if canonical == 'poly':
         base = poly_baseline(x, y, **kwargs)

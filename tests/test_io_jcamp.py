@@ -137,3 +137,57 @@ def test_compound_files_expose_their_children():
     children = spec.metadata.get('Children', [])
     assert len(children) > 1
     assert all(len(child) > 1 for child in children)
+
+
+def test_units_declared_by_the_file_are_machine_readable():
+    """
+    The reader used to set only the axis *label*, leaving y_unit at its
+    default. So a transmittance spectrum reported y_unit='absorbance', and
+    to(y_unit='absorbance') was a silent no-op on data that was not absorbance.
+    """
+    path = os.path.join(DATA, "infrared_spectra", "ethanol.jdx")
+    if not os.path.exists(path):
+        pytest.skip("sample file not present")
+
+    spectrum = _load(path)
+    assert spectrum.x_unit == 'cm^-1'
+    assert spectrum.y_unit == 'transmittance'
+
+
+def test_set_type_does_not_overwrite_units_from_the_file():
+    """
+    Absorbance is the usual FTIR ordinate, but this file says TRANSMITTANCE.
+    set_type('FTIR') must not relabel it -- that mislabels every figure made
+    from it.
+    """
+    path = os.path.join(DATA, "infrared_spectra", "ethanol.jdx")
+    if not os.path.exists(path):
+        pytest.skip("sample file not present")
+
+    spectrum = _load(path)
+    spectrum.set_type('FTIR')
+    assert spectrum.technique == 'FTIR'
+    assert spectrum.y_unit == 'transmittance'
+    assert 'Transmittance' in spectrum.y_label
+
+    # ... and the conversion is now meaningful rather than a no-op.
+    converted = spectrum.to(y_unit='absorbance')
+    assert converted.y_unit == 'absorbance'
+    assert converted.y.max() < spectrum.y.max()
+
+
+def test_set_type_can_be_forced_when_the_file_is_wrong():
+    path = os.path.join(DATA, "infrared_spectra", "ethanol.jdx")
+    if not os.path.exists(path):
+        pytest.skip("sample file not present")
+    spectrum = _load(path)
+    spectrum.set_type('FTIR', force_units=True)
+    assert spectrum.y_unit == 'absorbance'
+
+
+def test_a_file_without_units_takes_the_technique_default():
+    """Only files that actually declare units get to keep them."""
+    from spectroscopy import datasets
+    spectrum = datasets.load('uvvis_1')          # headerless CSV, no units
+    assert spectrum.y_unit == 'absorbance'
+    assert spectrum.x_unit == 'nm'

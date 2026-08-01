@@ -166,6 +166,7 @@ class Spectrum:
             self._x_label_override = other._x_label_override
             self._y_label_override = other._y_label_override
             self.technique   = other.technique
+            self.units_from_file = other.units_from_file
             self.history     = list(other.history)
             self.x      = np.copy(other.x)
             self.y      = np.copy(other.y)
@@ -260,6 +261,9 @@ class Spectrum:
         self.y_unit = y_unit
         self._x_label_override = None
         self._y_label_override = None
+        #: True once a reader has established units from the file's own
+        #: metadata, which set_type() then leaves alone.
+        self.units_from_file = False
 
     @property
     def x_label(self) -> str:
@@ -633,14 +637,22 @@ class Spectrum:
         if parameters is not None and canonical == 'poly':
             kwargs.setdefault('coefficients', parameters)
 
+        # Which hull arc is the baseline depends on which way the bands point:
+        # absorbance rises from a baseline near zero, transmittance dips from
+        # one near 100%. Taking the lower hull of a transmittance spectrum
+        # traces the tips of the absorption bands, which is meaningless.
+        if canonical == 'rubberband':
+            kwargs.setdefault('side', common.baseline_side_for(self.y_unit))
+
         anchors = None
         if canonical == 'rubberband':
             if return_points:
                 base, anchor_x, anchor_y = common.rubberband_baseline(
-                    self.x, self.y, return_points=True)
+                    self.x, self.y, return_points=True, side=kwargs['side'])
                 anchors = (anchor_x, anchor_y)
             else:
-                base = common.rubberband_baseline(self.x, self.y)
+                base = common.rubberband_baseline(self.x, self.y,
+                                                  side=kwargs['side'])
         else:
             base = common.baseline(self.x, self.y, method=canonical, **kwargs)
 
@@ -654,23 +666,45 @@ class Spectrum:
         return (result, *anchors) if anchors is not None else result
 
     def baseline_correct(self, method='rubberband', parameters=None,
-                         **kwargs) -> "Spectrum":
+                         mode=None, **kwargs) -> "Spectrum":
         """
-        Subtract a baseline, returning the corrected spectrum.
+        Remove a baseline, returning the corrected spectrum.
 
         Same arguments as :meth:`baseline`. This is the form that records the
         *correction* in history -- doing ``s - s.baseline()`` by hand records
         only an anonymous subtraction, which would not replay.
+
+        Parameters
+        ----------
+        mode : {'subtract', 'divide'}, optional
+            How to remove it. Absorbance is additive, so the baseline is
+            subtracted; transmittance is multiplicative, so it is divided out
+            and the result is a corrected transmittance still referenced to 1.
+            Chosen from the y unit when not given.
         """
         base = self.baseline(method, parameters, **kwargs)
         canonical = common.BASELINE_ALIASES.get(str(method).lower(), method)
-        recorded = {"method": canonical}
+
+        if mode is None:
+            mode = ('divide'
+                    if common.baseline_side_for(self.y_unit) == 'upper'
+                    else 'subtract')
+        if mode == 'divide':
+            with np.errstate(divide='ignore', invalid='ignore'):
+                corrected = np.where(base.y != 0, self.y / base.y, np.nan)
+        elif mode == 'subtract':
+            corrected = self.y - base.y
+        else:
+            raise ValueError(
+                f"mode must be 'subtract' or 'divide', not {mode!r}")
+
+        recorded = {"method": canonical, "mode": mode}
         recorded.update({k: (list(v) if isinstance(v, (list, tuple, np.ndarray)) else v)
                          for k, v in kwargs.items()})
         if parameters is not None and canonical == 'poly':
             recorded.setdefault('coefficients', list(parameters))
         return self._derive(
-            y=self.y - base.y,
+            y=corrected,
             step=ProcessingStep("baseline_correct", recorded),
         )
 
@@ -783,23 +817,33 @@ class Spectrum:
         """
         self.metadata['reference'] = ref_name
 
-    def set_type( self, spec_type ) -> None:
+    def set_type( self, spec_type, force_units=False ) -> None:
         """
-        Set the technique, and with it the axis quantities and units.
+        Set the technique, and with it the default axis quantities and units.
 
-        Clears any axis-label overrides, so a label picked up from a file
-        header is replaced by the technique's proper label.
+        Units the file itself declared are **kept**, not overwritten. A JCAMP
+        file that says ``##YUNITS=TRANSMITTANCE`` holds transmittance; calling
+        ``set_type('FTIR')`` should not relabel it as absorbance just because
+        absorbance is the usual FTIR ordinate. Getting that wrong mislabels a
+        figure and makes :meth:`to` silently do the wrong thing.
+
+        Pass ``force_units=True`` to override anyway -- useful when a file's
+        own metadata is known to be wrong.
         """
         if spec_type not in KNOWNSPECTYPES:
             raise TypeError(
                 f"Unknown spectrum type {spec_type}; "
                 f"known types are {', '.join(KNOWNSPECTYPES)}"
             )
+        self.technique = spec_type
+        self.metadata['spec_type'] = spec_type
+
+        if self.units_from_file and not force_units:
+            return
+
         data = KNOWNSPECTYPES[spec_type]
         self._set_axes(data['x_quantity'], data['x_unit'],
                        data['y_quantity'], data['y_unit'])
-        self.technique = spec_type
-        self.metadata['spec_type'] = spec_type
 
     def get_info( self ) -> str:
         """
@@ -857,11 +901,15 @@ class Spectrum:
                 f"spectroscopy.io.read_spectra() to load them all"
             )
 
+        # Copy everything the reader produced except the file bookkeeping,
+        # which this object already owns. Deliberately not an explicit list of
+        # attribute names: such a list has to be updated whenever the data
+        # model grows a field, and one that silently falls out of step is what
+        # defect D5 was.
         loaded = spectra[0]
-        for attribute in ('x', 'y', 'name', 'technique', 'metadata', 'history',
-                          'x_quantity', 'x_unit', 'y_quantity', 'y_unit',
-                          '_x_label_override', '_y_label_override'):
-            setattr(self, attribute, getattr(loaded, attribute))
+        for attribute, value in vars(loaded).items():
+            if attribute != 'fileinfo':
+                setattr(self, attribute, value)
 
     def save_as(self, filename, file_type = 'spy') -> None:
         """

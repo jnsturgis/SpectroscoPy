@@ -286,3 +286,100 @@ def test_relative_works_for_direct_detection_too(synthetic):
     spec, _, _, _ = synthetic
     found = spec.find_peaks(method='direct', prominence=0.1, relative=True)
     assert len(found) > 0
+
+
+# ---------------------------------------------------------------------------
+# baseline side -- which way do the bands point?
+# ---------------------------------------------------------------------------
+
+def _transmittance():
+    """A transmittance spectrum: baseline near 1, bands dipping down."""
+    x = np.linspace(900.0, 1800.0, 901)
+    absorbance = gauss(x, 1650.0, 40.0, 0.8) + gauss(x, 1100.0, 30.0, 0.5)
+    tilt = 0.05 * (x - 900.0) / 900.0          # a sloping baseline, as always
+    return x, np.power(10.0, -(absorbance + tilt))
+
+
+def test_transmittance_baseline_is_the_upper_hull():
+    """
+    Reported by James: a transmittance baseline is the maximum hull near 100%,
+    an absorbance baseline the minimum hull near zero. Taking the lower hull of
+    a transmittance spectrum traces the tips of the absorption bands.
+    """
+    x, transmittance = _transmittance()
+
+    upper = common.rubberband_baseline(x, transmittance, side='upper')
+    lower = common.rubberband_baseline(x, transmittance, side='lower')
+
+    assert np.all(upper >= transmittance - 1e-9), "upper hull sits above the data"
+    assert np.all(lower <= transmittance + 1e-9), "lower hull sits below it"
+    # The upper hull is the physically meaningful one: it stays near full
+    # transmission across the whole range. The lower hull dives through the
+    # band minima, which is not a baseline of anything.
+    assert upper.min() > 0.85
+    assert lower.min() < 0.3
+    assert np.mean(upper) > np.mean(lower) + 0.3
+
+
+def test_the_side_is_chosen_from_the_y_unit():
+    assert common.baseline_side_for('transmittance') == 'upper'
+    assert common.baseline_side_for('%T') == 'upper'
+    assert common.baseline_side_for('absorbance') == 'lower'
+    assert common.baseline_side_for('a.u.') == 'lower'
+
+
+def test_spectrum_picks_the_right_side_without_being_told():
+    x, transmittance = _transmittance()
+
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, transmittance
+    spectrum.y_unit, spectrum.y_quantity = 'transmittance', 'Transmittance'
+
+    baseline = spectrum.baseline('rubberband')
+    assert baseline.y.min() > 0.85              # upper hull
+
+    absorbance = spectrum.to(y_unit='absorbance')
+    assert absorbance.baseline('rubberband').y.max() < 0.2   # lower hull
+
+
+def test_transmittance_is_corrected_by_division():
+    """
+    Absorbance is additive so the baseline is subtracted; transmittance is
+    multiplicative so it is divided out, leaving a spectrum still referenced
+    to 1.0 = no absorption.
+    """
+    x, transmittance = _transmittance()
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, transmittance
+    spectrum.y_unit = 'transmittance'
+
+    corrected = spectrum.baseline_correct('rubberband')
+    assert corrected.history[-1].params['mode'] == 'divide'
+    assert np.isclose(corrected.y.max(), 1.0, atol=1e-6)
+    assert corrected.y.min() < 0.5
+
+    forced = spectrum.baseline_correct('rubberband', mode='subtract')
+    assert forced.history[-1].params['mode'] == 'subtract'
+    assert np.isclose(forced.y.max(), 0.0, atol=1e-6)
+
+
+def test_absorbance_still_subtracts():
+    x, transmittance = _transmittance()
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, transmittance
+    spectrum.y_unit = 'transmittance'
+
+    corrected = spectrum.to(y_unit='absorbance').baseline_correct('rubberband')
+    assert corrected.history[-1].params['mode'] == 'subtract'
+    assert np.isclose(corrected.y.min(), 0.0, atol=1e-6)
+
+
+def test_bad_side_and_mode_are_refused():
+    x, transmittance = _transmittance()
+    with pytest.raises(ValueError, match="side must be"):
+        common.rubberband_baseline(x, transmittance, side='sideways')
+
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, transmittance
+    with pytest.raises(ValueError, match="mode must be"):
+        spectrum.baseline_correct('rubberband', mode='wiggle')

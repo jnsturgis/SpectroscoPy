@@ -67,6 +67,23 @@ def _axis_label(units_string):
     return text.capitalize()
 
 
+#: JCAMP unit strings -> the machine-readable units this library uses. Setting
+#: only the *label* (as this reader used to) leaves y_unit at its default, so a
+#: transmittance spectrum claimed to be absorbance and .to() would silently do
+#: the wrong thing -- the y-axis version of the nm/cm^-1 confusion the roadmap
+#: warns about.
+JCAMP_X_UNITS = {
+    '1/CM': 'cm^-1', 'CM-1': 'cm^-1',
+    'NANOMETERS': 'nm', 'NM': 'nm',
+    'MICROMETERS': 'um', 'UM': 'um',
+}
+JCAMP_Y_UNITS = {
+    'TRANSMITTANCE': 'transmittance',
+    'ABSORBANCE': 'absorbance',
+    '%T': '%T', 'PERCENT TRANSMITTANCE': '%T',
+    'ARBITRARY UNITS': 'a.u.', 'COUNTS': 'counts',
+}
+
 JCAMP_X_QUANTITY = {
     '1/CM': 'Wavenumber', 'CM-1': 'Wavenumber',
     'NANOMETERS': 'Wavelength', 'NM': 'Wavelength',
@@ -349,10 +366,24 @@ def read(file, my_spectrum ) -> None:
     # TODO do a better job with x_label
     x_units = str(jcamp_dict.get('xunits', '')).strip()
     y_units = str(jcamp_dict.get('yunits', '')).strip()
-    if x_units:
+    known_x = JCAMP_X_UNITS.get(x_units.upper())
+    known_y = JCAMP_Y_UNITS.get(y_units.upper())
+
+    if known_x:
+        my_spectrum.x_unit = known_x
+        my_spectrum.x_quantity = JCAMP_X_QUANTITY.get(x_units.upper(), 'x')
+    elif x_units:
         my_spectrum.x_label = _axis_label(x_units)
-    if y_units:
+
+    if known_y:
+        my_spectrum.y_unit = known_y
+        my_spectrum.y_quantity = y_units.capitalize()
+    elif y_units:
         my_spectrum.y_label = y_units.capitalize()
+
+    if known_x or known_y or x_units or y_units:
+        # Tell set_type() not to overwrite what the file actually said.
+        my_spectrum.units_from_file = True
 
     if jcamp_dict.get('children'):
         my_spectrum.metadata['Children'] = jcamp_dict['children']

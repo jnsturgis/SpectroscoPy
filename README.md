@@ -1,79 +1,133 @@
-# SpectroscoPy1.0
+# SpectroscoPy
 
-## Introduction
+One way of handling spectra, whatever instrument they came from.
 
-This project is born out of frustration as a scientist that uses a variety of
-spectroscopy instruments but frequently runs into problems with idiosyncratic
-and low quality analysis software, proprietary file formats etc. 
+[![License: MPL 2.0](https://img.shields.io/badge/License-MPL_2.0-brightgreen.svg)](LICENSE)
 
-The objective of this project is therefor to make my life simpler providing
-a common framework for handling and analysing spectra from different sources.
-I my work I use mostly UV-visible, absorption fluorescence and circular dichroism 
-spectra and ATR-FTIR absorption spectra so these spectroscopies will probably
-be over represented.
-I envisage a three tier system in the organization of the project.
-1. Stand alone tools to do specific tasks, working esentially like most unix/linux
-tools.
-2. A library of functions, covering the same tools, that can be used for scripting
-analyses and working on them for example in a jupyter notebook.
-3. A user friendly programme driven via a GUI.
+> ⚠️ **Pre-1.0.** The API is still settling and may change between 0.x
+> releases. It is used for real work, but pin a version if you depend on it.
 
-## Main things to do
+## Why
 
-### Managing data from different sources
+Every spectrometer writes its own file format and ships its own idiosyncratic
+analysis program. The result is that the same operation — average the
+replicates, take the baseline off, subtract the buffer, label the peaks — gets
+re-implemented, slightly differently, in every notebook.
 
-TODO: The program should be able to load data from different sources.
-Different open source spectroscopy file types and any others that I can find
-how to read.
+SpectroscoPy reads them all into one object, gives you those operations once,
+and keeps a record of everything it did, so a figure can be traced back to the
+raw files months later.
 
-TODO: Editing spectrum metadata
+```python
+import spectroscopy as spc
 
-### Spectrum Calculations
+spectra = spc.SpectrumCollection.from_files("data/*.dpt", technique="ATR-FTIR")
 
-TODO: The program should be able to do a number of simple, and less simple,
-calculations on spectra, these should be easily scriptable and produce as
-output a new spectrum. These include:
-1. Simple arithmetic operations (+,-,*,/) between spectra or with a number.
-2. Resampling the x-axis, shifting x-axis etc.
-3. Smoothing with different algorithms (notable Savitsky-Golay and Fourier)
-4. Baseline correction using several algorithms (compare chromatography)
-5. Calculation of derivatives and integrals
-6. Unit conversions Abs/T/1-T, Fluorescence/corrected (Io or Sens), CD ?
+result = (spectra.group_by('sample')['PG_coli']
+          .mean()                                   # average the replicates
+          .crop(900, 1800)
+          .subtract_reference(water, factor=0.7)    # the factor is recorded
+          .baseline_correct('rubberband')
+          .normalize('max', window=(1050, 1080)))
 
-### Spectrum Analysis
+peaks = result.find_peaks(prominence=0.05, relative=True)
+print(result.describe_history())
+```
 
-TODO: Analysis programs that can produce different types of information:
-1. Spectral decomposition into predetermined components, spectra or extinctions
-outputing [component, weight] pairs
-2. Fitting with different model curves outputing [parameters, weight] list
-3. Calculating different sorts of synthetic spectrum.
+```
+1. mean(n_spectra=6)
+2. crop(x_max=1800, x_min=900)
+3. subtract_reference(factor=0.7, reference={'kind': 'spectrum', 'sample': 'H2O'})
+4. baseline_correct(method='rubberband', mode='subtract')
+5. normalize(method='max', window=[1050, 1080])
+```
 
-### Output and figures
+## Install
 
-TODO: Output of data.
-1. Internal format that is as versatile as possible
-2. Export as standard open-source formats as complete as possible
-3. Visual exploration scripted fro figures or GUI for exploration
-## User manual
+```bash
+pip install spectroscopy                     # core
+pip install "spectroscopy[multivariate]"     # + PCA / NMF / ICA
+```
 
-A simple python script to load a pair of UV-vis spectra and generate a
-figure showing the spectra and their difference could be:
+Python 3.10 or newer. If `pip` refuses with *externally-managed-environment*,
+use a virtual environment — see Getting started.
 
-    # Setup the program
-    import spectroscopy as spc
-    # Simple import instruction
-    spectrum_one = spc.import("File1.txt")
-    spectrum_two = spc.import("File2.txt")
-    # Basic maths operations
-    difference   = spectrum_one - spectrum_two
-    # Make a plot using matplotlib
-    difference.plot()
+## What it does
 
-### Program Status
+**Reads** `.dpt` (Bruker OPUS), JCAMP-DX (`.jdx`, `.dx`), delimited text
+(`.csv`, `.tsv`, `.txt`), wide and paired multi-column exports, and its own
+`.spy`. Separators, header rows and text encodings are detected rather than
+assumed. Adding a format is one decorator.
 
-TODO: Enquiries about current status of the program
-1. List of loaded spectra and their information
-2. List of views and what they show
-3. About, Help and manual
+**Processes** — cropping, baselines (rubberband, guide-point polynomial,
+asymmetric least squares), smoothing and derivatives, five normalisations,
+second-derivative peak detection, replicate averaging, scaled reference
+subtraction, resampling, unit conversion.
 
-## API - what can you do with a spectrum object
+**Analyses** — PCA, NMF and ICA over a set of spectra, with bootstrap stability
+testing to say whether the number of components is defensible.
+
+**Plots** — with the axis conventions each technique expects (including
+right-to-left wavenumbers and optional framed axes), a colour-vision-safe
+palette, peak and band annotation, stacked and faceted layouts.
+
+**Remembers** — every operation records what it did and with which parameters,
+and `.spy` files carry that history with them.
+
+## Documentation
+
+```bash
+pip install -e ".[docs]"
+python -m sphinx -b html docs docs/_build/html
+```
+
+Start with **`docs/getting-started.md`** — it goes from `pip install` to a
+labelled figure and assumes only that you can copy text into a terminal. Every
+example runs against sample spectra that ship with the package, so it works
+before you have any data of your own.
+
+## Project layout
+
+```
+spectroscopy/
+  spectra.py      Spectrum -- the core data model
+  collection.py   SpectrumCollection -- many spectra, grouped and averaged
+  io/             format readers, self-registering
+  processing/     algorithms over plain arrays
+  viz.py          plotting
+  history.py      what was done, with which parameters
+  units.py        axis unit conversion
+  datasets.py     the example spectra
+```
+
+The layering runs one way: `io` → `core` → `processing` → `viz`. Nothing
+reaches backwards.
+
+## Status
+
+Working: the data model, provenance, the format registry, the processing and
+multivariate layers, plotting, and a getting-started guide.
+
+Planned: more vendor formats, technique-specific corrections (ATR, inner-filter
+and scatter removal for EEM, Beer-Lambert), hyperspectral maps, and a graphical
+application for people who would rather not write code at all.
+
+`SpectroscoPy_Development_Roadmap.md` has the plan;
+`SpectroscoPy_Codebase_Review.md` records what has been done and why, including
+several things found in the old code that had been quietly affecting results.
+
+## Contributing
+
+Bug reports are welcome, particularly *unclear error messages* — those stop
+people using a tool more effectively than missing features do.
+
+```bash
+pip install -e ".[dev]"
+pytest
+ruff check .
+```
+
+## Licence
+
+[Mozilla Public License 2.0](LICENSE). Use it in anything; changes to these
+files should be shared back.
