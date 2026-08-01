@@ -76,16 +76,45 @@ Guide points are the natural tool: name the wavelengths where you know there is
 nothing absorbing, and a polynomial is fitted through the spectrum's own values
 there.
 
-```{code-cell} ipython3
-guides = [600, 620, 640, 660, 900, 930, 950]      # away from both bands
+Choosing them is the whole job, and it is easy to get wrong. Look for regions
+that are genuinely flat before naming any:
 
+```{code-cell} ipython3
+first = fractions[0]
+for low in range(600, 950, 50):
+    window = first.crop(low, low + 50)
+    print(f"  {low}-{low+50} nm: median {np.median(window.y):7.2f}  "
+          f"spread {window.y.std():5.2f}")
+```
+
+Only 625–700 nm and 925–950 nm are flat. Everything from 700 nm upward is
+already on the rising edge of the bands, and the extreme blue end is noisy.
+
+```{code-cell} ipython3
+guides = [630, 650, 670, 690, 930, 940, 950]
+
+baseline = first.baseline('poly', degree=1, points=guides, halfwidth=3)
 corrected = fractions.map(
-    lambda s: s.baseline_correct('poly', degree=2, points=guides))
+    lambda s: s.baseline_correct('poly', degree=1, points=guides, halfwidth=3))
 
 fig, ax = plt.subplots(figsize=(7, 3))
-viz.plot_baseline(fractions[0], fractions[0].baseline('poly', degree=2,
-                                                      points=guides), ax)
+viz.plot_baseline(first, baseline, ax)
 ```
+
+:::{admonition} A guide point in the wrong place ruins the result
+:class: warning
+
+Writing this page I first used `[600, 620, 640, 660, 900, 930, 950]` — round
+numbers that looked "away from both bands". But 900 nm is still on the shoulder
+of the 850 band (median 5.4) and 600 nm is a noisy rising edge. Those two
+points dragged a degree-2 polynomial up to +2…+5 while the true baseline sits
+at −2, so the correction pushed the whole spectrum *further* negative.
+
+The library now warns when a subtractive baseline leaves the result mostly
+negative, which is the signature of exactly this mistake. `halfwidth=3` also
+helps: it takes the median over a few points either side of each guide instead
+of trusting a single one.
+:::
 
 :::{admonition} If your sample really is turbid
 :class: tip

@@ -9,6 +9,8 @@ Gaussian peak on a known baseline) to verify baseline correction/peak fitting
 recover the right answer within tolerance."
 """
 
+import warnings
+
 import numpy as np
 import pytest
 
@@ -383,3 +385,50 @@ def test_bad_side_and_mode_are_refused():
     spectrum.x, spectrum.y = x, transmittance
     with pytest.raises(ValueError, match="mode must be"):
         spectrum.baseline_correct('rubberband', mode='wiggle')
+
+
+def test_a_baseline_above_the_data_warns():
+    """
+    Reported by James from the UV-Vis tutorial: the spectrum dipped below zero,
+    the fitted baseline sat entirely above zero, and subtracting it pushed the
+    result further negative. That is the signature of guide points placed on a
+    band shoulder rather than in a flat region, and it is worth saying so.
+    """
+    x = np.linspace(600.0, 950.0, 351)
+    y = gauss(x, 850.0, 30.0, 100.0) - 2.0        # baseline sits at -2
+
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, y
+    spectrum.set_type("UV-Vis")
+
+    # Guide points on the band shoulder drag the fit far above the true floor.
+    with pytest.warns(RuntimeWarning, match="above the data"):
+        spectrum.baseline_correct('poly', degree=1, points=[820, 830, 840])
+
+
+def test_well_placed_guide_points_do_not_warn():
+    x = np.linspace(600.0, 950.0, 351)
+    y = gauss(x, 850.0, 30.0, 100.0) - 2.0
+
+    spectrum = Spectrum()
+    spectrum.x, spectrum.y = x, y
+    spectrum.set_type("UV-Vis")
+
+    with warnings.catch_warnings():
+        warnings.simplefilter("error")
+        corrected = spectrum.baseline_correct(
+            'poly', degree=1, points=[610, 630, 650, 670], halfwidth=3)
+    assert corrected.y.min() > -1.0
+
+
+def test_halfwidth_resists_a_single_bad_point():
+    """A spike on a guide point should not drag the whole baseline."""
+    x = np.linspace(600.0, 950.0, 351)
+    y = np.full_like(x, 1.0)
+    y[int(np.abs(x - 650).argmin())] = 50.0        # one bad reading
+
+    naive = common.poly_baseline(x, y, degree=1, points=[620, 650, 680])
+    robust = common.poly_baseline(x, y, degree=1, points=[620, 650, 680],
+                                  halfwidth=4)
+    assert abs(np.mean(robust) - 1.0) < abs(np.mean(naive) - 1.0)
+    assert abs(np.mean(robust) - 1.0) < 0.5

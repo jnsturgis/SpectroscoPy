@@ -702,6 +702,25 @@ class Spectrum:
             raise ValueError(
                 f"mode must be 'subtract' or 'divide', not {mode!r}")
 
+        # A subtractive baseline is supposed to sit *under* the data. If the
+        # result is negative over much of the range, it did not -- almost
+        # always because the guide points were not in baseline regions, or a
+        # too-flexible polynomial bowed above the data between them. Saying so
+        # beats letting someone carry a systematically depressed spectrum into
+        # an integration.
+        if mode == 'subtract' and len(corrected):
+            span = float(np.nanmax(corrected) - np.nanmin(corrected))
+            if span > 0:
+                below = float(np.mean(corrected < -0.01 * span))
+                if below > 0.25:
+                    warnings.warn(
+                        f"the baseline sits above the data over "
+                        f"{100 * below:.0f}% of the range, so the corrected "
+                        f"spectrum is mostly negative. Check that the guide "
+                        f"points are in genuinely flat regions, or lower the "
+                        f"polynomial degree.",
+                        RuntimeWarning, stacklevel=2)
+
         recorded = {"method": canonical, "mode": mode}
         recorded.update({k: (list(v) if isinstance(v, (list, tuple, np.ndarray)) else v)
                          for k, v in kwargs.items()})
