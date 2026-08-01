@@ -4,6 +4,7 @@
 """Sphinx configuration."""
 
 import datetime
+from urllib.parse import quote
 
 project = "SpectroscoPy"
 author = "James N. Sturgis"
@@ -33,6 +34,34 @@ source_suffix = {".rst": "restructuredtext", ".md": "myst-nb", ".ipynb": "myst-n
 exclude_patterns = ["_build", "**.ipynb_checkpoints"]
 
 myst_enable_extensions = ["colon_fence", "deflist", "substitution"]
+
+# -- Feedback (review 14.5) ------------------------------------------------
+#
+# The docs ask the reader to report missing questions and broken behaviour, so
+# they have to say where to. The address is written down here once: the footer
+# template (_templates/feedback.html) reads it from html_context, and the one
+# inline link, at the end of "What do you want to know?", is built below from
+# the same constant.
+
+feedback_to = "james.sturgis@univ-amu.fr"
+
+_question_body = (
+    "The question I arrived with:\n\n"
+    "The instrument or data I have:\n\n"
+    "How I do this at the moment, if I do:\n\n\n"
+    "-- do not delete: this says where the report came from --\n"
+    "Page: what-do-you-want-to-know\n"
+    f"SpectroscoPy: {release}\n"
+)
+_question_mailto = (
+    f"mailto:{feedback_to}"
+    f"?subject={quote('[SpectroscoPy] I want to know...')}"
+    f"&body={quote(_question_body)}"
+)
+
+myst_substitutions = {
+    "feedback_question_link": f"[tell me what it is](<{_question_mailto}>)",
+}
 #: Pages are executed at build time, so a code block that has gone stale
 #: breaks the build instead of quietly lying to the reader.
 nb_execution_mode = "auto"
@@ -94,16 +123,22 @@ plot_pre_code = (
 html_theme = "pydata_sphinx_theme"
 html_title = f"SpectroscoPy {version}"
 html_static_path = ["_static"]
+templates_path = ["_templates"]
+html_css_files = ["custom.css"]
+#: Read by _templates/feedback.html.
+html_context = {"feedback_to": feedback_to}
 html_theme_options = {
     "show_prev_next": True,
     "navigation_with_keys": True,
     "show_toc_level": 2,
     "icon_links": [{
         "name": "Source",
-        "url": "https://github.com/jnsturgis/Spectroscopy1.0",
+        "url": "https://github.com/jnsturgis/SpectroscoPy",
         "icon": "fa-brands fa-square-github",
         "type": "fontawesome",
     }],
+    # The feedback line sits in the middle of the footer, on every page.
+    "footer_center": ["feedback"],
     "announcement": (
         "SpectroscoPy is pre-1.0 &mdash; the API may still change between "
         "releases."

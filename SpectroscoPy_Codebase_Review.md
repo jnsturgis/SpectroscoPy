@@ -1319,6 +1319,22 @@ The address is James's decision — a personal address gets read but does not
 survive him; a project alias survives but needs setting up. GitHub issues stay
 the channel for anyone who prefers them, and the footer should offer both.
 
+**Built.** `james.sturgis@univ-amu.fr`, chosen over an alias deliberately: a
+professional address that is read now beats one that is easier to hand on
+later. It is written down once, in `docs/conf.py`, and reaches the footer
+template through `html_context` — changing it later is a one-line edit, which
+was the condition for choosing it.
+
+Three footer links on all 37 pages plus an "Open an issue" link, and one inline
+link where "What do you want to know?" asks for missing questions. The page and
+release are baked into each body at build time rather than filled in by
+JavaScript, so the links still work in a saved or offline copy of the docs.
+
+Two things came out of doing it: the "Source" icon and the `pyproject.toml`
+homepage both pointed at `github.com/jnsturgis/Spectroscopy1.0`, which 404s —
+the repository is `SpectroscoPy`. That URL would have gone out as PyPI metadata
+at the first publish.
+
 ---
 
 ## 15. Environment note — where scikit-learn actually is

@@ -1,0 +1,31 @@
+{#-
+    Feedback links for the footer of every page. See review section 14.5.
+
+    Three subjects rather than one generic "contact", because a prefilled
+    subject is the difference between mail that can be triaged and mail that
+    cannot. The body carries the page and the release, so a report says where
+    it came from without the reader having to go and look either up -- which
+    they will not do.
+
+    Built at build time from `pagename` and `release`, not by JavaScript, so
+    the links work in a saved or offline copy of the docs too.
+-#}
+{#- `feedback_to` comes from html_context in conf.py, so the address is
+    written down once and the inline link on "What do you want to know?" uses
+    the same one. -#}
+{%- set feedback_where = "\n\n\n-- do not delete: this says where the report came from --\nPage: " ~ pagename ~ "\nSpectroscoPy: " ~ release ~ "\n" -%}
+
+{%- set bug_body = "What I did:\n\nWhat I expected:\n\nWhat happened instead:\n\nIf there is an error message, please paste it here:\n" ~ feedback_where -%}
+{%- set feature_body = "What I would like to be able to do:\n\nWhy -- what I am trying to find out:\n\nIf you have a data file that shows the need, please attach it.\n" ~ feedback_where -%}
+{%- set question_body = "The question I arrived with:\n\nThe instrument or data I have:\n\nHow I do this at the moment, if I do:\n" ~ feedback_where -%}
+
+<p class="spc-feedback">
+  <span class="spc-feedback-lead">Something wrong, missing, or not answered here?</span>
+  <a href="mailto:{{ feedback_to }}?subject={{ '[SpectroscoPy] Bug'|urlencode }}&amp;body={{ bug_body|urlencode }}">Report a bug</a>
+  <span class="spc-feedback-sep">&middot;</span>
+  <a href="mailto:{{ feedback_to }}?subject={{ '[SpectroscoPy] Feature request'|urlencode }}&amp;body={{ feature_body|urlencode }}">Request a feature</a>
+  <span class="spc-feedback-sep">&middot;</span>
+  <a href="mailto:{{ feedback_to }}?subject={{ '[SpectroscoPy] I want to know...'|urlencode }}&amp;body={{ question_body|urlencode }}">Ask a question we should answer</a>
+  <span class="spc-feedback-sep">&middot;</span>
+  <a href="https://github.com/jnsturgis/SpectroscoPy/issues">Open an issue</a>
+</p>

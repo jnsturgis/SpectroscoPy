@@ -67,4 +67,13 @@ library is for, and the gaps are the roadmap.
 ## If your question is not here
 
 That is useful information. The gaps above are the plan; a question that is not
-listed at all is one nobody has told us about. Both are worth reporting.
+listed at all is one nobody has told us about.
+
+So if your question is missing, {{ feedback_question_link }} — what you want to
+know, and what instrument you have. A question nobody reports stays missing,
+and the entries on this page came from people who said what they were trying to
+find out. You do not need to know how it would be implemented, or whether it is
+reasonable to ask.
+
+The same address takes bugs and feature requests; the links are at the foot of
+every page.

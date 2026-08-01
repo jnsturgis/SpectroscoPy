@@ -1,0 +1,47 @@
+/* This Source Code Form is subject to the terms of the Mozilla Public
+ * License, v. 2.0. If a copy of the MPL was not distributed with this
+ * file, You can obtain one at https://mozilla.org/MPL/2.0/.
+ */
+
+/* The footer feedback line (docs/_templates/feedback.html, review 14.5).
+ *
+ * Sized and coloured like the rest of the footer rather than as a call to
+ * action: it should be findable by someone who has decided to complain, not
+ * compete with the content of the page.
+ */
+
+.spc-feedback {
+    margin: 0;
+    text-align: center;
+    line-height: 1.8;
+}
+
+.spc-feedback-lead {
+    margin-right: 0.35em;
+}
+
+.spc-feedback-sep {
+    margin: 0 0.35em;
+    opacity: 0.5;
+}
+
+/* On a narrow screen the four links wrap; the separators would then start or
+ * end a line, so hide them and let the wrapping do the separating.
+ */
+@media (max-width: 500px) {
+    .spc-feedback-sep {
+        display: none;
+    }
+
+    .spc-feedback a {
+        display: block;
+    }
+}
+
+/* The same line at the end of "What do you want to know?", where the page has
+ * just asked the reader to report a missing question. There it is the point of
+ * the paragraph, so it is left-aligned with the prose rather than centred.
+ */
+.spc-feedback-inline .spc-feedback {
+    text-align: left;
+}
