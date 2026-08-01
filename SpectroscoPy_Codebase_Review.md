@@ -1335,6 +1335,16 @@ homepage both pointed at `github.com/jnsturgis/Spectroscopy1.0`, which 404s —
 the repository is `SpectroscoPy`. That URL would have gone out as PyPI metadata
 at the first publish.
 
+**Settled, and not to be revisited (James, 2026-08-02): mail is the primary
+channel.** The testers do not have GitHub accounts, and email is how feedback
+actually arrives. When a JOSS criterion later wants a public trace of external
+use (dual-publication document §6.1), that trace is produced by **relaying mail
+into issues by proxy**, crediting the reporter and saying the report came in by
+mail — not by pushing scientists towards a tracker they have no account for.
+Any future proposal to "move feedback to GitHub" is answering the wrong
+question: the channel exists for the people reporting, not for the reviewer
+counting.
+
 ---
 
 ## 15. Environment note — where scikit-learn actually is
