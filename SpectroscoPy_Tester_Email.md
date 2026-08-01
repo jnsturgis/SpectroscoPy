@@ -1,9 +1,9 @@
 # Emails to testers
 
-Two emails for the two audiences of the tester brief. Both are ready to send
-once the documentation is published (see the note at the bottom — the one thing
-that must happen first). Personalise the bracketed bits; the rest is written to
-be sent as it stands.
+Two emails for the two audiences of the tester brief. **Both are ready to
+send** — the documentation is published, at
+<https://jnsturgis.github.io/SpectroscoPy/>. Personalise the bracketed bits; the
+rest is written to be sent as it stands.
 
 - **Email A** — GitHub-registered colleagues. The ask is a bounded 45 minutes
   and a public issue.
@@ -46,7 +46,7 @@ half of what I need to find out is which bits only make sense to someone who
 already knows the answer.
 
 Repository: https://github.com/jnsturgis/SpectroscoPy
-Documentation: [DOCS URL]
+Documentation: https://jnsturgis.github.io/SpectroscoPy/
 
 **1. Install it (10 minutes).** In a fresh virtual environment:
 
@@ -177,24 +177,18 @@ James
 
 ---
 
-## Before sending: the documentation must be published
+## The documentation is published — resolved 2026-08-02
 
-**There is currently no [DOCS URL] to fill in.** CI builds the documentation and
-uploads it as a workflow artifact, which is only reachable by someone logged in
-to GitHub who knows to look in the Actions tab. There is no GitHub Pages site
-and no Read the Docs.
+<https://jnsturgis.github.io/SpectroscoPy/>, redeployed from `main` on every
+push. This section previously said the emails could not go out because there was
+no URL: CI built the site and uploaded it as a workflow artifact reachable only
+from the Actions tab.
 
-Do not send this pointing at the markdown files in the repository instead. The
-pages execute their code at build time, so the figures and outputs that make
-Getting Started comprehensible only exist in the built site; the raw source
-shows the code with nothing coming out of it. That would generate a batch of
-confused issues about the documentation being broken, which is noise rather than
-signal, and a poor first impression from people doing you a favour.
-
-Publishing is a small job — a `gh-pages` deployment step in the existing CI
-workflow, since the build already produces the site. It is also required for
-JOSS regardless: reviewers must be able to read the documentation without
-cloning anything.
+Kept as a note because the reasoning still applies to anyone tempted to point
+readers at the markdown in the repository instead. The pages execute their code
+at build time, so the figures and outputs that make Getting Started
+comprehensible exist only in the built site; the source shows code with nothing
+coming out of it.
 
 ## Who to send them to
 

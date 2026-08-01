@@ -76,6 +76,15 @@ and `.spy` files carry that history with them.
 
 ## Documentation
 
+**<https://jnsturgis.github.io/SpectroscoPy/>** — published from `main` on every
+push, so it always matches the code above it.
+
+Start with [Getting Started](https://jnsturgis.github.io/SpectroscoPy/getting-started.html),
+or, if you know what you want to find out rather than which function does it,
+[What do you want to know?](https://jnsturgis.github.io/SpectroscoPy/what-do-you-want-to-know.html)
+
+To build it yourself:
+
 ```bash
 pip install -e ".[docs]"
 cd docs && make html          # or `make rebuild` for a clean build
@@ -86,7 +95,7 @@ breaks the build rather than quietly misleading a reader. Use `make rebuild`
 before trusting the page-to-page navigation: Sphinx caches the table of
 contents, and an incremental build can leave a newly-added page unlinked.
 
-Start with **`docs/getting-started.md`** — it goes from `pip install` to a
+Getting Started goes from `pip install` to a
 labelled figure and assumes only that you can copy text into a terminal. Every
 example runs against sample spectra that ship with the package, so it works
 before you have any data of your own.

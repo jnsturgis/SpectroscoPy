@@ -61,6 +61,7 @@ spc-ftir-sidechains = "spectroscopy.cli.ftir_sidechains:main"
 
 [project.urls]
 Homepage = "https://github.com/jnsturgis/SpectroscoPy"
+Documentation = "https://jnsturgis.github.io/SpectroscoPy/"
 Issues = "https://github.com/jnsturgis/SpectroscoPy/issues"
 
 [tool.hatch.version]
