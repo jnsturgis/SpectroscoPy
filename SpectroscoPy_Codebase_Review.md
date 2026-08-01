@@ -1205,7 +1205,92 @@ areas survive it — a smoother that shifts a band is worse than noise.
 
 ---
 
-## 14. Environment note — where scikit-learn actually is
+## 14. Working agreements (proposed by James, 2026-08)
+
+Four things that shape what gets built next. Recorded as policy rather than
+suggestions.
+
+### 14.1 A feature earns its place with a real example
+
+**No new method, option or convenience is added without a concrete example on
+real data that justifies it**, and that example becomes tutorial material.
+James supplies the example before the feature is rolled out.
+
+This is the §11 notebook inventory turned into a standing gate rather than a
+one-off exercise. It is worth taking seriously because the two most useful
+things built so far — `SpectrumCollection.group_by().mean()` and the `.dpt`
+reader — were both driven by a specific piece of real friction, while the
+riskiest additions have been the ones I reasoned my way into.
+
+Enforcement worth adding: a test asserting every public name appears somewhere
+under `docs/`, so an undocumented feature fails CI. That catches the letter of
+the rule; the spirit needs a human.
+
+### 14.2 The guide should argue, not just describe
+
+The user guide currently says what each method does and hints at when to use
+it. It does not systematically say **why to favour one over another** — which
+is the actual question a scientist has.
+
+Wanted: a comparison page per decision point, with the physical reasoning.
+Concretely, at least
+
+- **baselines** — convex hull vs guide-point polynomial vs ALS: what shape of
+  background each can and cannot follow, what each assumes, how each fails, and
+  what the failure looks like on a plot.
+- **normalisation** — max vs area vs vector vs SNV: what quantity each holds
+  constant, and therefore what comparison each licenses.
+- **peak detection** — direct vs second derivative: what a shoulder is and why
+  the derivative finds it.
+- **smoothing** — how much is too much, and how to tell.
+- **component count** in a decomposition — already partly written.
+
+Each should end with a default recommendation, because "it depends" is not
+advice.
+
+### 14.3 Invert the documentation for v1
+
+Tutorials currently answer *"how do I turn this data into information?"* A
+mature version should also answer the question the user actually arrives with:
+
+> **"I want to know X."** → *"With your instrument, do this."*
+
+That is an index organised by scientific question rather than by technique or
+by method — protein secondary structure, sample purity, energy transfer
+efficiency, component identification, concentration — each pointing at the
+recipe appropriate to the equipment available. It is a different document from
+either the tutorials or the guide, and it is probably the one that matters most
+to a codephobic user.
+
+Worth drafting the question list early even if the entries are stubs: the list
+is itself a statement of what the library is for, and gaps in it are gaps in
+the roadmap.
+
+### 14.4 An anti-stale-example trap
+
+Stale documentation examples are a recurring annoyance and should be made
+structurally impossible rather than caught by review.
+
+Current state: **tutorials and getting-started execute at build time** and fail
+CI if they break. **The user guide does not** — its code is illustrative, and
+could drift silently. Docstring examples are not checked at all.
+
+Proposed, in order of value for effort:
+
+1. Execute the guide pages too (`myst-nb` already does the work; the cost is
+   build time).
+2. `pytest --doctest-modules` so `>>>` examples in docstrings are run.
+3. `sphinx -b coverage` in CI to report public objects with no documentation.
+4. A test that every name exported in `__all__` is mentioned somewhere under
+   `docs/` — the mechanical half of §14.1.
+
+The residual risk after all four is prose that describes behaviour without
+showing it — the "what to change for your own data" tables at the end of each
+tutorial are exactly this shape, and nothing can check them but a reader.
+
+---
+
+## 15. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 
