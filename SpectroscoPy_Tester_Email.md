@@ -1,14 +1,23 @@
-# Email to the GitHub-registered testers
+# Emails to testers
 
-Ready to send once the documentation is published (see the note at the bottom —
-this is the one thing that must happen first). Personalise the bracketed bits;
-the rest is written to be sent as it stands.
+Two emails for the two audiences of the tester brief. Both are ready to send
+once the documentation is published (see the note at the bottom — the one thing
+that must happen first). Personalise the bracketed bits; the rest is written to
+be sent as it stands.
 
-Send them **individually, not as a group mail with everyone in the To line**.
+- **Email A** — GitHub-registered colleagues. The ask is a bounded 45 minutes
+  and a public issue.
+- **Email B** — scientists with their own spectra. The ask is one real analysis,
+  reported by mail, with a named nerdy colleague offered as a way round the
+  parts they would rather not do.
+
+Send both **individually, not as a group mail with everyone in the To line**.
 Four people who each got a personal note reply at a different rate from four
 people who can see that three others were asked the same thing.
 
 ---
+
+# Email A — for the GitHub-registered
 
 **Subject:** A 45-minute favour, and a coffee in it for you
 
@@ -98,6 +107,76 @@ James
 
 ---
 
+# Email B — for the scientists
+
+For Candice, Chloé, the Letitia phage group, and anyone else with their own
+spectra. Different ask, different tone: they are not testing software as a
+favour, they are being asked whether a tool is any good for their actual work,
+which is a question they are better placed to answer than anyone.
+
+Fill in **[NERD]** with whichever technically confident colleague *they* already
+get on with — the point of naming a specific person is that "ask someone in
+computing" is a wall, and "ask [NERD], who is expecting it" is a door. Check
+with the nerd first.
+
+**Subject:** Would you try this on your own spectra?
+
+Dear [NAME],
+
+You know the spectrum-handling code I have been building. It now reads [THEIR
+FORMAT], handles [THEIR TECHNIQUE], and keeps a record of every processing step
+so you can still tell in six months how you got a figure.
+
+I would like to ask you to use it for **one real piece of analysis** — something
+you would otherwise do in [THEIR CURRENT TOOL] — and then tell me where it
+fought you.
+
+The reason for asking now, rather than when it is finished: in November I have
+to freeze the interface, which means committing to not changing what things are
+called or how they are used. After that, changing them breaks other people's
+work. So this is the last point at which "that is the wrong way round" from
+someone who actually does the measurements can still change anything. Once it is
+frozen, it is frozen for years.
+
+**What I am asking for**, and it should be about an hour with your own data:
+
+1. Get it installed — or say the word and I will do it on your machine.
+2. Do one analysis you would normally do. Your data, your usual workflow.
+3. Tell me where you got stuck, what you expected something to be called that it
+   is not, and anything that took more steps than it obviously should.
+
+**How to tell me:** every page of the documentation has *Report a bug*,
+*Request a feature* and *Ask a question* links at the bottom. They open an email
+to me with the page and version already filled in, so you just write what
+happened in your own words. You do not need to know what caused it. "It did
+something strange when I did X" is a perfectly good report — working out why is
+my job, not yours.
+
+**If the installing or the writing-up is the off-putting part:** [NERD] has
+offered to help, and knows the project. They can get it running on your machine,
+sit with you for the first analysis if that is useful, and pass anything you
+find on to me in the form I need. Nothing is lost by going through them — I would
+rather have your findings second-hand than not have them.
+
+**What is most useful to me is what annoyed you.** Not the parts that worked.
+If something felt clumsy, or you had to look up how to do a thing you do every
+week, that is exactly the report I want. And if the honest answer turns out to be
+that it is not worth your time compared with what you already use — that is the
+single most useful thing you could tell me, and I would rather hear it now than
+after I have published a paper saying otherwise.
+
+If you can get to it before **[EARLY SEPTEMBER DATE]**, it can still change the
+design.
+
+[Optional, and true: I will acknowledge you in the paper — the people who shape
+what the thing looks like deserve to be named in it.]
+
+Thank you,
+
+James
+
+---
+
 ## Before sending: the documentation must be published
 
 **There is currently no [DOCS URL] to fill in.** CI builds the documentation and
@@ -117,8 +196,19 @@ workflow, since the build already produces the site. It is also required for
 JOSS regardless: reviewers must be able to read the documentation without
 cloning anything.
 
-## Who to send it to
+## Who to send them to
 
-Four to six people is plenty (tester brief §1). Aim for a mix: at least one who
-has never touched spectroscopy, at least one on Windows, and at least one who
-will enjoy step 3 far too much.
+**Email A:** four to six people is plenty (tester brief §1). Aim for a mix — at
+least one who has never touched spectroscopy, at least one on Windows, and at
+least one who will enjoy step 3 far too much.
+
+**Email B:** the three from review §9.5, who cover the four techniques between
+them. Pair each with a [NERD] they already know, and warn the nerd first — being
+volunteered by email is a poor way to find out.
+
+The pairing does two jobs at once. It removes the installation and write-up
+barrier for people whose interest is their spectra rather than their terminal,
+and it routes their findings towards someone who can file them publicly. That is
+the proxy relay of review §14.5, with a name attached instead of a good
+intention — and it is honest, because the report really did come from the
+scientist and the issue says so.
