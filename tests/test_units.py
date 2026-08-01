@@ -157,3 +157,65 @@ def test_conversion_survives_the_rest_of_the_pipeline():
     assert len(result) > 0
     assert np.all(np.diff(result.x) > 0)
     assert [s.name for s in result.history] == ['to', 'crop', 'baseline_correct']
+
+
+# ---------------------------------------------------------------------------
+# absorptance -- distinct from absorbance, and the one to compare with
+# an excitation spectrum
+# ---------------------------------------------------------------------------
+
+def test_absorptance_is_one_minus_transmittance():
+    transmittance = np.array([1.0, 0.5, 0.1, 0.0])
+    absorptance = units.convert_y(transmittance, 'transmittance', 'absorptance')
+    assert np.allclose(absorptance, [0.0, 0.5, 0.9, 1.0])
+    assert np.allclose(
+        units.convert_y(absorptance, 'absorptance', 'transmittance'),
+        transmittance)
+
+
+def test_percent_absorptance():
+    percent = units.convert_y(np.array([1.0, 0.5]), 'transmittance',
+                              '%absorptance')
+    assert np.allclose(percent, [0.0, 50.0])
+
+
+def test_absorptance_and_absorbance_are_not_the_same_quantity():
+    """
+    They agree only in the weak-absorption limit. By A = 0.3 they differ by
+    nearly 30%, which is why the excitation comparison has to use 1 - T: the
+    excitation signal follows photons absorbed, not optical density.
+    """
+    absorbance = np.array([0.01, 0.1, 0.3, 1.0])
+    absorptance = units.convert_y(absorbance, 'absorbance', 'absorptance')
+
+    weak_limit = 2.303 * absorbance
+    assert np.isclose(absorptance[0] / weak_limit[0], 1.0, atol=0.02)   # agree
+    assert absorptance[2] / weak_limit[2] < 0.8                          # diverge
+    assert absorptance[3] < 1.0            # saturates; absorbance does not
+
+
+def test_absorptance_round_trips_through_absorbance():
+    absorbance = np.array([0.05, 0.2, 0.8])
+    there = units.convert_y(absorbance, 'absorbance', 'absorptance')
+    back = units.convert_y(there, 'absorptance', 'absorbance')
+    assert np.allclose(back, absorbance)
+
+
+def test_spectrum_converts_to_absorptance():
+    spec = Spectrum()
+    spec.x = np.linspace(400.0, 700.0, 31)
+    spec.y = np.full(31, 0.5)
+    spec.y_unit, spec.y_quantity = 'transmittance', 'Transmittance'
+
+    converted = spec.to(y_unit='absorptance')
+    assert converted.y_unit == 'absorptance'
+    assert converted.y_quantity == 'Absorptance'
+    assert np.allclose(converted.y, 0.5)
+    assert converted.history[-1].params['y_unit'] == 'absorptance'
+
+
+def test_absorptance_baseline_uses_the_lower_hull():
+    """Bands point up from zero, like absorbance -- not down from 100%."""
+    from spectroscopy.processing import common
+    assert common.baseline_side_for('absorptance') == 'lower'
+    assert common.baseline_side_for('transmittance') == 'upper'

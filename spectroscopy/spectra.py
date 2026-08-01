@@ -75,6 +75,8 @@ UNIT_LABELS = {
     'eV':            'eV',
     'absorbance':    '',
     'transmittance': '',
+    'absorptance':   '',
+    '%absorptance':  '%',
     '%T':            '%',
     'counts':        'counts',
     'a.u.':          'a.u.',
@@ -111,6 +113,8 @@ QUANTITY_FOR_Y_UNIT = {
     'absorbance': 'Absorbance',
     'transmittance': 'Transmittance',
     '%T': 'Transmittance',
+    'absorptance': 'Absorptance',
+    '%absorptance': 'Absorptance',
 }
 
 

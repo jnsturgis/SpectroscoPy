@@ -49,10 +49,20 @@ X_UNITS = {
 
 #: y units, each with converters to and from transmittance (0-1) as the base.
 #: 'counts' and 'a.u.' are deliberately absent: they are not convertible.
+#:
+#: Note that *absorbance* and *absorptance* are different quantities and the
+#: distinction matters. Absorbance (optical density) is -log10(T). Absorptance
+#: is the fraction of light actually absorbed, 1 - T. They agree only in the
+#: weak-absorption limit, where 1 - T ~ 2.303 * A; by A = 0.3 they differ by
+#: 15%. Absorptance is the one to compare against an excitation spectrum,
+#: because the excitation signal is proportional to photons absorbed, not to
+#: optical density.
 Y_UNITS = {
     'transmittance': (lambda v: v,                    lambda v: v),
     '%T':            (lambda v: v / 100.0,            lambda v: v * 100.0),
     'absorbance':    (lambda v: np.power(10.0, -v),   lambda v: -np.log10(v)),
+    'absorptance':   (lambda v: 1.0 - v,              lambda v: 1.0 - v),
+    '%absorptance':  (lambda v: 1.0 - v / 100.0,      lambda v: 100.0 * (1.0 - v)),
 }
 
 
