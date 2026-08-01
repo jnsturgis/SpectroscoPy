@@ -1394,6 +1394,22 @@ it — but it is the reason a mismatched pair (`pip install pyspectroscopy`,
    `spectrokit`, `spectroscope`, `benchspec`. Taken: `spectropy`, `specpy`,
    `spectra`, `spectrapy`, `pyspectra`, `spectrochempy`, `spectrolib`.
 
+### 16.2 Status — drafted 2026-08-02, waiting on James
+
+Everything for all three routes is in `packaging/name-reservation/`:
+
+| File | What it is |
+|---|---|
+| `email-to-goodknight.md` | The transfer request, ready to send. Needs a PyPI username filled in, and should go from the university address rather than Gmail — the request rests on being a real group with a real project, and the From line does that work before the message is read |
+| `pep541-request.md` | The escalation, for ~4 weeks later if there is no reply. Needs the date the email was sent, which is why the email is kept in the repo rather than only in a sent-mail folder — PyPI wants evidence contact was attempted |
+| `pyproject.toml`, `README.md`, `pyspectroscopy/` | The placeholder distribution: version 0.0.0, "Development Status :: 1 - Planning", one module whose docstring says where the real library is, and a README telling anyone who installs it not to depend on it. Builds clean |
+| `UPLOAD.md` | Token setup and the `twine` invocation. Not run here: uploading needs James's credentials, and there are none on this machine |
+
+One thing recorded in `UPLOAD.md` and worth repeating: **PyPI does not allow a
+deleted project name to be re-registered.** Deleting the placeholder later would
+burn `pyspectroscopy` rather than release it, so it should be left in place
+indefinitely rather than tidied up once the question is settled.
+
 **Recommendation: start (1) now and register a fallback name immediately.**
 Registering a placeholder is free and stops the fallback being taken while the
 request sits; the project keeps calling itself SpectroscoPy in prose either way,

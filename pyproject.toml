@@ -85,7 +85,10 @@ artifacts = ["spectroscopy/data/**"]
 exclude = ["spectroscopy/gui"]
 
 [tool.hatch.build.targets.sdist]
-exclude = ["/data", "/tools_stand_alone", "/toto", "/.github"]
+# /packaging holds the pyspectroscopy name-reservation placeholder, which has
+# its own pyproject.toml and its own module. Shipping it inside this sdist
+# would put a second, unrelated project in the tarball.
+exclude = ["/data", "/tools_stand_alone", "/toto", "/.github", "/packaging"]
 
 # ---------------------------------------------------------------------------
 # Linting

@@ -1,0 +1,27 @@
+[build-system]
+requires = ["hatchling"]
+build-backend = "hatchling.build"
+
+[project]
+name = "pyspectroscopy"
+version = "0.0.0"
+description = "Name reservation for SpectroscoPy — a unified Python library for Raman, FTIR, UV-Vis and fluorescence spectra"
+readme = "README.md"
+requires-python = ">=3.10"
+license = "MPL-2.0"
+authors = [{ name = "James N. Sturgis", email = "james.sturgis@univ-amu.fr" }]
+keywords = ["spectroscopy", "raman", "ftir", "uv-vis", "fluorescence"]
+classifiers = [
+    "Development Status :: 1 - Planning",
+    "Intended Audience :: Science/Research",
+    "Topic :: Scientific/Engineering :: Chemistry",
+    "Topic :: Scientific/Engineering :: Physics",
+    "Programming Language :: Python :: 3",
+]
+
+[project.urls]
+Homepage = "https://github.com/jnsturgis/SpectroscoPy"
+Issues = "https://github.com/jnsturgis/SpectroscoPy/issues"
+
+[tool.hatch.build.targets.wheel]
+packages = ["pyspectroscopy"]
