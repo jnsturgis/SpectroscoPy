@@ -42,6 +42,7 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 import spectroscopy.messages
+from spectroscopy import units
 from spectroscopy.history import ProcessingStep, describe_operand
 from spectroscopy.io import csv, dpt, jcamp, spy
 from spectroscopy.peaks import PeakTable
@@ -98,6 +99,18 @@ KNOWNSPECTYPES = {
 
 #: Techniques whose x axis is conventionally plotted high-to-low.
 REVERSED_AXIS_TECHNIQUES = ('FTIR', 'ATR-FTIR', 'Raman')
+
+#: The quantity a unit implies, used to relabel an axis after conversion so a
+#: wavelength axis taken to cm^-1 does not stay called 'Wavelength'.
+QUANTITY_FOR_X_UNIT = {
+    'nm': 'Wavelength', 'um': 'Wavelength',
+    'cm^-1': 'Wavenumber', 'eV': 'Photon energy',
+}
+QUANTITY_FOR_Y_UNIT = {
+    'absorbance': 'Absorbance',
+    'transmittance': 'Transmittance',
+    '%T': 'Transmittance',
+}
 
 
 def compose_label(quantity, unit):
@@ -425,6 +438,53 @@ class Spectrum:
 #   Processing. Each of these returns a NEW Spectrum and records a step.
 #
 ##=============================================================================
+
+    def to(self, x_unit=None, y_unit=None) -> "Spectrum":
+        """
+        Convert to different axis units, returning a new Spectrum.
+
+        ``spectrum.to("nm")`` and ``spectrum.to(y_unit="%T")`` are the two
+        everyday forms; both axes can be converted at once.
+
+        A reciprocal x conversion (nm to cm^-1, or either to eV) reverses the
+        ordering of the axis, so the points are re-sorted ascending and y is
+        reordered with them -- otherwise every later interpolation, hull and
+        crop would be working on a descending axis.
+
+        The quantity name is updated along with the unit where the pairing is
+        unambiguous, so a wavelength axis converted to cm^-1 is relabelled
+        'Wavenumber' rather than staying 'Wavelength (cm^-1)'.
+        """
+        if x_unit is None and y_unit is None:
+            raise ValueError("to() needs an x_unit, a y_unit, or both")
+
+        result = Spectrum(self)
+        step_params = {}
+
+        if x_unit is not None and x_unit != self.x_unit:
+            converted, flipped = units.convert_x(self.x, self.x_unit, x_unit)
+            result.x = converted
+            result.y = np.copy(self.y)
+            if flipped:
+                order = np.argsort(converted)
+                result.x = converted[order]
+                result.y = result.y[order]
+            result.x_unit = x_unit
+            result.x_quantity = QUANTITY_FOR_X_UNIT.get(x_unit, self.x_quantity)
+            result._x_label_override = None
+            step_params.update({"x_unit": x_unit, "from_x_unit": self.x_unit})
+
+        if y_unit is not None and y_unit != self.y_unit:
+            result.y = units.convert_y(result.y, self.y_unit, y_unit)
+            result.y_unit = y_unit
+            result.y_quantity = QUANTITY_FOR_Y_UNIT.get(y_unit, self.y_quantity)
+            result._y_label_override = None
+            step_params.update({"y_unit": y_unit, "from_y_unit": self.y_unit})
+
+        if not step_params:
+            return result            # already in the requested units
+        result.history = list(result.history) + [ProcessingStep("to", step_params)]
+        return result
 
     def crop(self, x_min=None, x_max=None) -> "Spectrum":
         """
@@ -775,27 +835,43 @@ class Spectrum:
         """
         Reload the spectrum from the file, or load a first time after setting fileinfo
         """
-        filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
-        with open( filename, encoding="utf-8") as f:
-            match self.fileinfo['TYPE']:
-                case 'jcamp':
-                    jcamp.read(f, self)
-                case 'csv':
-                    csv.read(f, self )
-                case 'tsv':
-                    csv.read(f, self, delimiter='\t')
-                case 'dpt':
-                    # Separator is sniffed per file: 140 of the 825 .dpt files
-                    # in the notebooks are comma separated, not tab. See
-                    # spectroscopy/io/dpt.py.
-                    dpt.read(f, self)
-                case 'spy':
-                    spy.read(f, self, format='0.0')
-                case _:
-                    raise ValueError(
-                        f"Cannot read '{self.fileinfo['TYPE']}' files; "
-                        f"known types are {', '.join(KNOWNFILETYPES)}"
-                    )
+        filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
+
+        # Vendor exports are not reliably UTF-8 -- JCAMP files from older
+        # instruments carry latin-1 bytes in their comment fields. Falling back
+        # beats refusing a file whose numbers are perfectly readable. latin-1
+        # is the fallback because it maps every byte, so it cannot itself fail.
+        for encoding in ("utf-8", "latin-1"):
+            try:
+                with open(filename, encoding=encoding) as handle:
+                    self._dispatch_read(handle)
+                return
+            except UnicodeDecodeError:
+                continue
+        raise UnicodeDecodeError(                       # pragma: no cover
+            "utf-8", b"", 0, 1, f"could not decode {filename} as utf-8 or latin-1")
+
+    def _dispatch_read(self, f) -> None:
+        """Read from an open handle according to the recorded file type."""
+        match self.fileinfo['TYPE']:
+            case 'jcamp':
+                jcamp.read(f, self)
+            case 'csv':
+                csv.read(f, self )
+            case 'tsv':
+                csv.read(f, self, delimiter='\t')
+            case 'dpt':
+                # Separator is sniffed per file: 140 of the 825 .dpt files in
+                # the notebooks are comma separated, not tab. See
+                # spectroscopy/io/dpt.py.
+                dpt.read(f, self)
+            case 'spy':
+                spy.read(f, self)
+            case _:
+                raise ValueError(
+                    f"Cannot read '{self.fileinfo['TYPE']}' files; "
+                    f"known types are {', '.join(KNOWNFILETYPES)}"
+                )
 
     def save_as(self, filename, file_type = 'spy') -> None:
         """

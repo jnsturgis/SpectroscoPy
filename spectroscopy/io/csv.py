@@ -15,41 +15,76 @@ for my spectroscopy programmes and utilities.
 import numpy as np
 
 
+def looks_like_a_header(line, delimiter, usecols):
+    """
+    True when ``line`` cannot be read as a pair of numbers.
+
+    Used to decide whether the first row is column labels or data. Assuming a
+    header unconditionally is what silently ate the first data point of every
+    headerless file -- the .csv sibling of defect D1.
+    """
+    fields = line.split(delimiter)
+    try:
+        for index in usecols:
+            float(fields[index])
+    except (ValueError, IndexError):
+        return True
+    return False
+
+
 def read(  filehandle, my_spectrum, **kwargs):
     """
     Update the contents of my_spectrum based on the file.
+
+    Keyword arguments
+    -----------------
+    skiprows : int or None
+        Number of leading rows to treat as a header. ``None`` (the default)
+        decides by looking: a first row that does not parse as numbers is a
+        header, anything else is data. Pass an integer to force it.
     """
     options = {
         'comments': '#',
         'delimiter': ',',
-        'skiprows': 1,
+        'skiprows': None,
         'usecols' :(0,1),
     }
     # Parse kwargs
     if kwargs:
         options.update({k: v for k, v in kwargs.items() if k in options})
 
+    delimiter = options['delimiter']
+    usecols = options['usecols']
     skiprows = options['skiprows']
+    sniffing = skiprows is None
+
     x = []
     y = []
     for line in filehandle:
-        if line[-1] == '\n':
-            line = line[:-1]
-        if len(line) > 0:
-            if line[0]==options['comments']:
-                continue
-            if skiprows == 1: # TODO count rows - but also permit ignoring this.
-                try:
-                    cols = line.split(options['delimiter'])
-                    my_spectrum.x_label = cols[options['usecols'][0]]
-                    my_spectrum.y_label = cols[options['usecols'][1]]
-                except Exception:
-                    pass
-            if skiprows <= 0:
-                cols = line.split(options['delimiter'])
-                x.append(float(cols[options['usecols'][0]]))
-                y.append(float(cols[options['usecols'][1]]))
+        line = line.rstrip('\r\n')
+        if not line:
+            continue
+        if line[0] == options['comments']:
+            continue
+
+        if sniffing:
+            # Decide once, on the first non-blank, non-comment row.
+            skiprows = 1 if looks_like_a_header(line, delimiter, usecols) else 0
+            sniffing = False
+
+        if skiprows == 1:
+            cols = line.split(delimiter)
+            try:
+                my_spectrum.x_label = cols[usecols[0]]
+                my_spectrum.y_label = cols[usecols[1]]
+            except IndexError:
+                pass
+        elif skiprows <= 0:
+            cols = line.split(delimiter)
+            x.append(float(cols[usecols[0]]))
+            y.append(float(cols[usecols[1]]))
         skiprows -= 1
+
     my_spectrum.x = np.array(x)
     my_spectrum.y = np.array(y)
 

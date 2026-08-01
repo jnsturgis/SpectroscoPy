@@ -39,6 +39,40 @@ DIF_digits = {'%': 0, 'J':1,  'K':2,  'L':3,  'M':4,  'N':5,  'O':6,  'P':7,
               'p':-7, 'q':-8, 'r':-9}
 DUP_digits = {'S':1, 'T':2, 'U':3, 'V':4, 'W':5, 'X':6, 'Y':7, 'Z':8, 's':9}
 
+## Characters that can begin a data value: a DIF or SQZ digit, or a plain
+## space in AFFN files. Used when expanding DUP (duplicate) compression.
+VALUE_STARTS = set(DIF_digits) | set(SQZ_digits) | {' '}
+
+## What the JCAMP ##XUNITS string means, for labelling. Upstream hardcoded
+## 'Wavenumber', which mislabels every UV/Vis, fluorescence and NMR file.
+def _axis_label(units_string):
+    """
+    Turn a JCAMP ##XUNITS value into a display label.
+
+    The strings in the wild range from a bare unit ('1/CM') to a full
+    description ('WAVELENGTH (NM)'). Only the bare form needs a quantity name
+    prefixed; the descriptive form is already a label.
+    """
+    text = units_string.strip()
+    upper = text.upper()
+    if upper in JCAMP_X_QUANTITY:
+        return f"{JCAMP_X_QUANTITY[upper]} ({text.lower()})"
+    for keyword, quantity in (('WAVENUMBER', 'Wavenumber'),
+                              ('WAVELENGTH', 'Wavelength'),
+                              ('SHIFT', 'Raman shift')):
+        if keyword in upper:
+            return text.capitalize() if '(' in text else f"{quantity} ({text.lower()})"
+    return text.capitalize()
+
+
+JCAMP_X_QUANTITY = {
+    '1/CM': 'Wavenumber', 'CM-1': 'Wavenumber',
+    'NANOMETERS': 'Wavelength', 'NM': 'Wavelength',
+    'MICROMETERS': 'Wavelength', 'UM': 'Wavelength',
+    'SECONDS': 'Time', 'HZ': 'Frequency', 'PPM': 'Chemical shift',
+    'M/Z': 'Mass to charge',
+}
+
 ## The specification allows multiple formats for representing LONGDATE.
 ## See `FRACTIONAL_SECONDS_PATTERN` below for the optional token representing
 ## fractional seconds. These fractional seconds are removed in advance. Thus
@@ -148,7 +182,7 @@ def read(file, my_spectrum ) -> None:
                 from spectroscopy.spectra import Spectrum   # pylint: disable=C0415
                 child_spec = Spectrum()
                 read(compound_block_contents, child_spec)
-                jcamp_dict['children'].append( child_spec )
+                jcamp_dict.setdefault('children', []).append(child_spec)
                 in_compound_block = False
                 compound_block_contents = []
             continue
@@ -193,11 +227,13 @@ def read(file, my_spectrum ) -> None:
                 else:
                     dx = 1.0
                 dx /= jcamp_dict.get("xfactor",1)
+                continue        ## data starts on the NEXT line
             elif lhs == 'end':
                 bounds = [int(i) for i in re_num.findall(rhs)]
                 datastart = True
                 datatype = bounds
                 datalist = []
+                continue        ## data starts on the NEXT line
             elif lhs == 'longdate':
                 try:
                     parsed = parse_longdate(jcamp_dict[lhs])
@@ -220,8 +256,10 @@ def read(file, my_spectrum ) -> None:
             ## the case of negative numbers.
 
             ## Check the first data line only if ASDF format is implemented.
-            if len(y) > 0:
-                ## Check if the format is AFFN or ASDF:
+            if not len(y):
+                ## Check if the format is AFFN or ASDF. This must happen on the
+                ## FIRST data line, before the flag is used below; the test was
+                ## inverted here, so it raised UnboundLocalError on every file.
                 asdf_format_detected = any(l in DIF_digits for l in line)
             datavals = jcamp_parse(line)
 
@@ -306,10 +344,14 @@ def read(file, my_spectrum ) -> None:
     my_spectrum.y   = y
     my_spectrum.name     = jcamp_dict['title']
     # TODO do a better job with x_label
-    my_spectrum.x_label  = f"Wavenumber ({jcamp_dict['xunits'].lower()})"
-    my_spectrum.y_label  = f"{jcamp_dict['yunits'].capitalize()}"
+    x_units = str(jcamp_dict.get('xunits', '')).strip()
+    y_units = str(jcamp_dict.get('yunits', '')).strip()
+    if x_units:
+        my_spectrum.x_label = _axis_label(x_units)
+    if y_units:
+        my_spectrum.y_label = y_units.capitalize()
 
-    if len(jcamp_dict['children']) > 0:
+    if jcamp_dict.get('children'):
         my_spectrum.metadata['Children'] = jcamp_dict['children']
 
 ##=============================================================================
@@ -384,11 +426,18 @@ def jcamp_parse(line):
         newline = ''
         for (i,c) in enumerate(line):
             if c in DUP_digits:
-                ## Check for last DIF_digit which is start of last y-value by
-                ## default, so that all characters belonging to last value is
-                ## fully decompressed by DUP compression.
+                ## Walk back to the start of the previous value so the whole
+                ## of it can be duplicated.
+                ##
+                ## Upstream looks only for a DIF digit here. A value may also
+                ## begin with a SQZ digit or follow a plain space (AFFN), and
+                ## in those cases the loop walked off the front of the line,
+                ## wrapped around through negative indices and raised
+                ## IndexError. That is why 67 of the 79 JCAMP files in data/
+                ## could not be read at all. Stopping at any value-start
+                ## character, and at index 0, fixes it.
                 back = 1
-                while line[i-back] not in DIF_digits:
+                while i - back > 0 and line[i-back] not in VALUE_STARTS:
                     back += 1
                 prev_c = line[i-back:i]
                 mul = DUP_digits[c]

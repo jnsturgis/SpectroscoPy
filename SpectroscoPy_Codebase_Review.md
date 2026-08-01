@@ -721,7 +721,7 @@ relabelled all eight.
 | D1 | `.dpt` loses first point / can't read comma files | **fixed** |
 | D2 | metadata aliasing on arithmetic | **fixed** |
 | D5 | dispatch tables disagree; silent truncation | **fixed** |
-| D4 | `.spy` doesn't round-trip name/labels | open — Phase 2 |
+| D4 | `.spy` doesn't round-trip name/labels | **fixed** |
 | D3 | no axis compatibility checking | **fixed** |
 | D6 | `subtract_reference` tuple bug + PEP 701 f-strings | **fixed** — floor now 3.10, CI 3.10-3.13 |
 | D7 | assorted minor | **fixed** |
@@ -850,7 +850,92 @@ from outside. Embedding the data would make history unbounded.
 
 ---
 
-## 9. Environment note — where scikit-learn actually is
+## 9. Phase 2 — units, `.spy` 1.0, and all four techniques (done)
+
+**D4 is fixed, so the entire defect list from §3.2 is now closed.** Suite is 157 passed, no
+xfails.
+
+### 9.1 Unit conversion — implemented natively, not with `pint`
+
+`spectrum.to("nm")` / `.to(y_unit="%T")` work, with history. Roadmap §2.2 suggests `pint`; I went
+native, and the reason only became clear once the conversions were written down:
+
+- **Half of what is needed is not a unit conversion.** Absorbance to transmittance is
+  `T = 10**-A`, a functional transform between two dimensionless quantities. `pint` does not do
+  that, so custom code was needed regardless.
+- **The x conversions are reciprocal, not scalar.** nm to cm⁻¹ is `1e7 / nm`. `pint` handles that
+  only through its `spectroscopy` context, so the call site is no simpler than the formula.
+
+The unit space here is small and closed, so a native table is exact, dependency-free, and covers
+the y axis too — consistent with §5.6. If the space grows (path lengths, concentrations,
+per-unit-time intensities) `pint` earns its place; that is written down in `units.py`.
+
+One subtlety worth knowing: a reciprocal conversion **reverses the axis**, so `to()` re-sorts
+ascending and reorders y with it. Without that, every later interpolation, hull and crop would
+be working on a descending axis — the quiet kind of wrong. There is a test asserting the point
+that was at 400 nm still carries its own y value after becoming the largest wavenumber.
+
+### 9.2 `.spy` format 1.0 — provenance that survives leaving memory
+
+JSON header plus tab-separated data: the numbers stay greppable and plottable with ordinary
+tools, the metadata is structured enough to read back exactly. It carries name, technique,
+quantities, units, label overrides, metadata and **the full processing history including
+timestamps**. Round-tripping a processed spectrum returns the hand-tuned water factor, not just
+the numbers it produced.
+
+Legacy 0.0 files still load, and now yield the name and labels their own reader used to drop.
+The version is read **from the file**; `reload()` used to pass `format='0.0'` unconditionally,
+which is how a 1.0 file would have been misparsed.
+
+### 9.3 ⚠️ The JCAMP reader read *none* of the 79 sample files
+
+This is the Phase 2 equivalent of the `.dpt` finding, and worse. Validating the other three
+techniques meant loading the Raman and IR reference spectra, which are all JCAMP — and every
+single one failed.
+
+It had been **unreachable** until Phase 0.5: `FILE_EXTS` listed a `'.DX0'` typo, so
+`Spectrum("x.jdx")` raised `TypeError` before touching the reader, and nothing ever exercised it.
+Under that cover, four bugs introduced when the code was adapted from
+`github.com/nzhagen/jcamp` went unnoticed:
+
+| # | bug | effect |
+|---|---|---|
+| 1 | a `continue` was dropped after the `##XYDATA=` header is recognised | the header line itself was parsed as data; its `X` and `Y` are DUP digits, so it died inside the compression expansion — **this alone broke every file** |
+| 2 | the ASDF-detection test was inverted (`if len(y) > 0` for `if not len(y)`) | the flag was read before it was ever set → `UnboundLocalError` |
+| 3 | DUP expansion searched backwards for a DIF digit only | when the previous value began with a SQZ digit it ran past index 0 into negative indices → `IndexError` |
+| 4 | the x label was hardcoded to `'Wavenumber'` | mislabelled every UV/Vis, fluorescence and NMR file |
+
+Plus: `##XUNITS`/`##YUNITS` are optional in practice (NMR and MS files omit them) and were
+accessed unguarded, and one file is latin-1, which `reload()` refused outright.
+
+After fixing: **79 of 79 load**, 74 with data and 5 compound (LINK) parents whose spectra live in
+`metadata['Children']` — which is correct. `reload()` now falls back to latin-1, since refusing a
+file whose numbers are perfectly readable helps nobody.
+
+**This corrects a claim in §7.3.** I wrote there that `.dx`/`.jdx` files "load through
+`Spectrum()` for the first time". They *reached* the reader for the first time; they did not
+load. They do now.
+
+### 9.4 The `.csv` sibling of D1
+
+`data/uvvis_spectra/Spectrum1.csv` and `Spectrum2.csv` have **no header row**, and the delimited
+reader assumed one (`skiprows=1`), so it ate the first data point and set `x_label` to `'950'` —
+exactly the D1 pattern, in the other reader. It now decides by looking: a first row that does not
+parse as a pair of numbers is a header, anything else is data. `skiprows=N` still forces it.
+
+A useful side effect: the 17 notebooks that load `.dpt` files by saying `'tsv'` now get all their
+data even before they are updated to say `'dpt'`.
+
+### 9.5 Ready for 0.1.0
+
+Nothing is blocking a tagged alpha. Suggested first testers, from the inventory: Candice (FTIR,
+already using the library), Chloé (fluorescence EEM + UV-Vis), and the Letitia phage group
+(JCAMP FTIR — newly possible). Worth doing `git tag 0.1.0` yourself so `hatch-vcs` picks up a
+real version instead of `0.0.1.dev15+g…`.
+
+---
+
+## 10. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 

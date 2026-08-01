@@ -55,15 +55,35 @@ def test_dpt_is_inferred_from_the_extension(dpt_file):
     assert len(spec.x) == len(xs)
 
 
-def test_dpt_reading_via_tsv_still_loses_a_point(dpt_file):
+def test_the_old_tsv_route_no_longer_loses_a_point_either(dpt_file):
     """
-    The old route is left working but is still wrong by construction: 'tsv'
-    means "delimited text with a header row". Kept as a test so the difference
-    between the two paths stays visible.
+    The delimited-text reader now decides whether row 1 is a header by looking
+    at it, rather than assuming one. So the 17 notebooks that say 'tsv' for a
+    .dpt file get all their data even before they are updated to say 'dpt'.
     """
     path, xs = dpt_file
     spec = Spectrum(str(path.parent) + "/", path.name, "tsv")
-    assert len(spec.x) == len(xs) - 1
+    assert len(spec.x) == len(xs)
+    assert spec.x[0] == xs[0]
+
+
+def test_a_real_header_is_still_honoured(tmp_path):
+    """Sniffing must not throw away a genuine header row."""
+    path = tmp_path / "with_header.csv"
+    path.write_text("Wavelength,Absorbance\n400.0,0.10\n401.0,0.20\n")
+    spec = Spectrum(str(path))
+    assert len(spec.x) == 2
+    assert spec.x_label == "Wavelength"
+    assert spec.y_label == "Absorbance"
+
+
+def test_a_headerless_csv_keeps_every_point(tmp_path):
+    """The .csv sibling of D1: data/uvvis_spectra/*.csv have no header row."""
+    path = tmp_path / "no_header.csv"
+    path.write_text("950,-0.1341\n949.5,-0.14331\n949,-0.15252\n")
+    spec = Spectrum(str(path))
+    assert len(spec.x) == 3
+    assert spec.x[0] == 950.0
 
 
 # --------------------------------------------------------------------------
@@ -192,11 +212,14 @@ def test_resample_makes_incompatible_spectra_combinable():
 
 
 # --------------------------------------------------------------------------
-# D4 -- .spy does not round-trip name or axis labels
+# D4 -- FIXED in Phase 2: .spy 1.0 round-trips identity, units and history
 # --------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D4: fixed in Phase 2 when .spy carries history")
 def test_spy_round_trips_name_and_labels(tmp_path):
+    """
+    The defect: the 0.0 writer wrote name and labels, and the reader never
+    parsed them back, so saving and reloading silently anonymised a spectrum.
+    """
     spec = _spectrum([1, 2, 3], [4, 5, 6])
     spec.name = "MySpectrum"
     spec.set_type("ATR-FTIR")
@@ -207,24 +230,23 @@ def test_spy_round_trips_name_and_labels(tmp_path):
 
     assert back.name == "MySpectrum"
     assert back.x_label == spec.x_label
+    assert back.technique == "ATR-FTIR"
+    assert back.x_unit == "cm^-1"
 
 
-def test_spy_currently_round_trips_data_but_not_identity(tmp_path):
+def test_spy_round_trips_data_and_metadata(tmp_path):
     spec = _spectrum([1, 2, 3], [4, 5, 6])
     spec.name = "MySpectrum"
     spec.set_type("ATR-FTIR")
+    spec.set_sample("buffer")
 
     target = tmp_path / "rt.spy"
     spec.save_as(str(target), "spy")
     back = Spectrum("", str(target), "spy")
 
-    # data and metadata survive ...
     assert np.allclose(back.x, spec.x)
     assert np.allclose(back.y, spec.y)
     assert back.metadata == spec.metadata
-    # ... identity does not
-    assert back.name != "MySpectrum"
-    assert back.x_label == "Wavelength (nm)"        # the empty-ctor default
 
 
 # --------------------------------------------------------------------------
