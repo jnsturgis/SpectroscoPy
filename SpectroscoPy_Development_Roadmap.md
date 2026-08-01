@@ -289,6 +289,14 @@ Handing over this roadmap plus that ordered brief means Claude Code's first outp
 
 ## 13. Validation Publication (added 2026-08, James)
 
+> **Superseded in part.** `SpectroscoPy_Dual_Publication_Workflows.md` splits
+> this into two papers — a JOSS software paper and a domain application paper —
+> and adds a shared prerequisite this section does not mention (joint NMF
+> decomposition across two techniques). The paper described below is that
+> document's Workflow B. The feature list in §13.3 stands unchanged; the framing
+> of "one paper" does not. See that document's §6.4 for what still needs
+> resolving between the two.
+
 A target that reorders §9 rather than extending it: **a methods/application paper,
 written once a draft GUI exists**, based on multivariate analysis of fluorescence
 and FTIR spectra of *Pseudomonas aeruginosa* biofilms.
