@@ -78,8 +78,13 @@ and `.spy` files carry that history with them.
 
 ```bash
 pip install -e ".[docs]"
-python -m sphinx -b html docs docs/_build/html
+cd docs && make html          # or `make rebuild` for a clean build
 ```
+
+Pages execute their own code at build time, so an example that has gone stale
+breaks the build rather than quietly misleading a reader. Use `make rebuild`
+before trusting the page-to-page navigation: Sphinx caches the table of
+contents, and an incremental build can leave a newly-added page unlinked.
 
 Start with **`docs/getting-started.md`** — it goes from `pip install` to a
 labelled figure and assumes only that you can copy text into a terminal. Every
