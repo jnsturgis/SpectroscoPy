@@ -10,6 +10,10 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Read-only by default; the deploy job asks for what it needs and nothing else.
+permissions:
+  contents: read
+
 jobs:
   lint:
     runs-on: ubuntu-latest
@@ -69,7 +73,36 @@ jobs:
         # -W turns warnings into errors, and the pages execute their own code,
         # so a stale example breaks the build instead of quietly lying.
         run: python -m sphinx -b html -W --keep-going docs docs/_build/html
+      # Sphinx does not write one, and without it GitHub Pages runs the output
+      # through Jekyll, which ignores every directory beginning with an
+      # underscore -- _static and _images, which is to say the stylesheet and
+      # every figure.
+      - name: Disable Jekyll
+        run: touch docs/_build/html/.nojekyll
       - uses: actions/upload-artifact@v4
         with:
           name: docs
           path: docs/_build/html
+      # The same build again in the packaging Pages expects. Uploaded on every
+      # run, so a pull request proves the artifact is publishable before it is
+      # merged; only the deploy job below is restricted to main.
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: docs/_build/html
+
+  # Publishing is a separate job so that its write permissions do not apply to
+  # the build that produced the files -- the build runs documentation code, and
+  # that code should never hold a token that can publish.
+  deploy-docs:
+    needs: docs
+    if: github.ref == 'refs/heads/main' && github.event_name != 'pull_request'
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write
+      id-token: write
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
