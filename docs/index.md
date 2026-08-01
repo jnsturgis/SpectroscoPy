@@ -54,4 +54,6 @@ fluorescence.
 
 getting-started
 tutorials/index
+guide/index
+api
 ```

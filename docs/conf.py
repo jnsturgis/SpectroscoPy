@@ -40,11 +40,25 @@ nb_execution_timeout = 120
 nb_execution_raise_on_error = True
 
 autosummary_generate = True
+
+# The build runs with -W so a genuine problem fails CI. Two classes of message
+# are noise rather than problems and would otherwise mask the real ones:
+#
+#   mystnb   -- "Executing notebook ..." progress notes, emitted at warning
+#               level; nothing is wrong.
+#
+# (Dataclass attributes were also being described twice, by autosummary's
+# :recursive: member pages and by the module page. Dropped :recursive: in
+# api.md rather than silencing it -- the per-member pages added nothing.)
+suppress_warnings = ["mystnb"]
 autodoc_default_options = {"members": True, "undoc-members": False,
                            "show-inheritance": True}
 autodoc_typehints = "description"
 napoleon_numpy_docstring = True
 napoleon_google_docstring = False
+# Render "Attributes" as :ivar: fields instead of separate object descriptions,
+# which stops dataclass attributes being documented twice.
+napoleon_use_ivar = True
 
 intersphinx_mapping = {
     "python": ("https://docs.python.org/3", None),
