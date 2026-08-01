@@ -271,7 +271,27 @@ Follows from §2.1. `.spy` plus `.csv` covers what is needed.
 These are not deferrals. They are decisions that have not been made, and
 freezing without making them would freeze an accident.
 
-### 7.1 ⚠️ A spectrum cannot be constructed from arrays
+### 7.1 ✅ Resolved 2026-08-02 — a spectrum can now be constructed from arrays
+
+`Spectrum(x, y, technique=..., x_unit=..., name=..., metadata=..., history=...)`
+exists, alongside a `Spectrum.read(path, file_type=None)` classmethod. The
+string forms still work, so nothing broke.
+
+Three decisions taken while adding it, recorded because they are now API:
+
+- **Explicit units beat the technique's conventions, and mark the units
+  authoritative.** Passing `x_unit` or `y_unit` sets the same flag a file's own
+  declared units set, so a later `set_type()` will not relabel them. A
+  fluorescence excitation scan in nm stays in nm.
+- **Building from arrays records no history entry.** Creating data is not
+  processing it, and a history claiming otherwise would misdescribe where the
+  numbers came from.
+- **A 2-D input is refused by name**: the error says a collection of spectra is
+  a `SpectrumCollection`, rather than failing later on a shape mismatch.
+
+The original problem, kept because it is why the constructor exists:
+
+### 7.1.1 The state before the fix
 
 `Spectrum.__init__(self, *args)` accepts: nothing, a `Spectrum` (copy), or one
 to three strings (file). **There is no way to build a spectrum from `x` and `y`
@@ -295,7 +315,18 @@ additive; what is *not* additive is freezing `*args` as the only entry point,
 because the empty-then-assign pattern then becomes API that people write against
 and that a later constructor cannot take back.
 
-### 7.2 ⚠️ The two-argument constructor's docstring contradicts the code
+### 7.2 ✅ Resolved 2026-08-02 — the docstring was the wrong half
+
+The behaviour stayed, the docstring was corrected, and `Spectrum.read(path,
+file_type)` now provides what the docstring had wrongly promised. Two positional
+strings still mean `(directory, filename)`, which is what the docs site and the
+readers already assumed; changing that would have broken working calls to fix a
+comment. The guide now carries the warning admonition as well, because the wrong
+reading is the intuitive one.
+
+The original finding:
+
+### 7.2.1 The contradiction as found
 
 The docstring says `Spectrum(filename, filetype)` with filetype "from
 ('jcamp','csv')". The code treats two arguments as `(path, name)` and infers the
@@ -314,9 +345,10 @@ question go away.
 
 ### 7.3 `.x` and `.y` are writable
 
-They must be writable today, because §7.1 leaves no other way to build a
-spectrum. If §7.1 is fixed, the question becomes live: does a frozen 1.0 promise
-that assigning `spectrum.y = something` works?
+**Updated 2026-08-02:** the justification has gone. They had to be writable
+while §7.1 left no other way to build a spectrum; now there is one, so this is a
+real choice rather than a necessity. The question is live: does a frozen 1.0
+promise that assigning `spectrum.y = something` works?
 
 It bypasses history — a spectrum whose y values were replaced by hand records
 nothing, which contradicts §1. **Recommendation:** keep them writable for 1.0

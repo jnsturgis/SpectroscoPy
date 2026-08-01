@@ -1,3 +1,14 @@
+---
+jupytext:
+  text_representation:
+    extension: .md
+    format_name: myst
+kernelspec:
+  display_name: Python 3
+  language: python
+  name: python3
+---
+
 # The data model
 
 Two objects carry everything: `Spectrum` and `SpectrumCollection`.
@@ -35,6 +46,81 @@ If a file states its units — JCAMP does, `.spy` does — those are kept.
 `set_type('FTIR')` will not relabel a transmittance spectrum as absorbance just
 because absorbance is the usual FTIR ordinate. Pass `force_units=True` when a
 file's own metadata is wrong.
+:::
+
+## Building one from data
+
+Not every spectrum comes from a file. A simulated band, a model, a difference
+worked out elsewhere — pass the arrays directly:
+
+```{code-cell} python
+import numpy as np
+import spectroscopy as spc
+
+x = np.linspace(1500, 1750, 251)
+amide_i = 0.8 * np.exp(-((x - 1652) / 12) ** 2)      # α-helix
+amide_ii = 0.5 * np.exp(-((x - 1548) / 15) ** 2)
+
+model = spc.Spectrum(x, amide_i + amide_ii,
+                     technique="ATR-FTIR",
+                     name="two-band model",
+                     metadata={"sample": "simulated"})
+model
+```
+
+It behaves like any other spectrum from that point on — the same processing, the
+same history, the same file formats:
+
+```{code-cell} python
+peaks = model.find_peaks(prominence=0.1, relative=True)
+print(peaks)
+```
+
+`x` and `y` must be the same length and one-dimensional; anything
+`numpy.asarray` accepts will do, so lists are fine.
+
+**Units come from the technique unless you say otherwise.** Passing `x_unit`,
+`y_unit`, `x_quantity` or `y_quantity` overrides the technique's conventions and
+marks them authoritative, so a later `set_type()` will not relabel them — the
+same protection a file's own declared units get:
+
+```{code-cell} python
+excitation = spc.Spectrum(np.linspace(400, 700, 301), np.zeros(301),
+                          technique="Fluorescence",
+                          x_quantity="Wavelength", x_unit="nm",
+                          y_quantity="Intensity", y_unit="counts")
+print(excitation.x_label, "/", excitation.y_label)
+```
+
+Building a spectrum records **no** history entry. Creating data is not
+processing it, and a history that claimed otherwise would be lying about where
+the numbers came from.
+
+## Reading one from a file
+
+```{code-cell} python
+from spectroscopy import datasets
+
+spectrum = spc.Spectrum.read(datasets.path("ethanol"))
+print(spectrum.technique, len(spectrum), "points")
+```
+
+`Spectrum.read(path)` and `Spectrum(path)` do the same thing; `read` is
+preferred in new code because it says that it touches the disk, and it takes the
+format as a named argument when the extension is unhelpful:
+
+```python
+spectrum = spc.Spectrum.read("scan.txt", "dpt")
+```
+
+:::{admonition} Two positional strings mean a directory and a filename
+:class: warning
+
+`Spectrum("path/to/", "oddly_named_file")` reads a *file called
+`oddly_named_file` in directory `path/to/`*. It does **not** mean
+`(filename, format)` — that is `Spectrum.read(filename, format)`. The
+constructor's docstring claimed the second reading until 0.1.1, and the call it
+described raised `TypeError: Unknown filetype unknown`.
 :::
 
 ## Everything returns a new spectrum

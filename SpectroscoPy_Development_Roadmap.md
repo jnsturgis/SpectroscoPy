@@ -417,7 +417,12 @@ additive and can arrive in 1.1.
 Writing it against the code rather than against the plan turned up **two freeze
 blockers nobody had listed**, now items 6 and 7 below.
 
-**6. ⚠️ A `Spectrum` cannot be built from arrays.** `__init__(self, *args)`
+**6. ✅ Fixed 2026-08-02 — a `Spectrum` can be built from arrays.**
+`Spectrum(x, y, technique=..., x_unit=..., name=..., metadata=...)` and
+`Spectrum.read(path, file_type=None)` both exist; the string forms still work,
+and 22 tests pin the behaviour. The guide page documenting it now executes at
+build time, which is the first page of the user guide to do so (review §14.4
+item 1). The problem it fixed: `__init__(self, *args)`
 takes nothing, a `Spectrum`, or one to three strings. Roadmap §2.5's primary
 constructor — `Spectrum(x, y, x_unit=...)` — does not exist, so anyone with
 computed data must construct an empty object and assign `.x` and `.y`, which is
@@ -425,7 +430,11 @@ what the test fixtures do. Freezing `*args` as the only entry point makes
 empty-then-assign the API. Fix before November: add a keyword constructor and a
 `Spectrum.read()` classmethod, keeping the string forms.
 
-**7. ⚠️ The two-argument constructor is documented wrong.** The docstring says
+**7. ✅ Fixed 2026-08-02 — the docstring was corrected, not the behaviour.**
+`Spectrum.read(filename, file_type)` now does what the docstring wrongly claimed
+the two-argument constructor did; two positional strings still mean
+`(directory, filename)`, since the docs and readers already assumed that and
+changing it would break working calls to fix a comment. The finding: The docstring says
 `Spectrum(filename, filetype)`; the code reads two arguments as `(path, name)`.
 The documented call raises `TypeError: Unknown filetype unknown` — verified.
 One of the two is wrong and the signature cannot be frozen until it is decided

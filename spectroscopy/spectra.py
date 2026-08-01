@@ -126,6 +126,22 @@ QUANTITY_FOR_Y_UNIT = {
 }
 
 
+def _looks_like_data(args):
+    """True when ``args`` is the ``Spectrum(x, y, ...)`` form.
+
+    Exactly two positional arguments, both sized, neither a string, a path or
+    a Spectrum. A Spectrum has ``__len__`` too, which is why it is excluded
+    explicitly rather than by luck of branch ordering.
+    """
+    if len(args) != 2:
+        return False
+    return all(
+        not isinstance(a, (str, bytes, os.PathLike, Spectrum))
+        and hasattr(a, '__len__')
+        for a in args
+    )
+
+
 def compose_label(quantity, unit):
     """Build an axis label from a quantity and a unit, e.g. 'Wavenumber (cm^-1)'."""
     rendered = UNIT_LABELS.get(unit, unit)
@@ -138,35 +154,90 @@ def _infer_file_type( name ):
 class Spectrum:
     """A class for spectra."""
 
-    def __init__(self, *args):
+    def __init__(self, *args, **kwargs):
         """Initialize a Spectrum object.
 
-        Simulate overloading the different possitilities for initializing
-        a spectrum:
+        Several forms, distinguished by what is passed:
+
+        ``Spectrum()``
+            An empty spectrum.
+
+        ``Spectrum(x, y, **options)``
+            **From data.** ``x`` and ``y`` are sequences of equal length --
+            arrays, lists, anything :func:`numpy.asarray` accepts. See below
+            for the options.
+
+        ``Spectrum(path)``
+            Read a file, inferring the format from its extension. Prefer
+            :meth:`read`, which is explicit about doing I/O and takes the
+            format as a named argument.
+
+        ``Spectrum(path, name)``
+            Read ``name`` from directory ``path``, inferring the format.
+
+            .. warning::
+
+               These two arguments are a **directory and a filename**, not a
+               filename and a format. Until 0.1.1 this docstring claimed the
+               latter, and ``Spectrum("ethanol.jdx", "jcamp")`` raised
+               ``TypeError: Unknown filetype unknown`` as a result. Use
+               ``Spectrum.read("ethanol.jdx", "jcamp")`` for that.
+
+        ``Spectrum(path, name, file_type)``
+            As above with the format given explicitly.
+
+        ``Spectrum(other)``
+            A deep copy of another spectrum.
 
         Parameters
         ----------
-        args a set of parameters that allow for different initiation routines
-        depending on the parameters.
+        x, y : array_like
+            The axis and the intensities, of equal length. Data form only.
+        technique : str, optional
+            One of the known techniques (``"ATR-FTIR"``, ``"Raman"`` ...).
+            Sets the conventional axis quantities and units for it.
+        x_quantity, x_unit, y_quantity, y_unit : str, optional
+            Set explicitly, and take precedence over ``technique``. Passing
+            any of them marks the units authoritative, so a later
+            :meth:`set_type` will not quietly relabel them.
+        name : str, optional
+            A label for the spectrum. Defaults to ``"unnamed"``.
+        metadata : dict, optional
+            Copied, not referenced.
+        history : list of ProcessingStep, optional
+            For rebuilding a spectrum whose provenance is already known -- a
+            reader, or a round-trip through a file. Building from arrays does
+            not itself record a step: creating data is not processing it.
 
+        Raises
+        ------
+        ValueError
+            If ``x`` and ``y`` differ in length, or either is not 1-D.
+        TypeError
+            If the arguments match none of the forms above.
 
-        Spectrum()                     : no arguments an empty spectrum.
-        Spectrum( filename )           : a file
-        Spectrum( filename, filetype ) : a file where filetype can be from
-                 ('jcamp','csv')
-        Spectrum( a_spectrum )         : a deepcopy of the original
+        Examples
+        --------
+        >>> import numpy as np
+        >>> x = np.linspace(900, 1800, 901)
+        >>> s = Spectrum(x, np.exp(-((x - 1650) / 40) ** 2),
+        ...              technique="ATR-FTIR", name="synthetic")
+        >>> len(s)
+        901
         """
+        if kwargs and not _looks_like_data(args):
+            raise TypeError(
+                "keyword arguments are only accepted by the data form, "
+                "Spectrum(x, y, ...); got "
+                f"{', '.join(sorted(kwargs))}"
+            )
 
         if len(args) == 0 :
-            #     This is the empty initializer
-            self.name        = 'unnamed'
-            self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
-            self._set_axes('Wavelength', 'nm', 'Absorbance', 'absorbance')
-            self.technique   = None
-            self.history     = []
-            self.x      = np.empty(1)
-            self.y      = np.empty(1)
-            self.metadata    = {}
+            self._init_blank()
+
+        elif _looks_like_data(args):
+            self._init_blank()
+            self._init_from_data(args[0], args[1], **kwargs)
 
         elif isinstance(args[0], Spectrum ) :
             # This is the copy method - initiate from another Spectrum()
@@ -191,21 +262,17 @@ class Spectrum:
             # "a deepcopy of the original".
             self.metadata    = copy.deepcopy(other.metadata)
 
-        elif isinstance(args[0], str ) :
+        elif isinstance(args[0], (str, os.PathLike)) :
             # This is the open method - initialize from a file
             # First parse the args to get filetype and full filename
             # Len 1: filename - infer type from 1
             # Len 2: path, filename - infer type  from 2
             # Len 3: path, filename, type
+            args = tuple(os.fspath(a) if isinstance(a, os.PathLike) else a
+                         for a in args)
 
+            self._init_blank()
             self.name        = args[0]
-            self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
-            self._set_axes('Wavelength', 'nm', 'Absorbance', 'absorbance')
-            self.technique   = None
-            self.history     = []
-            self.x      = np.empty(1)
-            self.y      = np.empty(1)
-            self.metadata    = {}
 
             if len(args) == 3:
                 self.fileinfo['PATH'] = args[0]
@@ -241,6 +308,98 @@ class Spectrum:
 #   TODO add an iterator method for point in spectrum.
 #
 ##=============================================================================
+
+    def _init_blank(self) -> None:
+        """The default state every constructor form starts from."""
+        self.name        = 'unnamed'
+        self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
+        self._set_axes('Wavelength', 'nm', 'Absorbance', 'absorbance')
+        self.technique   = None
+        self.history     = []
+        self.x      = np.empty(1)
+        self.y      = np.empty(1)
+        self.metadata    = {}
+
+    def _init_from_data(self, x, y, *, technique=None,
+                        x_quantity=None, x_unit=None,
+                        y_quantity=None, y_unit=None,
+                        name=None, metadata=None, history=None) -> None:
+        """Populate from arrays. See :meth:`__init__` for the arguments."""
+        x = np.asarray(x, dtype=float)
+        y = np.asarray(y, dtype=float)
+        if x.ndim != 1 or y.ndim != 1:
+            raise ValueError(
+                f"x and y must be one-dimensional; got {x.ndim}-D and {y.ndim}-D. "
+                "A collection of spectra is a SpectrumCollection."
+            )
+        if len(x) != len(y):
+            raise ValueError(
+                f"x and y must be the same length; got {len(x)} and {len(y)}"
+            )
+        self.x, self.y = x, y
+
+        if technique is not None:
+            self.set_type(technique)
+
+        # Explicit axis arguments win over the technique's conventions, and
+        # mark the units authoritative -- otherwise a later set_type() would
+        # treat them as defaults and quietly relabel the axis.
+        axes = (x_quantity, x_unit, y_quantity, y_unit)
+        if any(a is not None for a in axes):
+            self._set_axes(
+                x_quantity if x_quantity is not None else self.x_quantity,
+                x_unit if x_unit is not None else self.x_unit,
+                y_quantity if y_quantity is not None else self.y_quantity,
+                y_unit if y_unit is not None else self.y_unit,
+            )
+            self.units_from_file = True
+
+        if name is not None:
+            self.name = name
+        if metadata is not None:
+            self.metadata = copy.deepcopy(dict(metadata))
+            # set_type() records the technique here too; keep them consistent.
+            if technique is not None:
+                self.metadata['spec_type'] = technique
+        if history is not None:
+            self.history = list(history)
+
+    @classmethod
+    def read(cls, path, file_type=None) -> "Spectrum":
+        """Read a spectrum from a file.
+
+        The explicit form of ``Spectrum(path)``: it says that it does I/O, and
+        it takes the format as a named argument rather than as the third of
+        three positional strings.
+
+        Parameters
+        ----------
+        path : str or path-like
+            The file to read.
+        file_type : str, optional
+            One of the registered formats (``"dpt"``, ``"jcamp"``, ``"csv"``,
+            ``"spy"`` ...). Inferred from the extension when omitted.
+
+        Returns
+        -------
+        Spectrum
+
+        Examples
+        --------
+        >>> from spectroscopy import datasets
+        >>> s = Spectrum.read(datasets.path('ethanol'))
+        >>> len(s) > 0
+        True
+
+        See Also
+        --------
+        SpectrumCollection.from_files : many files at once.
+        """
+        path = os.fspath(path)
+        if file_type is None:
+            return cls(path)
+        directory, filename = os.path.split(path)
+        return cls(directory, filename, file_type)
 
     def __str__(self) -> str:       # Users string version of object
         return f"Spectrum :{self.name} {self.y_label} vs {self.x_label}"
