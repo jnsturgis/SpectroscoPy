@@ -110,6 +110,7 @@ ignore = [
 # Contains a verbatim copy of the original notebook code, which is the thing
 # being compared against -- tidying it would defeat the comparison.
 "scripts/validate_ftir_sugars.py" = ["E", "F", "I"]
+"scripts/validate_ck_nmf.py" = ["E", "F", "I"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

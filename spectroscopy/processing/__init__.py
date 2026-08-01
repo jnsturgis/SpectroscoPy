@@ -9,4 +9,4 @@ technique-agnostic algorithms (baseline, smoothing, normalisation, peak
 detection and fitting) arrive in Phase 1/4 as ``processing.common``.
 """
 
-__all__ = ['ftir']
+__all__ = ['common', 'ftir', 'multivariate']

@@ -1009,7 +1009,81 @@ Provenance about *the file* belongs in `fileinfo`; `metadata` is about the sampl
 
 ---
 
-## 11. Environment note — where scikit-learn actually is
+## 11. Phase 4 — multivariate analysis (done)
+
+208 tests. `spectroscopy.processing.multivariate` brings the PCA/NMF/ICA work — the newest and
+most developed analysis in the notebooks — into the library, behind the optional
+`[multivariate]` extra.
+
+### 11.1 Validated against the original, exactly
+
+`scripts/validate_ck_nmf.py` reproduces `Figure_CK_111225`'s k=6 NMF on the real 23-spectrum
+biofilm series and diffs it against the notebook code:
+
+```
+matrix identical        : True   (max |diff| 7.8e-16)
+explained variance      : 0.996981 / 0.996981
+contributions identical : True   (max |diff| 7.2e-14)
+```
+
+The whole path — load 23 files → crop → rubberband → normalise → NMF → per-component area
+fractions — reproduces the published numbers.
+
+### 11.2 ⚠️ Your `repeated_runs_stability` measures nothing
+
+The notebook has two stability probes. Ported and run against the real data:
+
+| k | `runs` (reseeding) | `bootstrap` (resampling) |
+|---|---|---|
+| 2 | 1.000 | 0.994 |
+| 4 | 1.000 | 0.939 |
+| **6** | **1.000** | **0.858** |
+| 8 | 1.000 | 0.826 |
+
+**The reseeding probe returns exactly 1.000 for every k.** NMF's default initialisation
+(`nndsvda`, which the notebook also uses) is fully determined by the data, and coordinate descent
+converges to the same optimum — so "refit with a different seed" refits to an identical answer.
+It cannot distinguish a good k from a bad one because it is not measuring anything. I switched
+the reseeding path to the perturbed `nndsvdar` initialisation to give the seed something to
+change, and on this data even that lands in the same place.
+
+The bootstrap probe *does* discriminate, and it is now the default for `stability()`. On your
+published k=6 it reports **0.858** — meaning components move noticeably when the sample set is
+resampled. That is not damning (k=6 explains 99.7 % of variance and the alginate component is
+chemically interpretable) but it is the number worth quoting if a reviewer asks how robust the
+decomposition is, and it argues for checking whether k=4 tells the same biological story.
+
+### 11.3 What the module adds beyond wrapping scikit-learn
+
+- **Components come back as spectra.** An NMF component *is* a spectrum, so it arrives as a
+  `Spectrum` carrying the collection's x axis, units and technique — peak-pick it, plot it,
+  save it to `.spy` like anything else. That is what the notebooks did by hand with `H[i]`.
+- **`contributions()`** — the per-component spectral-area fractions, the table the CK notebooks
+  build before running statistics.
+- **`match_components()`** — Hungarian matching on absolute correlation, keeping the sign so a
+  flipped component is recognised as the same component.
+- **`scan_components()`** — explained variance, mean R², and optionally stability across a range
+  of k. Explained variance rises monotonically with k and so can never tell you to stop; there
+  is a test asserting exactly that, which is the argument for measuring stability at all.
+- **A useful error for the first thing that goes wrong.** NMF needs non-negative input and
+  baseline-corrected spectra routinely dip below zero; sklearn's own message does not say what
+  to do, so this one names the remedy.
+
+Statistics on the contributions (ANOVA, Tukey HSD, Cohen's d) stayed in the notebooks
+deliberately — they are generic scipy one-liners on a plain array, not spectroscopy, and
+wrapping them would add API surface without adding capability.
+
+### 11.4 A trap worth recording
+
+My first synthetic test fixture mixed two components with weights that summed to 1. Closed
+mixtures like that are **rank-1 once centred**, so asking any method for two components is
+ill-posed — ICA reconstructed only 72 % of a dataset PCA handled exactly, and I nearly filed it
+as an ICA bug. The fixture now varies total intensity as well as composition. Worth knowing if
+you ever build synthetic mixtures to test something.
+
+---
+
+## 12. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:
 
