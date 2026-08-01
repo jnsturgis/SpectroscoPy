@@ -16,4 +16,4 @@ This package was previously the top-level ``formats`` package; that name still
 works but is deprecated.
 """
 
-__all__ = ['jcamp', 'csv', 'spy']
+__all__ = ['jcamp', 'csv', 'dpt', 'spy']

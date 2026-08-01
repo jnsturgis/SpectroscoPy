@@ -599,6 +599,96 @@ Two notes:
 
 ---
 
+## 7. Phase 0.5 — D1 fixed (`.dpt` gets a real reader)
+
+`.dpt` is now a first-class file type with its own reader, `spectroscopy/io/dpt.py`, instead of
+being routed through `csv.read` as `'tsv'`.
+
+### 7.1 The format is not what it looked like
+
+Surveying all the real `.dpt` files before writing the reader changed the design. They are not
+uniformly tab separated:
+
+| variant | count | consequence |
+|---|---|---|
+| tab separated | 681 | fine |
+| **comma separated** | **140** | OPUS follows the machine locale — these **failed outright** as `'tsv'` |
+| `#` metadata header | 2 | your own reference spectra, with Sample/Reference/Operator/Date/Machine |
+| binary despite the extension | 1 | `eau2.0.dpt`, present in two directories |
+| CRLF line endings | ~all | written on Windows |
+
+So the separator is **sniffed per file** rather than assumed. Had I taken the `case 'dpt'` branch
+that already existed in `reload()` at face value — it hardcodes `delimiter='\t'` — 140 files
+would still have been unreadable.
+
+That comma-separated set is Candice's entire `FTIR_spectra/` directory, which explains why those
+notebooks use `np.genfromtxt` rather than the library: the library genuinely could not open them.
+
+### 7.2 Verified against all 893 real files
+
+```
+new 'dpt' reader   891 ok / 2 fail
+old 'tsv' route    753 ok / 140 fail
+data points recovered: 753          (exactly one per file the old route could read)
+```
+
+The 2 remaining failures are the single binary file, twice, and now fail with a clear
+`UnicodeDecodeError` rather than producing garbage. The `#` header is preserved verbatim in
+`metadata['file_header']` rather than being interpreted — turning that block into real metadata
+fields is an obvious follow-up, but guessing at it was not worth the risk here.
+
+### 7.3 D5 came along for the ride, because D1 made it dangerous
+
+Making `'dpt'` reachable turned a latent bug into a live one, so both had to land together:
+
+- `FILE_EXTS` rewritten: `.dpt`, `.dx`, `.jdx`, `.txt`, `.spy` added, the `'.DX0'` typo removed,
+  and lookup is now **case-insensitive**. `.dx`/`.jdx` files load through `Spectrum()` for the
+  first time — the phage notebooks no longer need to call `formats.jcamp` directly.
+- `reload()` and `save()` now cover the same five types, and both have a `case _:` that raises.
+- **`save()` validates the file type *before* `open(..., 'w')`.** This is the important detail:
+  the truncation happens at `open`, so a guard inside the `with` block would still have
+  destroyed the target file before raising. There is a regression test that writes real content
+  to a file, attempts an invalid save, and asserts the content survived.
+
+### 7.4 Status of the review's defect list
+
+| | | |
+|---|---|---|
+| D1 | `.dpt` loses first point / can't read comma files | **fixed** |
+| D5 | dispatch tables disagree; silent truncation | **fixed** |
+| D2 | metadata aliasing on arithmetic | open — `xfail(strict)` in place |
+| D4 | `.spy` doesn't round-trip name/labels | open — Phase 2 |
+| D3 | no axis compatibility checking | open — Phase 1 |
+| D6 | `subtract_reference` tuple bug + PEP 701 f-strings | open — also gates `requires-python` back to 3.10 |
+| D7 | assorted minor (incl. `baseline('RB')` needing a dummy arg) | open — Phase 1 |
+
+Suite is 48 passed / 2 xfailed.
+
+---
+
+## 8. Environment note — where scikit-learn actually is
+
+It is **not** missing, it is in a conda environment:
+
+```
+/home/james/bin/miniconda3/envs/pylipid/    python 3.13, scikit-learn present
+```
+
+Meanwhile the notebooks run against `~/.local/lib/python3.12/site-packages` (numpy, scipy,
+matplotlib, and now SpectroscoPy), and there is one unrelated venv at
+`/hdd/james/src/3D_Simulation/.venv`. So the PCA/NMF notebooks currently cannot run in the same
+interpreter as everything else — three Python environments, and the one with sklearn is not the
+one with SpectroscoPy.
+
+Since you mention wanting to rationalise this: the smallest step that unblocks Phase 1 is
+`pip install --user --break-system-packages scikit-learn`, putting it alongside the rest of the
+notebook stack. The tidier long-run answer is a single project venv that SpectroscoPy and the
+notebooks both use, with `pip install -e .` into it — worth doing before testers arrive in
+Phase 2, since "which Python?" is exactly the question you do not want them asking. Not done
+here; it changes how you launch Jupyter and that should be your call.
+
+---
+
 ## Appendix — files consulted
 
 Notebook source was extracted to text for analysis; the extraction script and dumps are in this

@@ -15,7 +15,7 @@ See SpectroscoPy_Codebase_Review.md section 3.2 for D1-D7.
 import numpy as np
 import pytest
 
-from spectroscopy.spectra import Spectrum
+from spectroscopy.spectra import Spectrum, _infer_file_type
 
 
 @pytest.fixture
@@ -35,26 +35,33 @@ def _spectrum(xs, ys):
 
 
 # --------------------------------------------------------------------------
-# D1 -- loading a .dpt as 'tsv' eats the first data point and the axis labels
+# D1 -- FIXED in Phase 0.5: .dpt has its own reader and keeps every point
 # --------------------------------------------------------------------------
 
-@pytest.mark.xfail(strict=True, reason="D1: fixed in Phase 0.5 by a real 'dpt' reader")
 def test_dpt_keeps_all_points(dpt_file):
+    """The defect: reading via 'tsv' consumed the first data row as a header."""
     path, xs = dpt_file
-    spec = Spectrum(str(path.parent) + "/", path.name, "tsv")
+    spec = Spectrum(str(path.parent) + "/", path.name, "dpt")
     assert len(spec.x) == len(xs)
     assert spec.x[0] == xs[0]
+    assert spec.x[-1] == xs[-1]
 
 
-def test_dpt_currently_loses_first_point(dpt_file):
-    """Pin the damage precisely, so the Phase 0.5 fix can be verified."""
+def test_dpt_is_inferred_from_the_extension(dpt_file):
+    path, xs = dpt_file
+    spec = Spectrum(str(path))
+    assert len(spec.x) == len(xs)
+
+
+def test_dpt_reading_via_tsv_still_loses_a_point(dpt_file):
+    """
+    The old route is left working but is still wrong by construction: 'tsv'
+    means "delimited text with a header row". Kept as a test so the difference
+    between the two paths stays visible.
+    """
     path, xs = dpt_file
     spec = Spectrum(str(path.parent) + "/", path.name, "tsv")
     assert len(spec.x) == len(xs) - 1
-    assert spec.x[0] == xs[1]
-    # ... and the first data row was consumed as a header:
-    assert spec.x_label == "1000.0"
-    assert spec.y_label == "1.0000"
 
 
 # --------------------------------------------------------------------------
@@ -144,30 +151,34 @@ def test_spy_currently_round_trips_data_but_not_identity(tmp_path):
 # D5 -- format dispatch tables disagree
 # --------------------------------------------------------------------------
 
-def test_jcamp_extension_is_not_recognised(tmp_path):
+@pytest.mark.parametrize("name,expected", [
+    ("experiment.dx", "jcamp"),      # was rejected: FILE_EXTS had a '.DX0' typo
+    ("experiment.jdx", "jcamp"),
+    ("experiment.jcamp", "jcamp"),
+    ("sample.dpt", "dpt"),
+    ("sample.DPT", "dpt"),
+    ("data.csv", "csv"),
+    ("data.CSV", "csv"),
+    ("data.tsv", "tsv"),
+    ("saved.spy", "spy"),
+    ("mystery.qqq", "unknown"),
+])
+def test_extension_inference(name, expected):
     """
-    spectroscopy.io.jcamp reads .dx perfectly well, but Spectrum() refuses the
-    extension -- which is why the phage notebooks bypass Spectrum entirely.
+    D5 (fixed): io.jcamp always read .dx fine, but FILE_EXTS listed '.DX0' and
+    matched case-sensitively, so Spectrum() refused the file -- which is why
+    the phage notebooks bypass Spectrum and call formats.jcamp directly.
     """
-    path = tmp_path / "experiment.dx"
-    path.write_text("##TITLE=nothing\n##END=\n")
-    with pytest.raises(TypeError, match="Unknown filetype"):
-        Spectrum(str(path))
+    # pylint: disable=protected-access
+    assert _infer_file_type(name) == expected
 
 
-def test_dpt_filetype_is_rejected_despite_having_a_reader_branch(tmp_path):
-    """reload() has a `case 'dpt'` branch the constructor can never reach."""
-    path = tmp_path / "sample.dpt"
-    path.write_text("1000.0\t0.1\n")
-    with pytest.raises(TypeError, match="Unknown filetype"):
-        Spectrum(str(path.parent) + "/", path.name, "dpt")
-
-
-def test_extension_matching_is_case_sensitive(tmp_path):
-    path = tmp_path / "sample.CSV"
-    path.write_text("x,y\n1.0,2.0\n")
-    with pytest.raises(TypeError, match="Unknown filetype"):
-        Spectrum(str(path))
+def test_extension_matching_is_case_insensitive(tmp_path):
+    """D5 (fixed): .DPT / .CSV used to be rejected."""
+    path = tmp_path / "sample.DPT"
+    path.write_text("1000.0\t0.1\n1001.0\t0.2\n")
+    spec = Spectrum(str(path))
+    assert len(spec.x) == 2
 
 
 @pytest.mark.parametrize("file_type", ["csv", "tsv"])
@@ -178,23 +189,17 @@ def test_supported_types_save_correctly(file_type, tmp_path):
     assert target.read_text().strip() != ""
 
 
-@pytest.mark.xfail(strict=True,
-                   reason="D5: save() must raise on an unhandled type, not truncate")
-def test_saving_an_unhandled_type_raises_rather_than_truncating(tmp_path):
+def test_saving_an_unhandled_type_raises_without_touching_the_file(tmp_path):
     """
-    reload() knows 5 file types, save() only 4. An unhandled type falls through
-    the match with the file already open for writing, silently producing an
-    empty file. Latent today ('dpt' is unreachable via the constructor); a live
-    data-loss bug as soon as Phase 0.5 adds a real 'dpt' type.
+    D5 (fixed): reload() knew 5 types and save() only 4, so an unhandled type
+    fell through the match with the file already open for writing and left a
+    0-byte file. The type is now validated *before* open(..., 'w').
     """
     spec = _spectrum([1, 2, 3], [4, 5, 6])
-    target = tmp_path / "out.dpt"
-    with pytest.raises((ValueError, TypeError)):
-        spec.save_as(str(target), "dpt")
+    target = tmp_path / "precious.xyz"
+    target.write_text("existing data that must not be destroyed\n")
 
+    with pytest.raises(ValueError, match="Cannot write"):
+        spec.save_as(str(target), "xyz")
 
-def test_unhandled_save_type_currently_truncates_silently(tmp_path):
-    spec = _spectrum([1, 2, 3], [4, 5, 6])
-    target = tmp_path / "out.dpt"
-    spec.save_as(str(target), "dpt")          # no error ...
-    assert target.stat().st_size == 0          # ... and nothing written
+    assert target.read_text().startswith("existing data")

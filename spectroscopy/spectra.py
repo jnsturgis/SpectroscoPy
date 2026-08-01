@@ -41,14 +41,25 @@ from scipy.signal import savgol_filter
 from scipy.spatial import ConvexHull
 
 import spectroscopy.messages
-from spectroscopy.io import csv, jcamp, spy
+from spectroscopy.io import csv, dpt, jcamp, spy
 
+#: Map file extension -> file type. Keys must be lower case; lookup lower-cases
+#: the extension so that .DPT and .CSV work as well as .dpt and .csv.
 FILE_EXTS = {
-    '.csv':'csv','.tsv':'tsv',
-    '.jcamp':'jcamp','.DX0':'jcamp'
+    '.csv':   'csv',
+    '.tsv':   'tsv',
+    '.txt':   'tsv',
+    '.dpt':   'dpt',
+    '.jcamp': 'jcamp',
+    '.jdx':   'jcamp',
+    '.dx':    'jcamp',
+    '.spy':   'spy',
 }
 
-KNOWNFILETYPES = ('csv','tsv','jcamp','spy')
+#: Every type here must be handled by BOTH Spectrum.reload() and
+#: Spectrum.save(). The two match statements used to disagree, which meant an
+#: unhandled type silently truncated the output file -- see review defect D5.
+KNOWNFILETYPES = ('csv','tsv','dpt','jcamp','spy')
 KNOWNSPECTYPES = {
     'FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
     'ATR-FTIR':{'x_label':r'Wavenumber (cm$^{-1})','y_label':'Absorbance'},
@@ -60,9 +71,7 @@ KNOWNSPECTYPES = {
 def _infer_file_type( name ):
     """Work out if possible from the file extension the possible file types."""
     name, ext = os.path.splitext(name)
-    if ext in FILE_EXTS:
-        return FILE_EXTS[ext]
-    return 'unknown'
+    return FILE_EXTS.get(ext.lower(), 'unknown')
 
 class Spectrum:
     """A class for spectra."""
@@ -535,9 +544,17 @@ class Spectrum:
                 case 'tsv':
                     csv.read(f, self, delimiter='\t')
                 case 'dpt':
-                    csv.read(f, self, skiprows=0, delimiter='\t')
+                    # Separator is sniffed per file: 140 of the 825 .dpt files
+                    # in the notebooks are comma separated, not tab. See
+                    # spectroscopy/io/dpt.py.
+                    dpt.read(f, self)
                 case 'spy':
                     spy.read(f, self, format='0.0')
+                case _:
+                    raise ValueError(
+                        f"Cannot read '{self.fileinfo['TYPE']}' files; "
+                        f"known types are {', '.join(KNOWNFILETYPES)}"
+                    )
 
     def save_as(self, filename, file_type = 'spy') -> None:
         """
@@ -552,14 +569,27 @@ class Spectrum:
         """
         Write the spectrum to the file described by file info.
         """
+        file_type = self.fileinfo['TYPE']
+
+        # Validate BEFORE opening. open(..., 'w') truncates immediately, so a
+        # check inside the `with` would already have destroyed the target -- an
+        # unhandled type used to leave a 0-byte file behind with no error.
+        if file_type not in KNOWNFILETYPES:
+            raise ValueError(
+                f"Cannot write '{file_type}' files; "
+                f"known types are {', '.join(KNOWNFILETYPES)}"
+            )
+
         filename = os.path.join(self.fileinfo['PATH'],self.fileinfo['NAME'])
         with open(filename, 'w', encoding="utf-8") as f:
-            match self.fileinfo['TYPE']:
+            match file_type:
                 case 'jcamp':
                     jcamp.write(f, self)
                 case 'csv':
                     csv.write(f, self )
                 case 'tsv':
                     csv.write(f, self, delimiter='\t')
+                case 'dpt':
+                    dpt.write(f, self)
                 case 'spy':
                     spy.write(f, self )
