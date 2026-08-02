@@ -12,4 +12,5 @@ record is added instead, so the trail of reasoning stays readable.
 :maxdepth: 1
 
 0001-core-data-model
+0002-secondary-structure
 ```
