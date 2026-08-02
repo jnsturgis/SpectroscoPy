@@ -1347,6 +1347,51 @@ counting.
 
 ---
 
+### 14.6 A method should say where it came from (James, 2026-08-02)
+
+**Every implemented methodology carries a literature reference in the
+documentation, and applications that use the library get listed too.**
+
+This is not decoration. A scientific library is a set of claims about how to
+compute things, and a claim with no citation cannot be checked against anything
+except this library's own description of it — which is precisely the thing a
+sceptical reader should not have to trust. It also decides arguments: "the ALS
+baseline does X" is an opinion, "Eilers and Boelens define it as X" is a fact
+about a paper.
+
+Three practical consequences.
+
+**It is a JOSS requirement as well as good practice.** The submission needs a
+`paper.bib`, and reviewers check that a package cites the work it builds on. So
+`docs/references.bib` is written to seed that file rather than to be a separate
+artefact.
+
+**Unverified citations are marked, loudly.** Entries checked against the
+publisher carry `verified = {date}`; entries written from memory carry
+`note = {UNVERIFIED ...}` and a ⚠ on the page. An unverified citation that looks
+verified is worse than none: someone copies it into a methods section having
+assumed that somebody looked. `tests/test_references.py` fails when an entry is
+neither, and when the two files disagree about which is which.
+
+**The gaps are published.** `references.md` ends with a list of implemented
+methods that have no citation yet — rubberband baselines, SNV, PCA and ICA, the
+bootstrap behind `stability()`, the Okabe–Ito palette, JCAMP-DX. It is a defect
+list, and a visible short one gets finished where a forgotten one does not.
+
+The applications section is empty and should not stay that way; the first
+entries will be the software paper and the biofilm application.
+
+**Found while doing this**, and it matters more than the mechanism: Hoffmann,
+Jones and Rodger published *Protein secondary structure determined from
+independent and integrated infra-red absorbance and circular dichroism data
+using the algorithm SELCON* in **QRB Discovery, 2025**
+([10.1017/qrd.2025.4](https://doi.org/10.1017/qrd.2025.4)) — one composition
+from FTIR and CD, estimated both separately and jointly, which is ADR-0002's
+design with a year's head start. It should be read before that ADR is
+implemented rather than discovered by a reviewer afterwards.
+
+---
+
 ## 15. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:

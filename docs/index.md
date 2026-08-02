@@ -60,4 +60,5 @@ tutorials/index
 guide/index
 api
 adr/index
+references
 ```

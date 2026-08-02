@@ -1,0 +1,113 @@
+% Literature behind the methods this library implements.
+%
+% Two jobs: it is the source for docs/references.md, and it will seed paper.bib
+% for the JOSS submission (roadmap section 14.3).
+%
+% Entries carrying `verified = {...}` were checked against the publisher or
+% PubMed on that date. Entries carrying `note = {UNVERIFIED ...}` were written
+% from memory and must be checked before anything is published -- a wrong page
+% number in a methods section is the kind of error that outlives the paper.
+% tests/test_references.py keeps this file and references.md in step.
+
+% ---------------------------------------------------------------------------
+% Secondary structure -- the baseline vocabulary (ADR-0002)
+% ---------------------------------------------------------------------------
+
+@article{kabsch1983dssp,
+  author  = {Kabsch, Wolfgang and Sander, Christian},
+  title   = {Dictionary of protein secondary structure: pattern recognition of
+             hydrogen-bonded and geometrical features},
+  journal = {Biopolymers},
+  volume  = {22},
+  number  = {12},
+  pages   = {2577--2637},
+  year    = {1983},
+  doi     = {10.1002/bip.360221211},
+  verified = {2026-08-02}
+}
+
+% ---------------------------------------------------------------------------
+% Circular dichroism -- decomposition into standard spectra
+% ---------------------------------------------------------------------------
+
+@article{sreerama2000cd,
+  author  = {Sreerama, Narasimha and Woody, Robert W.},
+  title   = {Estimation of protein secondary structure from circular dichroism
+             spectra: comparison of {CONTIN}, {SELCON}, and {CDSSTR} methods
+             with an expanded reference set},
+  journal = {Analytical Biochemistry},
+  volume  = {287},
+  number  = {2},
+  pages   = {252--260},
+  year    = {2000},
+  pmid    = {11112271},
+  verified = {2026-08-02}
+}
+
+@article{hoffmann2025selcon,
+  author  = {Hoffmann, S{\o}ren Vr{\o}nning and Jones, Nykola C. and
+             Rodger, Alison},
+  title   = {Protein secondary structure determined from independent and
+             integrated infra-red absorbance and circular dichroism data using
+             the algorithm {SELCON}},
+  journal = {QRB Discovery},
+  year    = {2025},
+  doi     = {10.1017/qrd.2025.4},
+  verified = {2026-08-02},
+  annote  = {Directly relevant prior art for ADR-0002: one composition from
+             FTIR and CD, both separately and jointly. Read before building
+             from_ftir/from_cd.}
+}
+
+% ---------------------------------------------------------------------------
+% To verify. Written from memory; details must be checked before publication.
+% ---------------------------------------------------------------------------
+
+@article{savitzky1964,
+  author  = {Savitzky, Abraham and Golay, Marcel J. E.},
+  title   = {Smoothing and differentiation of data by simplified least squares
+             procedures},
+  journal = {Analytical Chemistry},
+  volume  = {36},
+  number  = {8},
+  pages   = {1627--1639},
+  year    = {1964},
+  note    = {UNVERIFIED -- check volume, pages and DOI}
+}
+
+@article{lee1999nmf,
+  author  = {Lee, Daniel D. and Seung, H. Sebastian},
+  title   = {Learning the parts of objects by non-negative matrix
+             factorization},
+  journal = {Nature},
+  volume  = {401},
+  pages   = {788--791},
+  year    = {1999},
+  note    = {UNVERIFIED -- check issue and DOI}
+}
+
+@techreport{eilers2005als,
+  author      = {Eilers, Paul H. C. and Boelens, Hans F. M.},
+  title       = {Baseline correction with asymmetric least squares smoothing},
+  institution = {Leiden University Medical Centre},
+  year        = {2005},
+  note        = {UNVERIFIED -- widely cited but an unpublished report; confirm
+                 how it should be cited}
+}
+
+@article{barth2007ir,
+  author  = {Barth, Andreas},
+  title   = {Infrared spectroscopy of proteins},
+  journal = {Biochimica et Biophysica Acta (BBA) -- Bioenergetics},
+  year    = {2007},
+  note    = {UNVERIFIED -- check volume, pages and DOI}
+}
+
+@article{byler1986amide,
+  author  = {Byler, D. Michael and Susi, Heino},
+  title   = {Examination of the secondary structure of proteins by deconvolved
+             {FTIR} spectra},
+  journal = {Biopolymers},
+  year    = {1986},
+  note    = {UNVERIFIED -- check volume, pages and DOI}
+}
