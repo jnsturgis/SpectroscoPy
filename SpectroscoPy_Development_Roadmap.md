@@ -617,8 +617,24 @@ there.
 CD deconvolution on its own is still worth having — people estimate structure
 from CD alone every day. But building the expensive half before the payoff, in
 the window reserved for not breaking things, is the shape of decision that makes
-a November date slip. **Recommend CD follows the combined analysis rather than
-preceding it**; James to confirm, since it reverses an earlier choice of his.
+a November date slip.
+
+**Confirmed (James, 2026-08-02): FTIR only for now, and CD develops on a
+separate branch, with timing judged as it goes.**
+
+The branch is a real mechanism rather than a postponement dressed up as one. CD
+work can start whenever there is appetite or a dataset, without any of it
+touching the release line or the freeze — and if it goes quickly, merging before
+November becomes a decision taken on evidence rather than guessed at now. What
+it must not acquire is the power to delay 1.0: `main` stays the thing that
+ships, and the branch merges when it is ready *and* the freeze work is done, in
+that order.
+
+One constraint travels with it. ADR-0002 says both techniques return the same
+`Composition` against the same DSSP vocabulary, so the branch cannot invent a
+second answer type — and the FTIR estimator on `main` is what defines the
+interface it has to satisfy. Building FTIR first is therefore not only
+sequencing; it fixes the contract.
 
 ### 17.3 Unchanged
 

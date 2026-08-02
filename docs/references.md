@@ -50,8 +50,15 @@ reports is defined as a set of DSSP states. See
   the secondary structure of proteins by deconvolved FTIR spectra.
   *Biopolymers*.
 
-- ⚠ **Protein infrared spectroscopy, review.** Barth, A. (2007). Infrared
-  spectroscopy of proteins. *Biochimica et Biophysica Acta — Bioenergetics*.
+  A general review of protein infrared spectroscopy — Barth's later one — is
+  also wanted for the amide I assignments; the 2000 paper listed below covers
+  side chains, which is a different question.
+
+- **Amino-acid side-chain absorption** — the reference behind
+  `processing.ftir.ftir_sidechain`. Barth, A. (2000). The infrared absorption
+  of amino acid side chains. *Progress in Biophysics and Molecular Biology*
+  **74**, 141–173.
+  [10.1016/S0079-6107(00)00021-3](https://doi.org/10.1016/S0079-6107(00)00021-3)
 
 ## Processing
 
@@ -67,9 +74,14 @@ reports is defined as a set of DSSP states. See
 
 ## Multivariate analysis
 
-- ⚠ **Non-negative matrix factorisation** — `decompose(method='nmf')`. Lee,
+- **Non-negative matrix factorisation** — `decompose(method='nmf')`. Lee,
   D. D. & Seung, H. S. (1999). Learning the parts of objects by non-negative
   matrix factorization. *Nature* **401**, 788–791.
+  [10.1038/44565](https://doi.org/10.1038/44565)
+
+  The non-negativity constraint is the reason NMF rather than PCA is the
+  default for mixtures: additive-only combinations are what make the recovered
+  components readable as species rather than as contrasts.
 
 ## Still to cite
 
