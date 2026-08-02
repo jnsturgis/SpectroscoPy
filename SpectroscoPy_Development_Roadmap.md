@@ -643,3 +643,65 @@ baseline vocabulary. Nothing in ADR-0002 is withdrawn — the FTIR estimator bui
 before November must return the same type, against the same vocabulary, that the
 CD one will later fill in. That is the whole point of having settled the design
 first: the half built now cannot foreclose the half built later.
+
+---
+
+## 18. Datasets located (2026-08-02)
+
+Recorded so they are not lost between sessions. Working agreement §14.1 asks for
+a real example before a feature is rolled out; these are the examples.
+
+### 18.1 Cytochrome P450 reductase — used
+
+`~/Documents/Research/Notebook/2026/03/04`, with the analysis begun in
+`~/Documents/Research/FTIR_040326.ipynb`. `CPR_WT.{0..5}.dpt`,
+`CPR_Q157.{0..5}.dpt`, `Buffer.{0..3}.dpt`; `.0-.2` wet, `.3-.5` dry.
+
+Already used to correct two defaults (roadmap §17 commit): it is what showed
+that fitting amide I alone reports more sheet than helix, and that an
+11-point Savitzky-Golay window spans 21 cm⁻¹ on real sampling and fabricates an
+aggregation band. No published composition, so it validates the *pipeline*, not
+the numbers.
+
+### 18.2 Candice Gomez's protein spectra — the validation set
+
+`~/Documents/Research/Students/Candice Gomez/FTIR_spectra`, 179 files.
+
+| Protein | Files | Why it matters |
+|---|---|---|
+| BSA | 1, 2, 5, 10 (+ `-evap` series) | Predominantly helical — the case Hoffmann et al. report infrared handling *worst* |
+| Lysozyme | 1, 2, 5, 10 (+ `-evap`) | Mixed α/β, and about as well characterised as a protein gets |
+| VDAC1 | 6 | A β-barrel: the opposite extreme, and the case CD handles worst |
+| AqpZ | `-373`, `-390`, 3 each | Helical membrane protein, in detergent |
+
+Plus the references any of it needs: `PBS`, `Tris` at several pH, `HEPES`,
+`H2O`, and the detergents `DDM`, `LDAO`, `SDS`, `bOG`.
+
+**Two independent validations are possible here, and the second needs no
+literature at all.**
+
+*Against published compositions.* BSA, lysozyme and VDAC1 all have reference
+secondary-structure content in the literature and in the PDB. Those numbers must
+be looked up and cited rather than remembered (§14.6), and the comparison is
+the figure that turns "the pipeline runs" into "the pipeline is right".
+
+*Against itself.* **The same protein at 1, 2, 5 and 10 must give the same
+composition.** Concentration changes the amide I amplitude and nothing else, so
+any variation across the series is method error, measured directly, with no
+reference values required. That is a stronger internal check than a single
+comparison against one published number — and the `-evap` series adds a second
+axis, where change is expected and its size is the question.
+
+Together these span helix-rich, mixed and sheet-rich, which is exactly the range
+over which a single technique is known to fail.
+
+### 18.3 AqpZ CD temperature scan — for the CD branch
+
+A temperature scan of CD spectra on AqpZ, in the notebook for **2025-07-24**.
+James has done the analysis; the notebook has not been found yet.
+
+Doubly relevant. It is CD data, so it is the first real material for the branch
+of §17.2. And it is a **series parameterised by temperature** — a thermal melt,
+which is §16.1's table with a van 't Hoff model instead of Nernst. So it also
+exercises the `parameter_from=` gap of §16.3, which remains the piece of work
+that is unblocked, useful to several applications at once, and still not done.
