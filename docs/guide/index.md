@@ -12,5 +12,6 @@ that run their own code at build time and would break if it went stale.
 data-model
 reading-files
 processing
+secondary-structure
 plotting
 ```
