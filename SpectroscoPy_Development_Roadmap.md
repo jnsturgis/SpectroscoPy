@@ -594,10 +594,35 @@ exports, and the reader was written against them.)*
 
 **OPUS binary** — reverse-engineered rather than published. *(Built: §21.)*
 
-**`.spc`** — genuinely documented, which makes it the easier of the two;
-multiple subfiles map onto the registry's existing many-spectra-per-file path.
-Both `brukeropusreader` and `spc-spectra` are abandoned, so these are
+**`.spc`** — documented, which makes it the easier of the two and, under
+§14.7, the one format here where writing would also be permissible. Multiple
+subfiles map onto the registry's existing many-spectra-per-file path. Both
+`brukeropusreader` and `spc-spectra` are abandoned, so these are
 read-them-ourselves jobs consistent with the §5.6 dependency policy.
+
+**Two things found on 2026-08-03, before any code:**
+
+*The Wikipedia page does not carry the byte-level layout.* It describes the
+format and its history and points at Thermo's specification and at reference
+implementations (hyperSpec, the `spc` Python library, OpenSpectralWorks). One
+of those is the actual source needed; the encyclopaedia entry is not enough to
+write a reader from.
+
+*⚠️ `.spc` is an overloaded extension, and the files on this machine are the
+other one.* The 26 `.spc`/`.SPC` files here are **Bruker EPR** data — raw
+binary with no header at all, each paired with a `.par` descriptor — sitting in
+EasySpin's test suite. Galactic SPC is self-describing, with a flags byte and a
+version byte at offsets 0 and 1. They share nothing but the three letters.
+
+So a `.spc` reader **must sniff rather than trust the extension**, exactly as
+the OPUS reader does for `.0` — and a file that fails the Galactic check should
+say *"this looks like Bruker EPR data, which is a different format"* rather than
+"corrupt", because that is the confusion a user will actually hit.
+
+Still wanted, therefore: **real Galactic `.spc` files**. James has some in an
+archive. Until they arrive the position is §15.2's — a reader written against a
+specification and checked with files I generated myself tests only my reading of
+the specification.
 
 **FTIR secondary structure** — water and vapour subtraction, crop, second
 derivative, constrained fit, assign, integrate. It needs `fit_peaks()` and
