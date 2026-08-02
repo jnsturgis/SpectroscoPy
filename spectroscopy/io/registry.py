@@ -59,6 +59,9 @@ class FormatEntry:
     description: str = ''
     #: True when the reader returns a list of Spectrum rather than filling one.
     multi: bool = False
+    #: Opened in binary mode. Text formats sniff an encoding first; a
+    #: binary one must not, and would be corrupted by the attempt.
+    binary: bool = False
     #: Default keyword arguments handed to the reader/writer.
     defaults: dict = field(default_factory=dict)
 
@@ -79,12 +82,14 @@ def _entry(name) -> FormatEntry:
     return REGISTRY.setdefault(name, FormatEntry(name=name))
 
 
-def register_reader(name, extensions=(), description='', multi=False, **defaults):
+def register_reader(name, extensions=(), description='', multi=False,
+                    binary=False, **defaults):
     """Decorator registering a read function for a format."""
     def decorate(function):
         entry = _entry(name)
         entry.reader = function
         entry.multi = multi
+        entry.binary = binary
         entry.extensions = tuple(dict.fromkeys(entry.extensions + tuple(extensions)))
         entry.description = description or entry.description
         entry.defaults = {**entry.defaults, **defaults}
@@ -206,7 +211,9 @@ def read_spectra(path, file_type=None, **kwargs):
     arguments = {**entry.defaults, **kwargs}
     encoding = arguments.pop('encoding', None)
 
-    with _open(path, encoding) as handle:
+    opener = (open(path, 'rb') if entry.binary
+              else _open(path, encoding))
+    with opener as handle:
         if entry.multi:
             spectra = list(entry.reader(handle, **arguments))
         else:

@@ -4,9 +4,72 @@
 **Target:** Public, open-source PyPI package
 **Starting point:** existing rough package (setup.py/pyproject present)
 
+
 ---
 
-## 1. Guiding Principles
+## 0. ✅🔨📋 Status at a glance
+
+**Updated 2026-08-03.** This table is the authoritative status; the markers on
+the section headings mirror it. Nothing else in this document states a status,
+so there is only one place to keep current.
+
+| | Meaning |
+|---|---|
+| ✅ | done |
+| 🔨 | being worked on |
+| 📋 | planned, not started |
+| ⏸️ | waiting on something outside the code — data, a person, a decision |
+| 📖 | reference: design notes with no work state of their own |
+
+### The phases of §9
+
+| Phase | | Where it stands |
+|---|---|---|
+| 0. Foundations | ✅ | packaging, CI, licence |
+| 0.5 Defect fixes | ✅ | D1–D7 closed |
+| 1. Core spike | ✅ | validated against a real notebook analysis |
+| 2. Hardening + alpha | ✅ | **0.1.0 tagged**; not yet handed to testers |
+| 3. I/O registry | ✅ | one table, five formats |
+| 4. Processing + multivariate | ✅ | including bootstrap stability |
+| 4b. viz | ✅ | |
+| 5. Docs & tutorials | ✅ | **published at jnsturgis.github.io/SpectroscoPy** |
+| 6. API freeze candidate | 🔨 | surface cut to ten names, ADR-0001 written; shims and `.x`/`.y` outstanding — §14.2 |
+| 7. Technique-specific | 🔨 | FTIR secondary structure built but **not usable** — §19 |
+| 8. GUI MVP | 📋 | pulled forward for the paper — §13 |
+| 9. Packaging & public release | ⏸️ | blocked on the PyPI name — review §16 |
+| 10. Post-1.0 | 📋 | |
+
+### The work items
+
+| | | Next action |
+|---|---|---|
+| Public surface cut and pinned | ✅ | — |
+| ADR-0001, core data model | ✅ | revisit after tester feedback |
+| ADR-0002, secondary structure | ✅ | design only; CD half unbuilt |
+| Constructor `Spectrum(x, y, …)` | ✅ | — |
+| `fit_peaks` / `FitResult` | ✅ | — |
+| Documentation published | ✅ | — |
+| Literature references | 🔨 | three ⚠ entries left to verify — review §14.6 |
+| Tester emails | ⏸️ | **send late August**; drafts ready |
+| Deprecated shims removed | 📋 | before the freeze — §14.2 item 5 |
+| `.x` / `.y` writability decided | 📋 | ADR-0001 §7.3 |
+| `CONTRIBUTING`, `CODE_OF_CONDUCT`, `CITATION.cff` | 📋 | JOSS checks these by name |
+| `paper.md` | 📋 | October — README "Why" is the statement of need |
+| Documentation traps (execute the guide, doctests) | 📋 | review §14.4 |
+| Comparison pages (baselines, normalisation…) | 📋 | review §14.2 |
+| `parameter_from=` on collections | 📋 | **unblocked and useful now** — §16.3 |
+| Amide I diagnosis | 📋 | **early September, James in the lab** — §20 |
+| FTIR secondary structure validated | ⏸️ | on §20 |
+| CD deconvolution | ⏸️ | own branch, after JOSS — §17 |
+| OPUS binary and `.spc` readers | ⏸️ | waiting on sample files — §15.2 |
+| Redox titration | ⏸️ | waiting on a dataset — §16 |
+| PyPI name | ⏸️ | email drafted, not sent — review §16 |
+| JOSS submission | 📋 | November |
+| Domain paper (biofilms) | 📋 | after the GUI — §13, §17 |
+
+---
+
+## 1. 📖 Guiding Principles
 
 These are worth pinning to the top of your README/CONTRIBUTING, because every architecture decision below traces back to them:
 
@@ -17,7 +80,7 @@ These are worth pinning to the top of your README/CONTRIBUTING, because every ar
 
 ---
 
-## 2. Core Data Model (Priority #1)
+## 2. 📖 Core Data Model (Priority #1)
 
 This is where to spend the most design time, since it's the hardest thing to change post-1.0 without breaking every downstream user.
 
@@ -121,7 +184,7 @@ One design question resolved, one still open:
 
 ---
 
-## 3. I/O Layer
+## 3. 📖 I/O Layer
 
 Design as a **registry of format readers**, not a chain of if/elif on file extension.
 
@@ -143,7 +206,7 @@ read_spectrum("sample.spa")  # dispatches automatically
 
 ---
 
-## 4. Processing / Analysis Layer
+## 4. 📖 Processing / Analysis Layer
 
 Split into:
 
@@ -165,7 +228,7 @@ This split is also a natural module boundary: `spectroscopy.processing.common` v
 
 ---
 
-## 5. GUI Application
+## 5. 📖 GUI Application
 
 Deliberately sequenced **after** the library core is stable — a GUI built on a shaky data model means rewriting the GUI twice.
 
@@ -177,7 +240,7 @@ MVP feature set: load file(s) → view/overlay spectra → apply a processing pi
 
 ---
 
-## 6. Testing Strategy
+## 6. 📖 Testing Strategy
 
 - **Framework:** pytest, with `pytest-cov` for coverage tracking.
 - **Core data structure tests:** property-based testing (via `hypothesis`) for `Spectrum` arithmetic, unit conversion round-trips, and history immutability — these are the functions where subtle bugs are most costly.
@@ -189,7 +252,7 @@ MVP feature set: load file(s) → view/overlay spectra → apply a processing pi
 
 ---
 
-## 7. Documentation Strategy
+## 7. 📖 Documentation Strategy
 
 - **Tooling:** Sphinx + `numpydoc`-style docstrings (standard in the scientific Python ecosystem — familiar to your future users) or MkDocs + `mkdocstrings` if you prefer Markdown-first. Either is fine; Sphinx has better scientific-Python-ecosystem precedent (numpy, scipy, xarray all use it), which lowers the learning curve for contributors.
 - **Structure:**
@@ -203,7 +266,7 @@ MVP feature set: load file(s) → view/overlay spectra → apply a processing pi
 
 ---
 
-## 8. Packaging & Deployment
+## 8. 📖 Packaging & Deployment
 
 Since a rough `pyproject.toml`/`setup.py` already exists:
 
@@ -219,7 +282,7 @@ Since a rough `pyproject.toml`/`setup.py` already exists:
 
 ---
 
-## 9. Phased Roadmap (spike → validate → harden)
+## 9. 📖 Phased Roadmap (spike → validate → harden)
 
 Given that the core needs real-world testing before being locked down, this is not a waterfall — it's a sequence of small, real spikes, each validated against actual use (your notebooks first, then testers) before the next layer builds on top. Treat everything pre-Phase 6 as **0.x**: semver where breaking API changes are expected and allowed, and should be communicated as such (a `⚠️ API unstable pre-1.0` note in the README is enough).
 
@@ -241,7 +304,7 @@ The key structural change from a waterfall plan: **Phase 2 puts something in tes
 
 ---
 
-## 10. Immediate Next Steps
+## 10. ✅ Immediate Next Steps
 
 1. Do the notebook inventory (§11) — this is now the actual first step, before any refactoring.
 2. Write ADR-0001 for the core data model, informed by that inventory.
@@ -251,7 +314,7 @@ The key structural change from a waterfall plan: **Phase 2 puts something in tes
 
 ---
 
-## 11. Mining the Existing Notebooks
+## 11. ✅ Mining the Existing Notebooks
 
 Before any refactoring, the notebooks are the highest-value asset in the codebase — they're evidence of real usefulness, not a guess. Worth doing this as an explicit, written exercise (a markdown table or spreadsheet), not just "keeping it in mind":
 
@@ -269,7 +332,7 @@ This inventory does three jobs at once:
 
 ---
 
-## 12. Briefing Claude Code for the Initial Review
+## 12. ✅ Briefing Claude Code for the Initial Review
 
 Rather than asking for open-ended "refactoring suggestions," a more useful review has a fixed order of operations. Suggested brief to hand Claude Code, alongside this roadmap document:
 
@@ -287,7 +350,7 @@ Handing over this roadmap plus that ordered brief means Claude Code's first outp
 
 ---
 
-## 13. Validation Publication (added 2026-08, James)
+## 13. 📋 Validation Publication (added 2026-08, James)
 
 > **Superseded in part.** `SpectroscoPy_Dual_Publication_Workflows.md` splits
 > this into two papers — a JOSS software paper and a domain application paper —
@@ -359,7 +422,7 @@ particular is the kind of thing a reviewer remembers.
 
 ---
 
-## 14. The road to 1.0.0 and JOSS (settled 2026-08-02, James)
+## 14. 🔨 The road to 1.0.0 and JOSS (settled 2026-08-02, James)
 
 Three decisions, which together replace §13's framing:
 
@@ -488,7 +551,7 @@ serve all four.
 
 ---
 
-## 16. Redox titration analysis (added 2026-08-02, James — dataset to come)
+## 16. ⏸️ Redox titration analysis (added 2026-08-02, James — dataset to come)
 
 A third target application, alongside secondary structure (§15, ADR-0002) and
 the biofilm paper (§13). Dataset not yet in hand.
@@ -581,7 +644,7 @@ of §16.1's five applications arrives first.
 
 ---
 
-## 17. Scheduling revision: combined CD + FTIR is post-JOSS (James, 2026-08-02)
+## 17. 📖 Scheduling revision: combined CD + FTIR is post-JOSS (James, 2026-08-02)
 
 **The combined CD/FTIR secondary structure analysis moves after the JOSS
 version**, i.e. after 1.0 in November. ADR-0002 stands as the design; what
@@ -646,7 +709,7 @@ first: the half built now cannot foreclose the half built later.
 
 ---
 
-## 18. Datasets located (2026-08-02)
+## 18. ✅ Datasets located (2026-08-02)
 
 Recorded so they are not lost between sessions. Working agreement §14.1 asks for
 a real example before a feature is rolled out; these are the examples.
@@ -708,7 +771,7 @@ that is unblocked, useful to several applications at once, and still not done.
 
 ---
 
-## 19. The concentration series says the FTIR estimator is not yet usable (2026-08-02)
+## 19. ✅ The concentration series says the FTIR estimator is not yet usable (2026-08-02)
 
 Ran BSA and lysozyme from §18.2 through `from_ftir`. **The result is negative,
 and it is the most useful thing measured so far.**
@@ -778,7 +841,7 @@ single reference number cannot reveal a ±20-point spread at all.
 
 ---
 
-## 20. September: diagnose the amide I estimator (James, back in the lab)
+## 20. 📋 September: diagnose the amide I estimator (James, back in the lab)
 
 Scheduled for **early September 2026**. James looks at the data and the analysis
 directly; §19 says what is wrong but not why, and the why needs someone who knows
@@ -849,3 +912,65 @@ comparison pages of §14.2, `CONTRIBUTING`/`CODE_OF_CONDUCT`/`CITATION.cff`, and
 `paper.md`. The tester emails still go out late August as planned — they are
 about the library, not about secondary structure, and nothing in §19 changes
 what a tester would be asked to do.
+
+---
+
+## 21. ✅ Native OPUS reader, and what it revealed (2026-08-03)
+
+James pointed out that the §18.2 directory holds **native OPUS files alongside
+`.dpt` exports of the same measurements** — 43 pairs. That is ground truth, and
+it is what §15.2 asked for before any reader was written.
+
+### 21.1 The reader
+
+`spectroscopy/io/opus.py`, registered as format `opus` for extensions `.0`–`.9`.
+**41 of the 43 pairs reproduce their `.dpt` export exactly** — axis to 5×10⁻⁶
+cm⁻¹, intensities to better than 10⁻⁶ absolute.
+
+The format is undocumented, so the rules were found from the files: a header
+with magic `0xFEFE0A0A`, a block directory of `(type, length, offset)` triples,
+data blocks of float32 scaled by `CSF`, and — the key — **a data block's
+parameter block is the one whose type is `type | 0x10`**. The axis is not
+stored; it is rebuilt from `FXV`, `LXV` and `NPT`.
+
+The registry gained a `binary=True` flag, since it previously opened every file
+as text with encoding detection. `.spc` will need the same when it arrives.
+
+### 21.2 ⚠️ The `.dpt` exports are not what §19 assumed
+
+This is worth more than the reader. A native file often holds **the same
+quantity twice**: what was measured, and what was left after something was done
+to it inside OPUS. Which of them a `.dpt` contains depends on what the operator
+had selected, and **the export gives no indication which**.
+
+| File | Native blocks | What the `.dpt` holds |
+|---|---|---|
+| BSA-1 | raw AB **and** a subtracted AB | the **subtracted** one |
+| lysozyme-5 | raw AB **and** a subtracted AB | the **raw** one |
+| VDAC1 | raw AB only | a subtracted spectrum **not in the file at all** |
+
+The BSA files' own history records the operation: `Subtract` against
+`imidazole-ph3.1` with factor `0.992035`, run inside OPUS on 2025-04-30.
+
+**So §19 compared unlike with unlike.** The BSA series had already been
+reference-subtracted before I saw it — which is why it looked like a "dry film"
+with no water bands — while the lysozyme series was raw, and I applied my own
+water subtraction to it. That is at least part of why the two series behaved so
+differently, and it is a much better explanation than anything in §19.2.
+
+It does not rescue the ±20-point spread *within* a series, which remains
+unexplained and remains §20's job. But it does move one question to the top of
+§20.1: **re-run both series from the native files**, choosing blocks
+deliberately, before concluding anything about the method.
+
+### 21.3 On a writer
+
+Not built, and worth arguing about before it is. Writing OPUS means producing a
+proprietary binary that Bruker's own software must accept, with no
+specification to check against and no way to validate beyond "OPUS opened it on
+one machine". The formats that already round-trip — `.spy` for provenance,
+`.dpt` and `.csv` for exchange — cover every use identified so far.
+
+Recommend: **read OPUS, write `.spy`.** If a specific workflow genuinely needs
+an OPUS file written, that workflow is the example that would justify it
+(§14.1), and it should be named before the code exists.
