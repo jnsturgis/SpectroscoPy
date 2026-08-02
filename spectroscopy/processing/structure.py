@@ -396,7 +396,7 @@ def _caveats(kept_a, kept_b):
 # ---------------------------------------------------------------------------
 
 def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
-              positions=None, region=(1600.0, 1700.0),
+              positions=None, region=(1480.0, 1720.0),
               model='voigt', derivative_weight=2.0,
               position_tolerance=4.0, **fit_kwargs) -> Composition:
     """
@@ -421,8 +421,17 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
         Starting positions for the components. Found from the second
         derivative when omitted, which is the standard approach: overlapping
         amide I bands have no maxima of their own.
-    region : tuple
-        The band to crop to before fitting.
+    region : tuple, default (1480, 1720)
+        What to **fit**, which is deliberately wider than what is
+        **interpreted**. The default spans amide I and amide II together.
+
+        Fitting both bands constrains the baseline far better than fitting
+        amide I alone: a sloping or curved residual cannot be absorbed into the
+        amide I components when it also has to be consistent with amide II
+        eighty wavenumbers away. Only the components falling inside the
+        assignment table (``bands``) contribute to the composition; the amide
+        II components are there to hold the baseline honest, and are reported
+        in ``quality['outside_assignment']`` rather than silently dropped.
     model, derivative_weight, position_tolerance, **fit_kwargs
         Passed to :meth:`spectroscopy.spectra.Spectrum.fit_peaks`.
 
@@ -464,6 +473,13 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
                          derivative_weight=derivative_weight,
                          position_tolerance=position_tolerance, **fit_kwargs)
 
+    # Interpretation happens only over the span the assignment table covers.
+    # Everything else -- amide II, and anything else inside the fitted window --
+    # supported the fit without contributing to the composition.
+    assigned_low = min(low for _, (low, _) in bands)
+    assigned_high = max(high for _, (_, high) in bands)
+    inside = ((fit.position >= assigned_low) & (fit.position < assigned_high))
+
     # Sum component areas into the assignment ranges. Done here rather than via
     # FitResult.assign so that a category appearing twice in the table -- sheet
     # has a low and a high range -- accumulates instead of overwriting.
@@ -474,15 +490,27 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
             totals[category] = 0.0
             order.append(category)
 
-    fractions = fit.fractions()
+    # Renormalise over the interpreted region: a composition is a share of the
+    # amide I band, not of everything that happened to be fitted.
+    interpreted_area = float(fit.area[inside].sum())
+    outside_area = float(fit.area[~inside].sum())
+    if interpreted_area == 0:
+        raise ValueError(
+            f"no fitted component fell inside the assignment range "
+            f"({assigned_low:g} to {assigned_high:g}). Check the region, the "
+            "starting positions, and that the x axis is in the units the band "
+            "table assumes."
+        )
+
     unassigned = 0.0
-    for position, fraction in zip(fit.position, fractions):
+    for position, area in zip(fit.position[inside], fit.area[inside]):
+        fraction = float(area) / interpreted_area
         for category, (low, high) in bands:
             if low <= position < high:
-                totals[category] += float(fraction)
+                totals[category] += fraction
                 break
         else:
-            unassigned += float(fraction)
+            unassigned += fraction
 
     result = {category: totals[category] for category in order}
     if unassigned:
@@ -497,6 +525,11 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
                             else fit.stderr['position']),
         'model': fit.model,
         'derivative_weight': derivative_weight,
+        'fitted_region': tuple(region),
+        'interpreted_region': (assigned_low, assigned_high),
+        'outside_assignment': int((~inside).sum()),
+        'outside_assignment_area': (outside_area / (interpreted_area + outside_area)
+                                    if interpreted_area + outside_area else 0.0),
     }
     return Composition(fractions=result, method=method,
                        technique=spectrum.technique or 'FTIR',

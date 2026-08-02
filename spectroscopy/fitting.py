@@ -21,6 +21,7 @@ ones badly. Secondary structure analysis is that caller.
 from __future__ import annotations
 
 import math
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -239,8 +240,8 @@ def _uniform_spacing(x):
 def fit_components(x, y, positions, *, model='voigt', fwhm=None,
                    position_tolerance=None, max_fwhm=None,
                    non_negative=True, derivative_weight=0.0,
-                   derivative_window=11, derivative_polyorder=3,
-                   maxfev=10000) -> FitResult:
+                   derivative_window=11, derivative_span=None,
+                   derivative_polyorder=3, maxfev=10000) -> FitResult:
     """
     Fit overlapping components to (x, y).
 
@@ -323,12 +324,26 @@ def fit_components(x, y, positions, *, model='voigt', fwhm=None,
         means "the derivative matters as much as the spectrum" whatever the
         units. Improvement saturates around 4 (0.46 cm^-1 at 4, 0.45 at 8);
         **1 to 4 is the useful range**.
+    derivative_span : float, optional
+        The Savitzky-Golay window **in x units** -- the physical width the
+        filter averages over. Prefer this to ``derivative_window``: a window in
+        points means different things on different instruments. Real FTIR runs
+        near 2 cm^-1 per point, so the 11-point default spans 21 cm^-1, which
+        is wider than an amide I component; on a 0.25 cm^-1 synthetic axis the
+        same 11 points span 2.75 cm^-1 and behave completely differently.
     derivative_window, derivative_polyorder : int
-        Savitzky-Golay parameters for that derivative. **The same filter is
-        applied to the model as to the data**, rather than differentiating the
-        model analytically: SG smooths as it differentiates, so an analytic
-        model derivative would be systematically sharper than the measured one
-        and the fit would compensate by narrowing every band.
+        Savitzky-Golay parameters in points, used when ``derivative_span`` is
+        not given. **The same filter is applied to the model as to the data**,
+        rather than differentiating the model analytically: SG smooths as it
+        differentiates, so an analytic model derivative would be systematically
+        sharper than the measured one and the fit would compensate by narrowing
+        every band.
+
+        A window wider than the narrowest band it is meant to resolve distorts
+        rather than merely smooths, and moves fitted positions by several
+        wavenumbers -- enough, on a real amide I band, to move a component
+        across the boundary between beta-sheet and aggregation. The fit warns
+        when that happens; believe the warning.
     maxfev : int
         Passed to :func:`scipy.optimize.curve_fit`.
 
@@ -412,10 +427,15 @@ def fit_components(x, y, positions, *, model='voigt', fwhm=None,
 
     if derivative_weight:
         spacing = _uniform_spacing(x)
+        window_points = derivative_window
+        if derivative_span is not None:
+            window_points = max(int(round(abs(derivative_span / spacing))),
+                                derivative_polyorder + 2)
+        window_span = abs(window_points * spacing)
 
         def second_derivative(values):
             return common.derivative(values, order=2,
-                                     window_length=derivative_window,
+                                     window_length=window_points,
                                      polyorder=derivative_polyorder,
                                      delta=spacing)
 
@@ -476,6 +496,19 @@ def fit_components(x, y, positions, *, model='voigt', fwhm=None,
         stderr = {'position': sigma[0::per_component],
                   'fwhm': sigma[1::per_component],
                   'amplitude': sigma[2::per_component]}
+
+    # 0.75 is a heuristic: at a window/FWHM ratio near 1 the fitted positions on
+    # a real amide I band moved by ~7 x-units against an unweighted fit, and at
+    # 0.45 by ~2.5. It is a warning, not a rule.
+    if derivative_weight and window_span > 0.75 * float(np.min(fitted_widths)):
+        warnings.warn(
+            f"the Savitzky-Golay window spans {window_span:.3g} in x units, "
+            f"wider than the narrowest fitted component "
+            f"({float(np.min(fitted_widths)):.3g}). The second derivative is "
+            "then distorted rather than smoothed, and fitted positions can "
+            "shift by several units. Pass a smaller derivative_span, or "
+            "reduce derivative_weight.",
+            RuntimeWarning, stacklevel=2)
 
     order = np.argsort(fitted_positions)
     return FitResult(

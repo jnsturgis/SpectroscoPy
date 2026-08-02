@@ -47,7 +47,16 @@ composition = structure.from_ftir(protein, method="amide-i-curve-fit")
 print(composition)
 ```
 
-Three things about that call.
+Four things about that call.
+
+**It fits amide I *and* amide II, and interprets only amide I.** The default
+region is 1480–1720 cm⁻¹, not the amide I band alone. Fitting both constrains
+the baseline far better: a residual slope cannot hide inside the amide I
+components when it also has to be consistent with amide II eighty wavenumbers
+away. On real cytochrome P450 reductase spectra the difference is not subtle —
+fitting amide I alone reported more sheet than helix, and adding amide II moved
+helix from 43 % to 52 % and improved the fit. The amide II components are
+reported in `quality['outside_assignment']` rather than dropped in silence.
 
 **The method is named, and there is no default.** Which estimator produced a
 number is part of the number. A library that picks one silently has made a
@@ -63,6 +72,17 @@ survives your water subtraction is invisible to a second derivative but is
 absorbed straight into band areas by the absorbance envelope. On a synthetic
 band with a curved residual left under it, that weighting is the difference
 between composition errors of 31 % and 5 %.
+
+:::{admonition} Set the derivative window in wavenumbers, not points
+:class: warning
+
+Real FTIR runs near 2 cm⁻¹ per point, so the default 11-point Savitzky–Golay
+window spans 21 cm⁻¹ — wider than an amide I component. A window that wide
+distorts the derivative instead of smoothing it, and on the CPR spectra it moved
+the lowest fitted band by 7 cm⁻¹, straight across the boundary between β-sheet
+and aggregation. Pass `derivative_span=10` (in x units) and the fit warns you
+when the window is still too wide for the bands it found.
+:::
 
 ## Reading the quality, not just the answer
 
