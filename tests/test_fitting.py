@@ -263,3 +263,105 @@ def test_str_is_a_readable_table(amide_i):
         [p for p, _, _ in TRUTH], position_tolerance=4))
     assert 'position' in text and 'fraction' in text
     assert '1628' in text
+
+
+# ---------------------------------------------------------------------------
+# derivative weighting and lineshape -- the two things that decide whether a
+# composition is right. Both measured rather than assumed; see the numbers in
+# the fit_components docstring.
+# ---------------------------------------------------------------------------
+
+def _overlapping_pair():
+    """Two bands 10 cm^-1 apart with fwhm 16 -- one maximum, one shoulder."""
+    truth = [(1643.0, 16.0, 0.55), (1653.0, 16.0, 0.85)]
+    x = np.linspace(1600.0, 1700.0, 401)
+    y = sum(gauss(x, p, w, a) for p, w, a in truth)
+    return x, y, truth
+
+
+def test_the_pair_really_does_overlap():
+    """The premise: if the envelope had two maxima none of this would matter."""
+    _, y, _ = _overlapping_pair()
+    maxima = (np.diff(np.sign(np.diff(y))) < 0).sum()
+    assert maxima == 1
+
+
+def test_derivative_weighting_rescues_a_fit_from_a_residual_background():
+    """The reason to fit d2A/dv2 as well as A.
+
+    A second derivative annihilates a smooth background; the absorbance
+    envelope absorbs it into the component areas instead. This is why the
+    weighting matters on real data, where water subtraction is never perfect,
+    and why it does nothing on a synthetic band with no background at all.
+    """
+    x, bands, truth = _overlapping_pair()
+    curvature = (x - x.mean()) / 50.0
+    y = bands + 0.10 * curvature ** 2 + 0.04 * curvature
+
+    plain = fit_components(x, y, [1640.0, 1656.0], model='gaussian',
+                           position_tolerance=8)
+    weighted = fit_components(x, y, [1640.0, 1656.0], model='gaussian',
+                              position_tolerance=8, derivative_weight=2.0)
+
+    expected = np.array([p for p, _, _ in truth])
+    plain_error = np.abs(plain.position - expected).max()
+    weighted_error = np.abs(weighted.position - expected).max()
+    assert weighted_error < plain_error / 2, (
+        f"derivative weighting should more than halve the position error on a "
+        f"residual background; got {plain_error:.2f} -> {weighted_error:.2f}"
+    )
+
+
+def test_an_uneven_axis_is_refused_for_derivative_weighting():
+    x = np.concatenate([np.linspace(1600, 1650, 200), np.linspace(1651, 1700, 50)])
+    y = gauss(x, 1650.0, 15.0, 1.0)
+    with pytest.raises(ValueError, match='uniformly spaced'):
+        fit_components(x, y, [1650.0], derivative_weight=1.0)
+
+
+def test_a_good_r_squared_does_not_validate_the_lineshape():
+    """Why the default is pseudo-Voigt.
+
+    Fit intermediate-shaped bands with pure Gaussians and the fit looks
+    excellent while the composition is wrong by tens of points. Nothing in the
+    residual tells the user; only using the wrong shape does.
+    """
+    x = np.linspace(1600.0, 1700.0, 401)
+    truth = [(1628.0, 14.0, 0.55), (1645.0, 16.0, 0.30),
+             (1655.0, 12.0, 0.90), (1672.0, 14.0, 0.35)]
+    y = sum(spec_comp(x, p, w, a, 0.5) for p, w, a in truth)
+
+    positions = [p for p, _, _ in truth]
+    wrong = fit_components(x, y, positions, model='gaussian',
+                           position_tolerance=4, derivative_weight=2.0)
+    right = fit_components(x, y, positions, model='voigt',
+                           position_tolerance=4, derivative_weight=2.0)
+
+    assert wrong.r_squared > 0.97, "the wrong-shape fit should still look good"
+
+    true_areas = np.array([
+        (0.5 * a * w * np.sqrt(np.pi / (4 * np.log(2))) + 0.5 * a * w * np.pi / 2)
+        for _, w, a in truth])
+    true_fractions = true_areas / true_areas.sum()
+
+    wrong_error = np.abs(wrong.fractions() - true_fractions).max()
+    right_error = np.abs(right.fractions() - true_fractions).max()
+    assert wrong_error > 0.15, "expected the pure-Gaussian fit to be badly wrong"
+    assert right_error < 0.02
+    assert right_error < wrong_error / 5
+
+
+def test_voigt_costs_nothing_when_the_bands_really_are_gaussian():
+    """The other half of the default: floating the mixing is not a risk."""
+    x = np.linspace(1600.0, 1700.0, 401)
+    y = gauss(x, 1650.0, 15.0, 1.0)
+    fit = fit_components(x, y, [1650.0], model='voigt')
+    assert fit.eta[0] == pytest.approx(1.0, abs=0.02)
+    assert fit.position[0] == pytest.approx(1650.0, abs=1e-2)
+
+
+def test_voigt_is_the_default():
+    x = np.linspace(1600.0, 1700.0, 401)
+    y = gauss(x, 1650.0, 15.0, 1.0)
+    assert fit_components(x, y, [1650.0]).model == 'voigt'
+    assert Spectrum(x, y).fit_peaks([1650.0]).model == 'voigt'

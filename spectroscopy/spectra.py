@@ -939,7 +939,7 @@ class Spectrum:
             properties=properties,
         )
 
-    def fit_peaks(self, positions=None, *, model='gaussian', n_peaks=None,
+    def fit_peaks(self, positions=None, *, model='voigt', n_peaks=None,
                   **kwargs) -> "FitResult":
         """
         Decompose this spectrum into overlapping components.
@@ -956,7 +956,10 @@ class Spectrum:
             with :meth:`find_peaks` using the second-derivative method, which
             is the right default: overlapping bands have no maxima of their
             own, so detecting on the spectrum itself finds too few.
-        model : {'gaussian', 'lorentzian', 'voigt'}
+        model : {'voigt', 'gaussian', 'lorentzian'}, default 'voigt'
+            Pseudo-Voigt by default: a fixed pure shape can be wrong by
+            tens of percentage points in composition while still fitting
+            with R^2 > 0.97. See :func:`spectroscopy.fitting.fit_components`.
         n_peaks : int, optional
             With ``positions`` omitted, keep only the strongest this many.
         **kwargs
