@@ -578,3 +578,52 @@ Nothing is built. Working agreement §14.1 applies as it does to OPUS, `.spc` an
 CD: the dataset comes first, and it becomes the tutorial. What can be done ahead
 of it is the `parameter_from=` gap in §16.3, which is needed regardless of which
 of §16.1's five applications arrives first.
+
+---
+
+## 17. Scheduling revision: combined CD + FTIR is post-JOSS (James, 2026-08-02)
+
+**The combined CD/FTIR secondary structure analysis moves after the JOSS
+version**, i.e. after 1.0 in November. ADR-0002 stands as the design; what
+changes is when the second half of it gets built.
+
+This is the right call, and it makes the November plan credible again. §14.1
+argued that the road to 1.0 contains almost no new features and that the way
+the date slips is by letting feature work leak into it. CD is a fifth technique,
+a units problem (§15.4), and a reference-data licensing question — three
+unbounded things three months before a freeze.
+
+### 17.1 What that leaves before November
+
+| | Status |
+|---|---|
+| FTIR amide I secondary structure | **In scope.** Needs no new technique, no reference data and no new units; the fitter it depends on is built, with pseudo-Voigt and A/d²A weighting both settled by measurement |
+| OPUS and `.spc` readers | **In scope, blocked on files** (§15.2) |
+| `parameter_from=` on collections | **In scope**, unblocked, and needed by every titration application (§16.3) |
+| The freeze work | ADR-0001 §7.3/§7.4, shim removal, `CONTRIBUTING`/`CODE_OF_CONDUCT`/`CITATION.cff`, `paper.md` |
+| CD as a technique, deconvolution, the combined estimate | **After 1.0** |
+| Redox titration | After the dataset (§16.5) |
+
+### 17.2 One consequence worth deciding explicitly
+
+Earlier, CD was scoped as a full CDSSTR/SELCON equivalent before the tester
+emails. If the *combined* analysis is post-JOSS, most of the reason to rush the
+CD half before November goes with it — because of what Hoffmann, Jones and
+Rodger actually found (ADR-0002 §7.2): combining the techniques improves the
+numbers by only about 2 %, and its real value is catching the cases where one
+technique alone is badly wrong. That value only exists once both halves are
+there.
+
+CD deconvolution on its own is still worth having — people estimate structure
+from CD alone every day. But building the expensive half before the payoff, in
+the window reserved for not breaking things, is the shape of decision that makes
+a November date slip. **Recommend CD follows the combined analysis rather than
+preceding it**; James to confirm, since it reverses an earlier choice of his.
+
+### 17.3 Unchanged
+
+The two techniques still produce one `Composition`, and DSSP is still the
+baseline vocabulary. Nothing in ADR-0002 is withdrawn — the FTIR estimator built
+before November must return the same type, against the same vocabulary, that the
+CD one will later fill in. That is the whole point of having settled the design
+first: the half built now cannot foreclose the half built later.
