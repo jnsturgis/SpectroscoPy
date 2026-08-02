@@ -37,6 +37,7 @@ import copy
 import operator
 import os
 import warnings
+from typing import TYPE_CHECKING
 
 import numpy as np
 from scipy.interpolate import CubicSpline
@@ -47,6 +48,11 @@ from spectroscopy.history import ProcessingStep, describe_operand
 from spectroscopy.io import registry
 from spectroscopy.peaks import PeakTable
 from spectroscopy.processing import common
+
+# Annotation only: fit_peaks imports it lazily, which keeps the two modules
+# acyclic (fitting imports lineshapes, and lineshapes imports nothing of ours).
+if TYPE_CHECKING:
+    from spectroscopy.fitting import FitResult
 
 #: The one name this module exports. Everything below -- the lookup tables, the
 #: label helper, the imports above -- is implementation. Without this list,
@@ -932,6 +938,69 @@ class Spectrum:
             source=self.name,
             properties=properties,
         )
+
+    def fit_peaks(self, positions=None, *, model='gaussian', n_peaks=None,
+                  **kwargs) -> "FitResult":
+        """
+        Decompose this spectrum into overlapping components.
+
+        :meth:`find_peaks` answers "where are the maxima". This answers the
+        question a crowded band actually poses -- "how much of each overlapping
+        component is in here" -- and it is the quantity that band-ratio and
+        secondary-structure work report.
+
+        Parameters
+        ----------
+        positions : array_like, optional
+            Starting positions, one per component. When omitted they are found
+            with :meth:`find_peaks` using the second-derivative method, which
+            is the right default: overlapping bands have no maxima of their
+            own, so detecting on the spectrum itself finds too few.
+        model : {'gaussian', 'lorentzian', 'voigt'}
+        n_peaks : int, optional
+            With ``positions`` omitted, keep only the strongest this many.
+        **kwargs
+            Passed to :func:`spectroscopy.fitting.fit_components` --
+            ``fwhm``, ``position_tolerance``, ``max_fwhm``, ``non_negative``.
+
+        Returns
+        -------
+        FitResult
+
+        Notes
+        -----
+        Fit a band that still sits on a background and the background ends up
+        inside the component areas. Crop and baseline-correct first.
+
+        Examples
+        --------
+        >>> import numpy as np
+        >>> from spectroscopy.lineshapes import gauss
+        >>> x = np.linspace(1600, 1700, 201)
+        >>> y = gauss(x, 1652, 12, 1.0) + gauss(x, 1630, 14, 0.6)
+        >>> fit = Spectrum(x, y).fit_peaks([1630, 1652])
+        >>> len(fit)
+        2
+        """
+        from spectroscopy.fitting import fit_components  # pylint: disable=C0415
+
+        if positions is None:
+            found = self.find_peaks(method='second_derivative')
+            if n_peaks is not None:
+                found = found.strongest(n_peaks).sorted_by_position()
+            if not len(found):
+                raise ValueError(
+                    "no starting positions found automatically; pass "
+                    "positions= explicitly, or check that the spectrum has "
+                    "been cropped to the band of interest"
+                )
+            positions = found.position
+
+        result = fit_components(self.x, self.y, positions, model=model, **kwargs)
+        result.x_unit = self.x_unit
+        result.y_unit = self.y_unit
+        result.source = self.name
+        return result
 
 ##=============================================================================
 #

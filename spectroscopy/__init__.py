@@ -17,8 +17,9 @@ Layout (see SpectroscoPy_Codebase_Review.md):
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _version
 
-from . import datasets, io, lineshapes, processing, units
+from . import datasets, fitting, io, lineshapes, processing, units
 from .collection import SpectrumCollection
+from .fitting import FitResult
 from .history import ProcessingStep
 from .peaks import PeakTable
 from .spectra import Spectrum
@@ -33,6 +34,7 @@ __all__ = [
     'Spectrum',              # one spectrum: x, y, units, metadata, history
     'SpectrumCollection',    # many, with grouping and batch operations
     'PeakTable',             # what find_peaks() returns
+    'FitResult',             # what fit_peaks() returns
     'ProcessingStep',        # what .history is made of
     # -- submodules ----------------------------------------------------------
     'datasets',              # bundled example data, so the docs run anywhere

@@ -31,10 +31,23 @@ def lorentz( x_values, posn: float, fwhh: float, ext: float ):
 
 def spec_comp( x_values, posn:float, fwhh:float, ext: float, fg: float ):
     """
-    Calculate a compont
+    A pseudo-Voigt component: a Gaussian and a Lorentzian of the same position
+    and width, mixed in the ratio ``fg`` : ``1 - fg``.
+
+    At ``x = posn`` the value is ``ext`` for any ``fg``, which is what makes
+    ``ext`` mean "peak height" whatever the mixing is.
+
+    .. note::
+
+       Until 0.1.1 the Lorentzian half was multiplied by ``ext`` twice --
+       :func:`lorentz` already scales by it -- so the peak height was
+       ``fg * ext + (1 - fg) * ext**2``. That is only ``ext`` when ``fg`` is 1
+       or ``ext`` is 1, so every mixed component was wrong by a factor of
+       ``ext``, and the error vanished in exactly the test case (a unit-height
+       Gaussian) most likely to be tried first.
     """
     return fg * gauss(x_values, posn, fwhh, ext) + \
-        (1.0 - fg) * ext * lorentz( x_values, posn, fwhh, ext )
+        (1.0 - fg) * lorentz( x_values, posn, fwhh, ext )
 
 def main():
     """

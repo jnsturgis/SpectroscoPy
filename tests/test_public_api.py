@@ -25,6 +25,7 @@ EXPECTED_ALL = {
     'Spectrum',
     'SpectrumCollection',
     'PeakTable',
+    'FitResult',
     'ProcessingStep',
     'datasets',
     'io',
@@ -39,7 +40,7 @@ EXPECTED_ALL = {
 #: spectroscopy.spectra`` works whatever we do -- but they are not in __all__
 #: and 1.0 does not promise them.
 TOLERATED_SUBMODULES = {
-    'collection', 'history', 'messages', 'peaks', 'spectra',
+    'collection', 'fitting', 'history', 'messages', 'peaks', 'spectra',
 }
 
 
@@ -115,7 +116,7 @@ def test_the_surface_is_no_larger_than_it_looks():
 
     It was 40 names, 17 of them modules, before roadmap section 14.2.
     """
-    assert len(_fresh_public_names()) <= 15
+    assert len(_fresh_public_names()) <= 17
 
 
 def test_viz_is_not_imported_eagerly():
