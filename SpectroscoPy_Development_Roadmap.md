@@ -705,3 +705,73 @@ of §17.2. And it is a **series parameterised by temperature** — a thermal mel
 which is §16.1's table with a van 't Hoff model instead of Nernst. So it also
 exercises the `parameter_from=` gap of §16.3, which remains the piece of work
 that is unblocked, useful to several applications at once, and still not done.
+
+---
+
+## 19. The concentration series says the FTIR estimator is not yet usable (2026-08-02)
+
+Ran BSA and lysozyme from §18.2 through `from_ftir`. **The result is negative,
+and it is the most useful thing measured so far.**
+
+### 19.1 What happened
+
+The same protein at four concentrations must give the same composition. It does
+not. With a conventional seven-component amide I set and identical processing:
+
+| | helix, by concentration | expected |
+|---|---|---|
+| BSA | 15 %, 34 %, 17 %, 37 % | constant, and predominantly helical |
+| Lysozyme | 51 %, 34 %, 11 % | constant, ~30–40 % |
+
+**R² was between 0.998 and 0.9997 for every one of them.** That is the trap
+already documented in `fit_components`, now demonstrated on real data: goodness
+of fit does not validate a composition. Every one of those fits looks perfect on
+a plot.
+
+So the honest statement of the method's current error is **±20 percentage
+points**, which is not a measurement of anything.
+
+### 19.2 What went wrong, in order of discovery
+
+1. **Automatic band detection finds far too few components.** On these spectra
+   the second derivative yields two or three positions in 1600–1700 where amide
+   I decomposition needs five to seven. With one component near 1655, lysozyme
+   comes back as "99 % helix" — arithmetic, not biology.
+2. **Water subtraction dominates the answer for solution spectra.** The
+   lysozyme films hold about half the water of the reference (0.019 against
+   0.040 at the 2130 cm⁻¹ combination band), so a factor near 1 over-subtracts
+   into nonsense. Anchoring the factor on the 2130 band rather than by eye is
+   right, but the residual still varies between samples and moves the result.
+3. **Supplying conventional starting positions did not rescue it.** It changed
+   the answers without stabilising them, which says the ill-posedness is in the
+   problem, not only in the initialisation.
+
+None of this is a surprise in the literature's terms: curve-fitting amide I is
+contested precisely because the answer depends on the number of components,
+their starting positions, the constraints and the baseline. What is new here is
+having it *measured* rather than argued about.
+
+### 19.3 The consequence, which is a method-development plan
+
+**Concentration invariance is the objective function.** Not agreement with a
+published number — that can be reached by tuning until it matches, which is
+circular. The spread across a concentration series is an error the method should
+minimise, computed from data alone, with nothing to fit towards.
+
+So the work is: constrain the fit harder — a fixed component count, positions
+taken once from the second derivative of the pooled replicates rather than
+per-sample, shared widths, tighter tolerances — and after each change,
+re-measure the spread. Ship nothing until the spread is small, and publish the
+spread beside any composition thereafter.
+
+**Until then `from_ftir` must not be presented as producing numbers anyone
+should use.** The guide already carries a warning; it now understates the
+problem and needs the measured spread in it.
+
+### 19.4 What this does not change
+
+The pipeline, the vocabulary and the comparison machinery are unaffected: they
+are what allowed the failure to be seen and quantified in an afternoon. The
+Composition contract for the CD branch stands. And §18.2's second validation —
+against published compositions — is now clearly the *weaker* of the two, since a
+single reference number cannot reveal a ±20-point spread at all.
