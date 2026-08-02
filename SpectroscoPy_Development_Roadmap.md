@@ -485,3 +485,96 @@ one concrete workflow rather than general impressions, and chase in early
 September rather than waiting politely. The three named in review §9.5 cover the
 four techniques between them, which is the minimum for a freeze that claims to
 serve all four.
+
+---
+
+## 16. Redox titration analysis (added 2026-08-02, James — dataset to come)
+
+A third target application, alongside secondary structure (§15, ADR-0002) and
+the biofilm paper (§13). Dataset not yet in hand.
+
+### 16.1 It is not a special case — it is the general one
+
+A redox titration is a **series of spectra parameterised by a continuous
+variable, fitted to a physical model**. Written that way, it is the same shape
+as several things this library either already half-does or will be asked for:
+
+| Series | Parameter | Model | Yields |
+|---|---|---|---|
+| Redox titration | potential (mV) | Nernst | midpoint potential *E*ₘ, electron count *n* |
+| pH titration | pH | Henderson–Hasselbalch | p*K*ₐ |
+| Thermal melt | temperature | van 't Hoff | *T*ₘ, ΔH |
+| Ligand binding | concentration | binding isotherm | *K*d, stoichiometry |
+| Kinetics | time | exponential | rate constants |
+
+Two pieces of evidence that this generalisation is the right one rather than a
+tidy-looking guess. `lineshapes.base(pka, ph)` **is** Henderson–Hasselbalch, and
+has been in the library since before the rewrite. And `processing.ftir`'s
+side-chain work already uses pKa values per residue. The pH case is half-built
+already; nobody has called it a titration.
+
+So: build `processing.titration` with the model named at the call site, exactly
+as ADR-0002 requires for deconvolution methods, and make redox its first caller.
+A bespoke `redox.py` would be the third place in this library to write "fit a
+parameterised series", and the first two are already here.
+
+### 16.2 The analysis, end to end
+
+The pipeline is one the existing pieces nearly compose already:
+
+1. Load the series; each spectrum carries its potential.
+2. Reference and baseline — usually difference spectra against the fully
+   oxidised or fully reduced end point.
+3. **Decompose** to find how many spectral species are actually changing —
+   `processing.multivariate` with `stability()` for the component count. This is
+   the step that distinguishes a titration with two cytochromes from one with
+   three, and it is the step normally done by eye.
+4. **Fit** each component's contribution against potential with the Nernst
+   equation, one or more transitions.
+5. Report *E*ₘ and *n* per component, with uncertainties.
+
+Step 4 is new; steps 1–3 exist. Step 3 is also where this library has something
+to say that the standard tools do not — the usual practice is to pick a
+wavelength, plot absorbance against potential, and fit, which silently assumes
+the species are spectrally resolved at that wavelength.
+
+### 16.3 ⚠️ A collection cannot yet carry a continuous parameter
+
+`SpectrumCollection.from_files(..., sample_from=...)` attaches a **categorical
+sample name** to each spectrum, and `group_by` groups on it. There is nowhere to
+put "this spectrum was measured at −120 mV" except `metadata`, by hand, in a loop
+after loading.
+
+Every entry in §16.1's table needs the same thing, so this is not a redox
+problem. Wanted, and additive: a `parameter_from=` argument that reads a number
+from the filename or the file's own metadata, and an accessor on the collection
+that returns it as an array aligned with the spectra. Worth doing before the
+freeze because it is the natural partner to `to_matrix()` — the analysis wants
+`(x, X, parameter)` and can currently only get the first two.
+
+### 16.4 What the dataset needs to contain
+
+Recorded now because the answer costs nothing at acquisition time and is
+sometimes impossible to reconstruct afterwards:
+
+- **The potential of every spectrum, and the reference electrode it was measured
+  against.** vs SHE and vs Ag/AgCl differ by about 200 mV; a table of numbers
+  with no electrode named is not usable, and no analysis can recover it.
+- **The temperature.** The Nernst slope is *RT/nF* — 59.2 mV per decade at 25 °C
+  and not at 4 °C. Fitting *n* with the wrong temperature returns a wrong
+  electron count that looks perfectly reasonable.
+- **Both directions.** Oxidative and reductive titrations of the same sample
+  should agree; where they do not, the sample was not at equilibrium. This is
+  the single best check on the data, and it only exists if both were measured.
+- **The mediators used**, and their concentrations. They set what equilibrates,
+  and several absorb in the visible.
+- **One system with a published *E*ₘ**, for the same reason §15.2 wants a protein
+  of known structure: without it, the code can be shown to be self-consistent but
+  not correct.
+
+### 16.5 Status
+
+Nothing is built. Working agreement §14.1 applies as it does to OPUS, `.spc` and
+CD: the dataset comes first, and it becomes the tutorial. What can be done ahead
+of it is the `parameter_from=` gap in §16.3, which is needed regardless of which
+of §16.1's five applications arrives first.
