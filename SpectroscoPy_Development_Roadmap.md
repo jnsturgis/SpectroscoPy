@@ -775,3 +775,77 @@ are what allowed the failure to be seen and quantified in an afternoon. The
 Composition contract for the CD branch stands. And §18.2's second validation —
 against published compositions — is now clearly the *weaker* of the two, since a
 single reference number cannot reveal a ±20-point spread at all.
+
+---
+
+## 20. September: diagnose the amide I estimator (James, back in the lab)
+
+Scheduled for **early September 2026**. James looks at the data and the analysis
+directly; §19 says what is wrong but not why, and the why needs someone who knows
+how the samples were made.
+
+### 20.1 What the diagnosis should answer, in order
+
+Ordered so that a negative answer early saves the rest.
+
+1. **Are the spectra good enough to decompose at all?** Signal-to-noise is
+   600:1, so noise is not the limit — but the amide I after subtraction is
+   ~0.02 absorbance on a water background of 0.3, and the residual water
+   structure is of similar size to the sub-bands being fitted. If the answer is
+   no, everything below is moot and the finding is about sample preparation, not
+   software.
+2. **Do the four concentrations differ physically?** The lysozyme films hold
+   varying amounts of water (subtraction factors 0.05 to 0.47 across the
+   series). If they were measured at different stages of drying, they are not
+   four measurements of one thing, and the invariance test in §19 is testing an
+   assumption that does not hold. **This is the question to answer first**,
+   because it decides whether §19 measured the method or the samples.
+3. **Is the water subtraction recoverable?** Anchoring on the 2130 cm⁻¹ band is
+   principled but leaves sample-dependent residual. Worth comparing against
+   James's own practice (a hand-tuned factor judged by flatness at 1800–2000).
+4. **How many components does the amide I actually support?** Automatic
+   detection found two or three; convention says five to seven. Fitting more
+   components than the data supports is how you get ±20 points.
+5. **Only then**: do the band assignment boundaries need changing?
+
+### 20.2 What would make that afternoon efficient
+
+Not yet built; offered rather than assumed. A diagnostic script producing, for
+every sample in a series and on one page: raw and reference spectra, the
+subtraction at the chosen factor with the 2130 band marked, the second
+derivative with detected positions, the fit with its components and residual,
+and the composition with its spread across the series.
+
+The point is to spend the afternoon looking at spectra rather than writing
+plumbing. Say the word and it will be ready before September.
+
+### 20.3 The scheduling consequence, which needs a decision
+
+§17.1 listed FTIR secondary structure as in scope before November. §19 says it
+does not yet work. September is also the month the freeze work has to happen —
+tester feedback in hand, every breaking change made, ADR-0001 finished — so the
+diagnosis competes directly with the 1.0 timetable.
+
+Three options, and the middle one is the recommendation:
+
+- **Fix it in September.** Risks the November date for a feature that is
+  additive and could ship in 1.1 without breaking anyone.
+- **Ship it marked experimental.** `processing.structure` stays on `main`,
+  documented with its measured ±20-point spread, and explicitly **excluded from
+  the 1.0 API promise** — a named experimental surface that may change. The
+  vocabulary and `Composition` contract are the valuable part and they are
+  sound; it is the numbers that are not.
+- **Take it off `main`** until validated, alongside the CD work on its branch.
+  Cleanest, but it also removes the thing that made the problem visible.
+
+Recommend the second: it keeps the contract the CD branch is being built
+against, keeps the failure visible, and promises nothing that cannot be kept.
+
+### 20.4 Until then
+
+August work is what does not need James or a lab: the `parameter_from=` gap
+(§16.3), the freeze items of §14.2, the documentation traps of review §14.4, the
+comparison pages of §14.2, `CONTRIBUTING`/`CODE_OF_CONDUCT`/`CITATION.cff`, and
+`paper.md`. The tester emails still go out late August as planned — they are
+about the library, not about secondary structure, and nothing in §19 changes
+what a tester would be asked to do.
