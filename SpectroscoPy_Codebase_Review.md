@@ -1392,6 +1392,41 @@ implemented rather than discovered by a reviewer afterwards.
 
 ---
 
+### 14.7 Reading undocumented formats is fine; writing them is not (James, 2026-08-03)
+
+**The library reads proprietary formats freely. It does not write one unless
+either the format is documented, or there is a corpus large enough to validate
+against.**
+
+The asymmetry is not squeamishness, it is about what can be checked. Reading is
+verifiable: a file exists, something else produced it, and a reader either
+reproduces that content or does not — the OPUS reader was checked against 43
+files whose `.dpt` exports said what the answer should be, and 41 matched
+exactly. Writing has no such test. A file this library invents is correct only
+if the vendor's software accepts it, on versions and platforms we cannot see,
+and "it opened on one machine" is not evidence about the next one. A subtly
+malformed file that opens but misreports an axis is worse than no writer at
+all, because it looks like it worked.
+
+The two exceptions James named are exactly the two that restore a check:
+
+- **A published specification** turns writing into conformance rather than
+  guesswork. Galactic `.spc` qualifies, which means a `.spc` writer is
+  permissible under this rule while an OPUS writer is not — worth knowing
+  before the `.spc` work starts.
+- **A large enough corpus** makes round-tripping statistical rather than
+  anecdotal: read a few hundred real files, write them back, read them again,
+  and compare. That is a real test, and it is what would justify writing an
+  undocumented format.
+
+This is the write-side counterpart of §14.1. There, a feature earns its place
+with a real example; here, a writer for an undocumented format earns its place
+with a specification or a corpus. Absent both, the answer is to read the vendor
+format and write `.spy` — which carries provenance the vendor format does not —
+or `.csv` for exchange.
+
+---
+
 ## 15. Environment note — where scikit-learn actually is
 
 It is **not** missing, it is in a conda environment:

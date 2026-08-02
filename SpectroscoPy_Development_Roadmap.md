@@ -551,6 +551,85 @@ serve all four.
 
 ---
 
+## 15. 🔨 Late-August capabilities, before the testers (added 2026-08-02, James)
+
+:::note
+**Reconstructed 2026-08-03.** The commit that recorded this section
+(`14ed6a7`) committed its message but not the file — the append was lost, and
+nothing noticed because the cross-references from §16, §17 and §21 still
+pointed here. Rebuilt from that commit message. The decisions are unchanged;
+the wording is not necessarily what was written first, and §15.3's OPUS
+paragraph is now overtaken by §21.
+:::
+
+**The emails go out late August** — earlier is pointless. Two capabilities were
+wanted before they do: **secondary structure** from FTIR and CD, and **OPUS and
+`.spc` input**.
+
+### 15.1 The scope change nobody had said out loud
+
+**CD is a fifth technique.** The header of this document says four. Adding it is
+mostly additive — a `KNOWNSPECTYPES` entry, axis conventions, readers — with one
+exception that is not additive at all, in §15.4. It lands three weeks before
+testers and three months before an API freeze. *(Since resolved: §17 moves CD to
+its own branch, after JOSS.)*
+
+### 15.2 Neither format had a file to build against
+
+Checked 2026-08-02: no OPUS binary, no `.spc`, no CD data anywhere on this
+machine. Working agreement §14.1 asks for a real example before a feature is
+rolled out, and the `.dpt` precedent is the argument for it — that reader was
+written against real files and the format turned out not to be what it looked
+like. **A reader written against a specification and tested with files I
+generated myself tests only my reading of the specification.**
+
+Wanted, and small numbers were enough: 3–5 OPUS from more than one instrument,
+3–5 `.spc` including one multi-subfile, 3–5 CD, and for each of CD and FTIR one
+sample whose answer is already known.
+
+*(Resolved for OPUS: §21. James supplied 43 native files with paired `.dpt`
+exports, and the reader was written against them.)*
+
+### 15.3 What each piece needs
+
+**OPUS binary** — reverse-engineered rather than published. *(Built: §21.)*
+
+**`.spc`** — genuinely documented, which makes it the easier of the two;
+multiple subfiles map onto the registry's existing many-spectra-per-file path.
+Both `brukeropusreader` and `spc-spectra` are abandoned, so these are
+read-them-ourselves jobs consistent with the §5.6 dependency policy.
+
+**FTIR secondary structure** — water and vapour subtraction, crop, second
+derivative, constrained fit, assign, integrate. It needs `fit_peaks()` and
+`FitResult`, which ADR-0001 §6.2 had deferred, so building it pulls them
+forward — which is good news, since §6.2's complaint was the absence of a real
+caller to design them against. *(Built: ADR-0002 and §19.)*
+
+**CD secondary structure** — the estimate is a spectrum-times-basis-set least
+squares; the reference sets are published but their redistribution terms need
+checking before any of them ship. Also worth having regardless: **helicity from
+[θ]₂₂₂**, a one-line standard estimate that answers "is my protein folded" for
+most people who ask, and which must not pretend to be a deconvolution.
+
+### 15.4 ⚠️ CD breaks a stated assumption about units
+
+`spectroscopy.units` converts with a table: every conversion is a function of
+`y` alone. CD's are not — millidegrees to mean residue ellipticity needs
+**concentration, path length and residue count**, which is a calculation from
+sample metadata with nowhere in the current design for `to()` to get it.
+
+ADR-0001 §2.2 named exactly this as the trigger for revisiting the native-table
+decision. Three ways out: a separate explicit method
+(`to_mean_residue_ellipticity(...)`); `to()` reading from metadata and raising
+when it is absent; or adopting `pint`.
+
+**Recommendation: the first now, `pint` after 1.0.** It is the only one that
+cannot be wrong, because it adds a name rather than changing the meaning of an
+existing one — and a wrong answer here would be frozen in November.
+
+
+---
+
 ## 16. ⏸️ Redox titration analysis (added 2026-08-02, James — dataset to come)
 
 A third target application, alongside secondary structure (§15, ADR-0002) and
@@ -971,6 +1050,11 @@ specification to check against and no way to validate beyond "OPUS opened it on
 one machine". The formats that already round-trip — `.spy` for provenance,
 `.dpt` and `.csv` for exchange — cover every use identified so far.
 
-Recommend: **read OPUS, write `.spy`.** If a specific workflow genuinely needs
-an OPUS file written, that workflow is the example that would justify it
-(§14.1), and it should be named before the code exists.
+**Settled (James, 2026-08-03): no writer for an undocumented format**, unless
+the format is documented or there is a corpus large enough to validate a
+round-trip against. Recorded as review §14.7, because it is a general policy
+rather than a decision about OPUS.
+
+One consequence worth carrying forward: **Galactic `.spc` is documented**, so a
+`.spc` writer is permissible under that rule where an OPUS writer is not. Worth
+knowing before the `.spc` work starts, since it changes what that task is.
