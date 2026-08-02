@@ -36,11 +36,15 @@ reports is defined as a set of DSSP states. See
 - **FTIR and CD combined.** Hoffmann, S. V., Jones, N. C. & Rodger, A. (2025).
   Protein secondary structure determined from independent and integrated
   infra-red absorbance and circular dichroism data using the algorithm SELCON.
-  *QRB Discovery*. [10.1017/qrd.2025.4](https://doi.org/10.1017/qrd.2025.4)
+  *QRB Discovery* **6**.
+  [10.1017/qrd.2025.4](https://doi.org/10.1017/qrd.2025.4)
 
-  Prior art for exactly the design in ADR-0002 — one composition from two
-  techniques, estimated both separately and jointly. Worth reading before that
-  ADR is implemented, not after.
+  Prior art for exactly the design in [ADR-0002](adr/0002-secondary-structure.md)
+  — one composition from two techniques, estimated both separately and jointly.
+  They publish a Python SELCON3; they scale CD to Δε per residue and normalise
+  the IR amide I band to a maximum absorbance of 15; and they report that
+  combining the two gains only about 2 % in helix and sheet, its real value
+  being to catch the cases where one technique alone is badly wrong.
 
 - ⚠ **Amide I band assignment.** Byler, D. M. & Susi, H. (1986). Examination of
   the secondary structure of proteins by deconvolved FTIR spectra.

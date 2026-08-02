@@ -215,6 +215,43 @@ Two kinds of standard, which the method name must distinguish:
 The second is where the field is, and it is also why §2's argument holds: those
 reference compositions came from DSSP in the first place.
 
+#### Prior art: this has been done, in 2025
+
+Hoffmann, Jones and Rodger (*QRB Discovery* **6**, 2025,
+[10.1017/qrd.2025.4](https://doi.org/10.1017/qrd.2025.4)) determine secondary
+structure from IR and CD **independently and integrated**, using SELCON — which
+is this ADR's requirement, published, with a year's head start. Three things it
+settles that were open here:
+
+1. **They publish a Python SELCON3.** So §7.2 is reuse-or-improve rather than
+   reimplementation, and the honest thing is to compare against theirs rather
+   than to write a third SELCON and assume it agrees.
+2. **The scaling for combining the two techniques is specified**: CD as Δε per
+   amino-acid residue, IR amide I normalised to a maximum absorbance of 15,
+   which they found gives the best general performance. That is an empirical
+   constant somebody had to determine, and it would have cost weeks to
+   rediscover.
+3. **Combining gains only about 2 %** in helix and sheet.
+
+The third finding is the one that should change the design, and it is good news
+rather than bad. If the point of using two techniques were a better number, 2 %
+would not justify the work. What they actually report is that combining
+**identifies anomalously large errors** — IR alone goes badly wrong on
+high-helix proteins like haemoglobin, CD alone on high-sheet proteins.
+
+So `Composition.compare()` (§6) is not a convenience for people who happen to
+have run both. **It is the clinical use of having two techniques**, and the
+disagreement is the signal, not an inconvenience. That argues for `compare`
+reporting *where* two estimates diverge in terms a user can act on, rather than
+returning a single distance — and for the guide saying plainly that agreement
+between IR and CD is weak evidence that both are right, while disagreement is
+strong evidence that one is wrong.
+
+It also confirms §15.4 of the roadmap: Δε per residue is the unit their method
+needs, and getting there from millidegrees requires concentration, path length
+and residue count — which is exactly the conversion `units.py` cannot currently
+express.
+
 **No reference data ships until its redistribution terms are checked** (§9). The
 user supplies a basis; a helper documents where the published sets come from.
 

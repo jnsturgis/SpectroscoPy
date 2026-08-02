@@ -44,19 +44,30 @@
   verified = {2026-08-02}
 }
 
-@article{hoffmann2025selcon,
-  author  = {Hoffmann, S{\o}ren Vr{\o}nning and Jones, Nykola C. and
-             Rodger, Alison},
-  title   = {Protein secondary structure determined from independent and
-             integrated infra-red absorbance and circular dichroism data using
-             the algorithm {SELCON}},
-  journal = {QRB Discovery},
-  year    = {2025},
-  doi     = {10.1017/qrd.2025.4},
-  verified = {2026-08-02},
-  annote  = {Directly relevant prior art for ADR-0002: one composition from
-             FTIR and CD, both separately and jointly. Read before building
-             from_ftir/from_cd.}
+@article{hoffmannProteinSecondaryStructure2025,
+  title     = {Protein Secondary Structure Determined from Independent and
+               Integrated Infra-Red Absorbance and Circular Dichroism Data
+               Using the Algorithm {{SELCON}}},
+  author    = {Hoffmann, S{\o}ren Vr{\o}nning and Jones, Nykola C. and
+               Rodger, Alison},
+  year      = {2025},
+  journal   = {QRB Discovery},
+  volume    = {6},
+  publisher = {Cambridge University Press (CUP)},
+  issn      = {2633-2892},
+  doi       = {10.1017/qrd.2025.4},
+  verified  = {2026-08-02},
+  annote    = {Prior art for ADR-0002, and the key is James's own: the entry
+               was added to his Zotero (I8SB45TJ) and this is Better BibTeX's
+               key for it. Three things it settles. They publish a Python
+               SELCON3, so building one is reuse-or-improve rather than
+               invention. They specify the scaling for combining the two
+               techniques -- CD in delta-epsilon per residue, IR amide I
+               normalised to a maximum absorbance of 15. And combining gains
+               only about 2 percent in helix and sheet: the real value is
+               catching when one technique is wrong on its own, which is
+               haemoglobin-like high-helix proteins for IR and high-sheet
+               proteins for CD.}
 }
 
 % ---------------------------------------------------------------------------

@@ -48,7 +48,8 @@ def test_every_entry_is_either_verified_or_marked_unverified():
     """
     unmarked = [
         key for key, body in _entries()
-        if 'verified =' not in body and 'UNVERIFIED' not in body
+        # \s* because the fields are column-aligned: 'verified  = {...}'.
+        if not re.search(r'\bverified\s*=', body) and 'UNVERIFIED' not in body
     ]
     assert not unmarked, (
         f"entries neither verified nor marked UNVERIFIED: {unmarked}. "
@@ -75,7 +76,7 @@ def test_the_page_marks_exactly_the_unverified_entries():
 def test_verified_entries_are_not_marked_on_the_page():
     page = PAGE.read_text(encoding='utf-8')
     for key, body in _entries():
-        if 'verified =' not in body:
+        if not re.search(r'\bverified\s*=', body):
             continue
         surname = re.search(r'author\s*=\s*\{([^,}]+)',
                             body).group(1).split()[-1].strip('{}')
