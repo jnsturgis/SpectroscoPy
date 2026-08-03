@@ -145,10 +145,26 @@ def poly_baseline(x, y, degree=3, points=None, coefficients=None, halfwidth=0):
 
     Parameters
     ----------
-    points : sequence of float, optional
-        Guide-point x positions. The nearest sample to each is used; with
-        ``halfwidth > 0`` the median over +/- that many samples is used
-        instead, which is steadier on noisy data.
+    points : sequence, optional
+        Either **x positions**, where the spectrum's own y is read off -- the
+        nearest sample to each, or with ``halfwidth > 0`` the median over +/-
+        that many samples, which is steadier on noisy data --
+
+        ::
+
+            points=[600, 620, 900, 950]
+
+        or **(x, y) pairs**, giving the baseline value at each position
+        directly::
+
+            points=[(600, 0.02), (900, 0.05), (1750, 0.11)]
+
+        The pair form is for when the spectrum never actually reaches its
+        baseline: with bands overlapping everywhere there is no x where
+        reading off the data gives the background, so every scalar guide point
+        sits on a shoulder and drags the fit up. It also lets a background
+        measured separately -- a buffer, a blank window, a neighbouring
+        sample -- be imposed rather than guessed.
     coefficients : sequence of float, optional
         Use these polynomial coefficients directly instead of fitting, in
         numpy's highest-power-first order, as ``np.polyval`` expects.
@@ -165,21 +181,40 @@ def poly_baseline(x, y, degree=3, points=None, coefficients=None, halfwidth=0):
             "or 'coefficients' (a known polynomial)"
         )
 
-    points = np.atleast_1d(np.asarray(points, dtype=float))
+    points = np.asarray(points, dtype=float)
+    paired = points.ndim == 2
+    if paired and points.shape[1] != 2:
+        raise ValueError(
+            f"guide points given as pairs must be (x, y), so shape (n, 2); "
+            f"got {points.shape}"
+        )
+    if points.ndim > 2:
+        raise ValueError(
+            f"'points' should be x positions or (x, y) pairs, not a "
+            f"{points.ndim}-dimensional array"
+        )
+    points = np.atleast_1d(points)
     if len(points) <= degree:
         raise ValueError(
             f"need more than degree ({degree}) guide points to fit, got {len(points)}"
         )
 
-    indices = np.abs(x[None, :] - points[:, None]).argmin(axis=1)
-    if halfwidth > 0:
-        guide_y = np.array([
-            np.median(y[max(0, i - halfwidth):i + halfwidth + 1]) for i in indices
-        ])
+    if paired:
+        # The values are given, so the spectrum is not consulted at all and
+        # the fit is not tied to the sampling grid.
+        guide_x, guide_y = points[:, 0], points[:, 1]
     else:
-        guide_y = y[indices]
+        indices = np.abs(x[None, :] - points[:, None]).argmin(axis=1)
+        if halfwidth > 0:
+            guide_y = np.array([
+                np.median(y[max(0, i - halfwidth):i + halfwidth + 1])
+                for i in indices
+            ])
+        else:
+            guide_y = y[indices]
+        guide_x = x[indices]
 
-    return np.polyval(np.polyfit(x[indices], guide_y, degree), x)
+    return np.polyval(np.polyfit(guide_x, guide_y, degree), x)
 
 
 def als_baseline(y, lam=1e6, p=0.01, niter=10):

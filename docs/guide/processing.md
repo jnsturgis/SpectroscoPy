@@ -78,6 +78,40 @@ to the polynomial method.
 know nothing absorbs. `halfwidth=3` takes a median around each rather than
 trusting one reading. `coefficients=` uses a polynomial you already know.
 
+Guide points can also be **(x, y) pairs**, giving the baseline value at each
+position rather than reading it off the spectrum. That is the form to reach
+for when the spectrum never actually reaches its own baseline — with bands
+overlapping across the whole range, every scalar guide point sits on a
+shoulder and drags the fit upward:
+
+```{code-cell}
+crowded_y = (gauss(x, 1650, 120, 1.0) + gauss(x, 1400, 150, 0.8)
+             + gauss(x, 1100, 140, 0.7) + 0.15 + 2.0e-4 * (x - 1400))
+crowded = spc.Spectrum(x, crowded_y, technique='ATR-FTIR', name='crowded')
+truth = 0.15 + 2.0e-4 * (x - 1400)
+
+from_positions = crowded.baseline('poly', degree=1, points=[1400, 1450, 1750, 1800])
+from_pairs = crowded.baseline('poly', degree=1,
+                              points=[(1400, 0.15), (1600, 0.19), (1800, 0.23)])
+
+for name, estimate in (('x positions', from_positions), ('(x, y) pairs', from_pairs)):
+    print(f"{name:<14} mean error {np.mean(np.abs(estimate.y - truth)):.4f}")
+```
+
+```{code-cell}
+fig, ax = plt.subplots()
+crowded.plot(ax, label='spectrum')
+ax.plot(x, truth, 'k:', label='true background')
+ax.plot(x, from_positions.y, label='from x positions')
+ax.plot(x, from_pairs.y, label='from (x, y) pairs')
+ax.legend(fontsize='small');
+```
+
+It also lets a background measured somewhere else — a buffer, a blank window,
+a neighbouring sample — be imposed rather than guessed. Either way the anchors
+land in the history, so the figure stays traceable to the numbers that made
+it.
+
 **als** — asymmetric least squares. `lam` is stiffness, `p` asymmetry
 (0.001–0.02). The right choice when the background is not convex.
 

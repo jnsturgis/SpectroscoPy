@@ -45,7 +45,7 @@ on it.
 | **Galactic / Thermo SPC** | `.spc` `.cgm` | read-only; single and multi-subfile |
 | Bruker OPUS data point table | `.dpt` | separator detected per file |
 | JCAMP-DX | `.jdx` `.dx` `.jcamp` | including compound files |
-| Delimited text | `.csv` `.tsv` `.txt` | header row detected |
+| Delimited text | `.csv` `.tsv` `.txt` | separator and decimal comma detected |
 | Wide / paired tables | any | many spectra from one file |
 | SpectroscoPy native | `.spy` | keeps units and processing history |
 

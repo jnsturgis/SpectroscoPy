@@ -133,6 +133,50 @@ except ValueError as error:
 
 Returning the first of three silently would be worse than failing.
 
+## A `.csv` is often neither comma separated nor dot decimal
+
+A spreadsheet exported under a French, German, Spanish or Italian locale
+writes `0,1234`. The comma is then taken by the decimal, so Excel exports `;`
+as the field separator instead. The file is still called `.csv`, and nothing
+inside it says any of this.
+
+Both are worked out from the numbers — and they have to be worked out
+*together*, because neither can be settled alone:
+
+```{code-cell}
+locales = {
+    'from Paris':   "Longueur d'onde;Absorbance\n400,5;0,1234\n401,0;0,2345\n",
+    'from Berlin':  "Wellenlaenge\tExtinktion\n400,5\t0,1234\n401,0\t0,2345\n",
+    'from Boston':  "Wavelength,Absorbance\n400.5,0.1234\n401.0,0.2345\n",
+}
+
+for origin, text in locales.items():
+    path = tmp / f"{origin.replace(' ', '_')}.csv"
+    path.write_text(text)
+    spectrum = spc.Spectrum.read(path)
+    print(f"{origin:<12} x={spectrum.x}  y={spectrum.y}")
+```
+
+Splitting `400,5;0,1234` on the comma finds `400` and `1234`, which look like
+two perfectly good numbers until you notice the `5;0` stranded between them.
+That is why the separator is scored on what it *leaves behind* as well as what
+it produces.
+
+Thousands separators are handled too — `1.400,5` and `1 400,5` are both
+fourteen hundred and a half, including the non-breaking space Excel actually
+emits:
+
+```{code-cell}
+from spectroscopy.io.table import parse_number, sniff_format
+
+print(parse_number('1.400,5', ','), parse_number('1 400,5', ','))
+print(sniff_format(["400,5;0,1234", "401,0;0,2345"]))
+```
+
+Pass `delimiter=` or `decimal=` to override the sniffing. A `.tsv` pins the
+separator to a tab and still sniffs the decimal, because the locale problem is
+independent of the separator.
+
 ## Encoding
 
 Byte-order mark first, then UTF-8, then latin-1 as a backstop that maps every

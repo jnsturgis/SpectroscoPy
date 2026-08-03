@@ -242,3 +242,87 @@ def test_unknown_filetype_error_lists_what_is_known(tmp_path):
     with pytest.raises(TypeError) as caught:
         Spectrum.read(path)
     assert 'jcamp' in str(caught.value)
+
+
+# ---------------------------------------------------------------------------
+# Locale: comma decimals and the separators that come with them
+# ---------------------------------------------------------------------------
+
+LOCALE_CASES = {
+    'fr_semicolon': "Longueur d'onde;Absorbance\n400,5;0,1234\n401,0;0,2345\n402,5;0,3456\n",
+    'us_comma':     "Wavelength,Absorbance\n400.5,0.1234\n401.0,0.2345\n402.5,0.3456\n",
+    'de_tab':       "Wellenlaenge\tExtinktion\n400,5\t0,1234\n401,0\t0,2345\n402,5\t0,3456\n",
+    'fr_noheader':  "400,5;0,1234\n401,0;0,2345\n402,5;0,3456\n",
+    'scientific':   "x,y\n400.5,1.2e-3\n401.0,2.3e-3\n402.5,3.4e-3\n",
+}
+
+
+@pytest.mark.parametrize('name', sorted(LOCALE_CASES))
+def test_a_csv_is_read_whatever_the_locale_wrote(name, tmp_path):
+    """
+    A '.csv' from a European colleague is routinely neither comma separated
+    nor dot decimal: the locale takes the comma for the decimal, so Excel
+    exports ';' instead. Nothing in the file says so.
+    """
+    from spectroscopy.spectra import Spectrum
+
+    path = tmp_path / f"{name}.csv"
+    path.write_text(LOCALE_CASES[name])
+    spectrum = Spectrum.read(path)
+
+    assert np.allclose(spectrum.x, [400.5, 401.0, 402.5])
+    expected = ([1.2e-3, 2.3e-3, 3.4e-3] if name == 'scientific'
+                else [0.1234, 0.2345, 0.3456])
+    assert np.allclose(spectrum.y, expected)
+
+
+def test_grouping_separators_are_removed(tmp_path):
+    """1.400,5 and 1 400,5 are both fourteen hundred and a half."""
+    from spectroscopy.spectra import Spectrum
+
+    for text in ("x;y\n1.400,5;0,1\n1.401,0;0,2\n1.402,5;0,3\n",
+                 "x;y\n1 400,5;0,1\n1 401,0;0,2\n1 402,5;0,3\n"):
+        path = tmp_path / "grouped.csv"
+        path.write_text(text)
+        assert np.allclose(Spectrum.read(path).x, [1400.5, 1401.0, 1402.5])
+
+
+def test_an_explicit_delimiter_or_decimal_wins(tmp_path):
+    from spectroscopy.spectra import Spectrum
+
+    path = tmp_path / "fr.csv"
+    path.write_text("400,5;0,1234\n401,0;0,2345\n")
+    spectrum = Spectrum.read(path)
+    assert np.allclose(spectrum.x, [400.5, 401.0])
+
+    forced = registry.read_spectrum(path, 'csv', delimiter=';', decimal=',')
+    assert np.allclose(forced.x, [400.5, 401.0])
+
+
+def test_the_decimal_is_sniffed_even_when_the_separator_is_known(tmp_path):
+    """A .tsv pins the tab but says nothing about the locale."""
+    from spectroscopy.spectra import Spectrum
+
+    path = tmp_path / "german.tsv"
+    path.write_text("x\ty\n400,5\t0,1234\n401,0\t0,2345\n")
+    spectrum = Spectrum.read(path)
+    assert np.allclose(spectrum.x, [400.5, 401.0])
+    assert np.allclose(spectrum.y, [0.1234, 0.2345])
+
+
+def test_a_wide_table_can_be_comma_decimal(tmp_path):
+    path = tmp_path / "series.csv"
+    path.write_text("lambda;A;B\n400,0;0,10;0,20\n401,0;0,11;0,22\n402,0;0,12;0,24\n")
+    collection = registry.read_spectra(path, 'table', x_col=0)
+    assert len(collection) == 2
+    assert np.allclose(collection[0].x, [400.0, 401.0, 402.0])
+    assert np.allclose(collection[1].y, [0.20, 0.22, 0.24])
+
+
+def test_number_parsing_helpers():
+    assert table.parse_number('0,1234', ',') == pytest.approx(0.1234)
+    assert table.parse_number('1.400,5', ',') == pytest.approx(1400.5)
+    assert table.parse_number('400.5', '.') == pytest.approx(400.5)
+    assert table.sniff_format(["400,5;0,1234", "401,0;0,2345"]) == (';', ',')
+    assert table.sniff_format(["400.5,0.1234", "401.0,0.2345"]) == (',', '.')
+    assert table.sniff_format(["400,5\t0,1234", "401,0\t0,2345"]) == ('\t', ',')

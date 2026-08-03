@@ -540,3 +540,51 @@ def test_band_direction_vocabulary():
     assert units.is_valley_pointing('transmittance')
     assert not units.is_valley_pointing('absorbance')
     assert not units.is_valley_pointing('a.u.')
+
+
+def test_a_polynomial_baseline_can_be_given_x_y_pairs():
+    """
+    For spectra that never reach their own baseline.
+
+    With bands overlapping across the whole range there is no x where reading
+    the data off gives the background, so every scalar guide point sits on a
+    shoulder and drags the fit upward. Supplying the values directly is the
+    only way to say what the background actually is.
+    """
+    x = np.linspace(900.0, 1800.0, 901)
+    true_baseline = 0.15 + 2.0e-4 * (x - 900.0)
+    y = (gauss(x, 1650, 120, 1.0) + gauss(x, 1400, 150, 0.8)
+         + gauss(x, 1100, 140, 0.7) + true_baseline)
+
+    from_data = common.poly_baseline(x, y, degree=1,
+                                     points=[900, 1000, 1750, 1800])
+    from_pairs = common.poly_baseline(
+        x, y, degree=1, points=[(900, 0.15), (1350, 0.24), (1800, 0.33)])
+
+    assert np.allclose(from_pairs, true_baseline, atol=1e-6)
+    # And the scalar form is genuinely defeated here, which is the point.
+    assert np.mean(np.abs(from_data - true_baseline)) > 0.05
+
+
+def test_pairs_work_through_the_spectrum_api():
+    x = np.linspace(900.0, 1800.0, 901)
+    spectrum = Spectrum(x, gauss(x, 1650, 120, 1.0) + 0.15 + 2.0e-4 * (x - 900.0),
+                        technique='ATR-FTIR')
+    anchors = [(900, 0.15), (1350, 0.24), (1800, 0.33)]
+
+    baseline = spectrum.baseline('poly', degree=1, points=anchors)
+    assert np.allclose(baseline.y, 0.15 + 2.0e-4 * (x - 900.0), atol=1e-6)
+    # The anchors land in the history, which is the point of passing them in.
+    assert 'points' in str(spectrum.baseline_correct('poly', degree=1,
+                                                     points=anchors).history[-1])
+
+
+def test_malformed_guide_points_are_refused():
+    x = np.linspace(900.0, 1800.0, 901)
+    y = np.zeros_like(x)
+    with pytest.raises(ValueError, match=r"\(x, y\)"):
+        common.poly_baseline(x, y, degree=1, points=[(1, 2, 3), (4, 5, 6)])
+    with pytest.raises(ValueError, match="dimensional"):
+        common.poly_baseline(x, y, degree=1, points=[[[1, 2]]])
+    with pytest.raises(ValueError, match="more than degree"):
+        common.poly_baseline(x, y, degree=3, points=[(900, 0.1), (1800, 0.3)])

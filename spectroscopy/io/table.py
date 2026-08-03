@@ -31,14 +31,46 @@ import numpy as np
 
 from spectroscopy.io.registry import register_reader
 
-__all__ = ['read_table', 'sniff_delimiter', 'sniff_header_rows']
+__all__ = ['read_table', 'sniff_delimiter', 'sniff_header_rows',
+           'sniff_format', 'parse_number']
 
 CANDIDATE_DELIMITERS = ('\t', ',', ';', None)
 
+#: Decimal separators worth trying. A spreadsheet exported under a French,
+#: German, Spanish or Italian locale writes ``0,1234``, and because the comma
+#: is then taken by the decimal it exports ``;`` as the field separator -- so a
+#: file called ``.csv`` is very often neither comma separated nor dot decimal.
+#: Nothing in the file says which; it has to be worked out from the numbers.
+CANDIDATE_DECIMALS = ('.', ',')
 
-def _is_number(text):
+#: Digit-group separators to discard before parsing: ASCII space, non-breaking
+#: space and narrow non-breaking space are all used as thousands separators,
+#: and Excel emits the non-breaking ones.
+_GROUPING = (' ', ' ', ' ')
+
+
+def parse_number(text, decimal='.'):
+    """
+    Parse one field, honouring a comma decimal separator.
+
+    Handles the awkward combination too: ``1.234,56`` is one thousand two
+    hundred and thirty-four, and the dots have to go before the comma becomes
+    a point. The test is positional -- a dot appearing *before* the last comma
+    is grouping, not a decimal.
+    """
+    text = text.strip()
+    for space in _GROUPING:
+        text = text.replace(space, '')
+    if decimal == ',':
+        if '.' in text and text.rfind('.') < text.rfind(','):
+            text = text.replace('.', '')
+        text = text.replace(',', '.')
+    return float(text)
+
+
+def _is_number(text, decimal='.'):
     try:
-        float(text)
+        parse_number(text, decimal)
         return True
     except (TypeError, ValueError):
         return False
@@ -48,21 +80,70 @@ def _split(line, delimiter):
     return line.split(delimiter) if delimiter is not None else line.split()
 
 
-def sniff_delimiter(lines):
-    """Pick the separator that yields the most numeric fields."""
-    best, best_score = ',', -1
+def sniff_format(lines):
+    """
+    Work out ``(delimiter, decimal)`` together.
+
+    They cannot be decided separately. Given ``400,5;0,1234``, splitting on
+    ``,`` finds two things that look like numbers -- ``400`` and ``1234`` --
+    and splitting on ``;`` finds none at all unless you already believe the
+    comma is a decimal point. Scoring every combination and taking the best is
+    the only way round it, and it is cheap: four separators by two decimals.
+
+    Ties go to the dot, and then to the earlier separator in
+    :data:`CANDIDATE_DELIMITERS`, so an unambiguous file reads exactly as it
+    always did.
+    """
+    best, best_score = (',', '.'), -1e9
     for delimiter in CANDIDATE_DELIMITERS:
-        for line in lines:
-            fields = _split(line.strip(), delimiter)
-            if len(fields) < 2:
-                continue
-            score = sum(1 for f in fields if _is_number(f.strip()))
+        for decimal in CANDIDATE_DECIMALS:
+            if delimiter == decimal:
+                continue                  # a comma cannot be both at once
+            score = 0
+            for line in lines:
+                fields = [f.strip() for f in _split(line.strip(), delimiter)]
+                if len(fields) < 2:
+                    continue
+                numeric = sum(1 for f in fields if _is_number(f, decimal))
+                if not numeric:
+                    continue              # a header row; it judges nothing
+                # Leftovers count against. Splitting "400,5;0,1234" on the
+                # comma yields 400 and 1234, which look like two fine numbers
+                # until you notice the "5;0" stranded between them -- counting
+                # hits alone scores that as highly as the right answer.
+                score += numeric - (len(fields) - numeric)
             if score > best_score:
-                best, best_score = delimiter, score
+                best, best_score = (delimiter, decimal), score
     return best
 
 
-def sniff_header_rows(lines, delimiter):
+def sniff_delimiter(lines):
+    """Pick the separator that yields the most numeric fields."""
+    return sniff_format(lines)[0]
+
+
+def sniff_decimal(lines, delimiter=None):
+    """
+    Pick the decimal separator, optionally for a delimiter already decided.
+
+    Worth calling directly when the separator is known -- a ``.tsv`` say --
+    but the locale of whoever exported it is not.
+    """
+    if delimiter is None:
+        return sniff_format(lines)[1]
+    best, best_score = '.', -1
+    for decimal in CANDIDATE_DECIMALS:
+        if delimiter == decimal:
+            continue
+        score = sum(1 for line in lines
+                    for f in _split(line.strip(), delimiter)
+                    if _is_number(f.strip(), decimal))
+        if score > best_score:
+            best, best_score = decimal, score
+    return best
+
+
+def sniff_header_rows(lines, delimiter, decimal='.'):
     """Count leading rows that are not data (i.e. hold no parsable numbers)."""
     count = 0
     for line in lines:
@@ -70,7 +151,7 @@ def sniff_header_rows(lines, delimiter):
             count += 1
             continue
         fields = [f.strip() for f in _split(line.strip(), delimiter)]
-        if any(_is_number(f) for f in fields):
+        if any(_is_number(f, decimal) for f in fields):
             break
         count += 1
     return count
@@ -121,7 +202,8 @@ def choose_name_row(headers, columns):
 @register_reader('table', extensions=(), multi=True,
                  description='generic delimited text, wide or paired columns')
 def read_table(handle, *, x_col=0, y_cols=None, paired=False, delimiter=None,
-               header_rows=None, names=None, comments='#', max_rows=None):
+               decimal=None, header_rows=None, names=None, comments='#',
+               max_rows=None):
     """
     Read a delimited text file into a list of Spectrum.
 
@@ -147,10 +229,16 @@ def read_table(handle, *, x_col=0, y_cols=None, paired=False, delimiter=None,
     if not body:
         raise ValueError("no data found in table")
 
-    if delimiter is None:
+    # Separator and decimal are sniffed together -- see sniff_format. Either
+    # can be pinned; whichever is left is worked out around it.
+    if delimiter is None and decimal is None:
+        delimiter, decimal = sniff_format(body[:20])
+    elif decimal is None:
+        decimal = sniff_decimal(body[:20], delimiter)
+    elif delimiter is None:
         delimiter = sniff_delimiter(body[:20])
     if header_rows is None:
-        header_rows = sniff_header_rows(body[:10], delimiter)
+        header_rows = sniff_header_rows(body[:10], delimiter, decimal)
 
     # ﻿ is a byte-order mark left at the start of a decoded UTF-16 file;
     # without stripping it the first series comes out named '﻿Chrom.1'.
@@ -167,8 +255,8 @@ def read_table(handle, *, x_col=0, y_cols=None, paired=False, delimiter=None,
     for row, line in enumerate(data_lines):
         for column, text in enumerate(_split(line, delimiter)):
             text = text.strip()
-            if text and _is_number(text):
-                table[row, column] = float(text)
+            if text and _is_number(text, decimal):
+                table[row, column] = parse_number(text, decimal)
 
     if paired:
         pairs = [(index, index + 1) for index in range(0, width - 1, 2)]
