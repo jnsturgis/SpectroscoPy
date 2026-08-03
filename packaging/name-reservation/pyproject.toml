@@ -4,10 +4,15 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyspectroscopy"
-# 0.0.0 was deleted from PyPI: its sdist accidentally contained a credentials
-# file. A deleted PyPI version can never be re-uploaded, so this starts at
-# 0.0.1. See the sdist whitelist at the bottom of this file.
-version = "0.0.1"
+# This is the only place the version is written. `pyspectroscopy/__init__.py`
+# derives __version__ from installed metadata rather than repeating it -- 0.0.1
+# shipped reporting itself as "0.0.0" because the two had been kept by hand and
+# nothing compares them.
+#
+# 0.0.0 was deleted from PyPI (its sdist contained a credentials file) and a
+# deleted PyPI version can never be re-uploaded, which is why the history here
+# starts at 0.0.1. See the sdist whitelist at the bottom of this file.
+version = "0.0.2"
 description = "Name reservation for SpectroscoPy — a unified Python library for Raman, FTIR, UV-Vis and fluorescence spectra"
 readme = "README.md"
 requires-python = ">=3.10"
