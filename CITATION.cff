@@ -1,0 +1,48 @@
+cff-version: 1.2.0
+title: "SpectroscoPy: one way of handling spectra, whatever instrument they came from"
+message: "If you use this software in work that you publish, please cite it."
+type: software
+authors:
+  - family-names: Sturgis
+    given-names: James N.
+    email: james.sturgis@univ-amu.fr
+    affiliation: "Aix-Marseille Université, CNRS, LISM"
+    # orcid: "https://orcid.org/0000-0000-0000-0000"   # TODO: add
+repository-code: "https://github.com/jnsturgis/SpectroscoPy"
+url: "https://jnsturgis.github.io/SpectroscoPy/"
+abstract: >-
+  SpectroscoPy is a Python library for spectra from several techniques --
+  Raman, FTIR, UV-Vis and fluorescence -- read through one interface and
+  handled with one data model. It reads the native binary formats instruments
+  actually write, including Bruker OPUS and Galactic/Thermo SPC, alongside the
+  usual text exports, and records the processing applied to a spectrum so that
+  a published figure can be traced back to the raw files.
+keywords:
+  - spectroscopy
+  - Raman
+  - FTIR
+  - ATR-FTIR
+  - UV-Vis
+  - fluorescence
+  - JCAMP-DX
+  - reproducibility
+license: MPL-2.0
+version: 0.1.0
+date-released: "2026-08-01"
+
+# Notes for whoever updates this file.
+#
+# Update `version` and `date-released` on every tagged release. GitHub reads
+# this file to render the "Cite this repository" button, so a stale version
+# here is a wrong citation offered to every visitor.
+#
+# The package name on PyPI is not settled: `spectroscopy` is held by a dormant
+# project and a transfer request is outstanding, with `pyspectroscopy` reserved
+# as a fallback. Cite the repository URL above rather than a pip name until
+# that resolves -- the URL is stable whichever way it goes. See
+# SpectroscoPy_Codebase_Review.md section 16.
+#
+# When the JOSS paper is published, add a `preferred-citation:` block of type
+# article pointing at it, with the DOI. Tools then cite the paper rather than
+# the software, which is what you want; this block stays as the fallback for
+# anyone citing a specific version.

@@ -133,13 +133,27 @@ several things found in the old code that had been quietly affecting results.
 ## Contributing
 
 Bug reports are welcome, particularly *unclear error messages* — those stop
-people using a tool more effectively than missing features do.
+people using a tool more effectively than missing features do. **You do not
+need a GitHub account**: every documentation page has a feedback link that
+opens an email.
+
+A file that fails to read is one of the most useful things you can send. Both
+native binary readers exist because somebody supplied files.
 
 ```bash
 pip install -e ".[dev]"
 pytest
 ruff check .
 ```
+
+See [CONTRIBUTING.md](CONTRIBUTING.md) for the longer version, including how
+to add a file format, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
+
+## Citing
+
+[CITATION.cff](CITATION.cff) — or use GitHub's "Cite this repository" button.
+Cite the repository URL rather than a `pip` name for now: the PyPI name is not
+yet settled.
 
 ## Licence
 

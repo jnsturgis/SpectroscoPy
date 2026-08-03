@@ -66,4 +66,5 @@ guide/index
 api
 adr/index
 references
+contributing
 ```
