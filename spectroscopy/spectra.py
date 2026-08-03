@@ -294,11 +294,19 @@ class Spectrum:
                 self.fileinfo['NAME'] = args[0]
                 self.fileinfo['TYPE'] = _infer_file_type(args[0])
 
-            # Now read the file according to type
-            if self.fileinfo['TYPE'] in KNOWNFILETYPES:
+            # Now read the file according to type. Ask the registry, do not
+            # consult KNOWNFILETYPES: that is a snapshot taken when this module
+            # was imported, so a format registered afterwards -- which is the
+            # whole point of register_reader being a decorator anyone can use --
+            # would be inferred correctly and then rejected here.
+            if self.fileinfo['TYPE'] in _known_file_types():
                 self.reload()
             else:
-                raise TypeError(f"Unknown filetype {self.fileinfo['TYPE']}")
+                raise TypeError(
+                    f"Unknown filetype {self.fileinfo['TYPE']!r} for "
+                    f"{self.fileinfo['NAME']}; known types are "
+                    f"{', '.join(_known_file_types())}"
+                )
         else :
             raise TypeError("Unknown spectrum initializer")
         # TODO Should finish by checking that we have a well formed Spectrum()

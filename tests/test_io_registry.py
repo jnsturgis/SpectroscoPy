@@ -200,3 +200,45 @@ def test_sniff_helpers():
     assert table.sniff_delimiter(["1,2,3"]) == ','
     assert table.sniff_header_rows(["a,b", "1,2"], ',') == 1
     assert table.sniff_header_rows(["1,2", "3,4"], ',') == 0
+
+
+def test_a_format_registered_after_import_is_usable(tmp_path):
+    """
+    The registry must be consulted live, not snapshotted.
+
+    ``spectra.KNOWNFILETYPES`` is filled in when the module is imported. A
+    format registered after that -- which is the normal case, since
+    ``register_reader`` is a decorator anyone can apply in their own code --
+    was inferred correctly from the extension and then rejected by the
+    Spectrum constructor as an unknown type. The documented promise that one
+    decorator is enough was not true.
+    """
+    import numpy as np
+
+    from spectroscopy.spectra import Spectrum
+
+    @registry.register_reader('latecomer', extensions=['.late'],
+                              description='registered after import')
+    def _read(handle, spectrum, **kwargs):
+        rows = [line.split(';') for line in handle.read().splitlines()
+                if line.strip()]
+        spectrum.x = np.array([float(row[0]) for row in rows])
+        spectrum.y = np.array([float(row[1]) for row in rows])
+
+    path = tmp_path / "sample.late"
+    path.write_text("400;0.10\n500;0.25\n600;0.40\n")
+
+    assert registry.infer_file_type(path) == 'latecomer'
+    spectrum = Spectrum.read(path)          # used to raise TypeError
+    assert len(spectrum.x) == 3
+    assert spectrum.y[-1] == 0.40
+
+
+def test_unknown_filetype_error_lists_what_is_known(tmp_path):
+    from spectroscopy.spectra import Spectrum
+
+    path = tmp_path / "sample.nonsense"
+    path.write_text("1 2\n")
+    with pytest.raises(TypeError) as caught:
+        Spectrum.read(path)
+    assert 'jcamp' in str(caught.value)
