@@ -61,7 +61,8 @@ so there is only one place to keep current.
 | Amide I diagnosis | 📋 | **early September, James in the lab** — §20 |
 | FTIR secondary structure validated | ⏸️ | on §20 |
 | CD deconvolution | ⏸️ | own branch, after JOSS — §17 |
-| OPUS binary and `.spc` readers | ⏸️ | waiting on sample files — §15.2 |
+| OPUS binary reader | ✅ | written against 43 real files — §21 |
+| `.spc` reader | ⏸️ | layout verified (`SPC_Format_Notes.md`); waiting on real files — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
 | PyPI name | ⏸️ | email drafted, not sent — review §16 |
 | JOSS submission | 📋 | November |
@@ -600,13 +601,32 @@ subfiles map onto the registry's existing many-spectra-per-file path. Both
 `brukeropusreader` and `spc-spectra` are abandoned, so these are
 read-them-ourselves jobs consistent with the §5.6 dependency policy.
 
-**Two things found on 2026-08-03, before any code:**
+**Found on 2026-08-03, before any code:**
 
 *The Wikipedia page does not carry the byte-level layout.* It describes the
 format and its history and points at Thermo's specification and at reference
 implementations (hyperSpec, the `spc` Python library, OpenSpectralWorks). One
 of those is the actual source needed; the encyclopaedia entry is not enough to
 write a reader from.
+
+*✅ The specification has since been found, and the layout is now verified and
+written down: **`SPC_Format_Notes.md`**.* Thermo Galactic's own "A Brief Guide
+to SPC File Format and Using GSPCIO" (2001) is still publicly downloadable and
+carries the field tables for the 512-byte main header, the 32-byte subheader
+and the 64-byte log header. It was cross-checked against the `struct` strings
+of a working reader; **field order, types and sizes agree exactly, but the
+vendor PDF's printed byte offsets are wrong** — 2 low from `flast` onward, and
+its last row ends at 511 rather than the 512 the same page declares. Anyone
+transcribing those numbers gets a reader that is wrong from the X axis on and
+fails plausibly rather than loudly. The notes carry computed offsets instead.
+
+*⚠️ Licensing constrains how this gets built.* Rohan Isaac's `spc` is
+**GPL-3.0** and this project is MPL-2.0, so it cannot be copied from or
+adapted — the compatibility runs the other way. `spc-spectra`, the maintained
+fork, publishes no license at all while deriving from it. The reader will be
+written from `SPC_Format_Notes.md` §3, which is the reason that document
+exists and was written before any code. The reference copies live in `temp/`,
+which is now in `.gitignore` so they cannot be committed by accident.
 
 *⚠️ `.spc` is an overloaded extension, and the files on this machine are the
 other one.* The 26 `.spc`/`.SPC` files here are **Bruker EPR** data — raw
@@ -622,7 +642,14 @@ say *"this looks like Bruker EPR data, which is a different format"* rather than
 Still wanted, therefore: **real Galactic `.spc` files**. James has some in an
 archive. Until they arrive the position is §15.2's — a reader written against a
 specification and checked with files I generated myself tests only my reading of
-the specification.
+the specification. Having the specification changes what is blocked: the code
+can now be *written*, but not *trusted*. Most useful, in order: 3–5 real files
+with text exports of the same data; one multi-subfile XYXY example, since that
+is where `fnpts` stops meaning "number of points" and where readers break; one
+old-format `0x4D` file if the archive has one. Also wanted, and independent of
+the archive: a surviving copy of **`SPC.H`** for the axis-unit and
+experiment-type code tables, which the brief guide does not reproduce and which
+are currently the one part of the notes resting on a single source.
 
 **FTIR secondary structure** — water and vapour subtraction, crop, second
 derivative, constrained fit, assign, integrate. It needs `fit_peaks()` and
