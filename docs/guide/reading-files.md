@@ -10,15 +10,48 @@ The format is worked out from the extension, and the details from the file
 itself: separators, header rows and text encoding are all detected rather than
 assumed.
 
-| format | extensions | notes |
-|---|---|---|
-| Bruker OPUS data point table | `.dpt` | separator detected per file |
-| JCAMP-DX | `.jdx` `.dx` `.jcamp` | including compound files |
-| Delimited text | `.csv` `.tsv` `.txt` | header row detected |
-| Generic table | — | many spectra from one wide file |
-| SpectroscoPy native | `.spy` | keeps units and processing history |
+| format | extensions | r/w | notes |
+|---|---|:--:|---|
+| Bruker OPUS native | `.0` … `.9` | r | binary; keeps OPUS's own processing history |
+| Galactic / Thermo SPC | `.spc` `.cgm` | r | binary; single and multi-subfile |
+| Bruker OPUS data point table | `.dpt` | rw | separator detected per file |
+| JCAMP-DX | `.jdx` `.dx` `.jcamp` | rw | including compound files |
+| Delimited text | `.csv` `.tsv` `.txt` | rw | header row detected |
+| Generic table | — | r | many spectra from one wide file |
+| SpectroscoPy native | `.spy` | rw | keeps units and processing history |
 
 `spc.io.describe_formats()` prints the live list.
+
+## The binary formats sniff, they do not trust the extension
+
+Two instrument formats have extensions that carry no reliable type
+information, so both check the file's own magic value first:
+
+* OPUS numbers its files by measurement — `sample.0`, `sample.1` — so the
+  extension says nothing at all about what is inside.
+* `.spc` is used by **Bruker for EPR data** as well as by Galactic. They share
+  only the three letters. Hand an EPR file to the reader and it says so, by
+  name, rather than calling the file corrupt.
+
+Both are read-only. SpectroscoPy will not write a format it cannot verify it
+is writing correctly — OPUS is undocumented, so nothing could establish that a
+file we wrote was a file OPUS would accept.
+
+## When one file holds several spectra
+
+A native OPUS file often holds the same quantity twice: what was measured, and
+what was left after something was done to it inside the instrument software.
+Which one a `.dpt` export contains is not recoverable from the export. So the
+reader returns them all and records what it knows:
+
+```python
+spectra = spc.io.read_spectra("sample.0")
+for s in spectra:
+    print(s.metadata["opus_block"], s.metadata.get("opus_history", ""))
+```
+
+The same applies to a multi-subfile `.spc`, where each subfile carries its own
+Z value — a time, a temperature, a depth — kept in `metadata['z_value']`.
 
 Force a format when the extension lies:
 

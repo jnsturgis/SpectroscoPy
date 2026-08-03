@@ -41,11 +41,16 @@ on it.
 
 | Format | Extensions | Notes |
 |---|---|---|
+| **Bruker OPUS native** | `.0` … `.9` | read-only; keeps what OPUS already did to the spectrum |
+| **Galactic / Thermo SPC** | `.spc` `.cgm` | read-only; single and multi-subfile |
 | Bruker OPUS data point table | `.dpt` | separator detected per file |
 | JCAMP-DX | `.jdx` `.dx` `.jcamp` | including compound files |
 | Delimited text | `.csv` `.tsv` `.txt` | header row detected |
 | Wide / paired tables | any | many spectra from one file |
 | SpectroscoPy native | `.spy` | keeps units and processing history |
+
+The two binary formats are read-only on purpose: SpectroscoPy will not write a
+format it cannot verify it is writing correctly.
 
 Techniques with built-in axis conventions: ATR-FTIR, FTIR, UV-Vis, Raman,
 fluorescence.
