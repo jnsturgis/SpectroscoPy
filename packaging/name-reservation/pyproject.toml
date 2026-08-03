@@ -45,7 +45,9 @@ only-include = [
     "README.md",
     "pyproject.toml",
 ]
-# Hatchling ships the VCS ignore file unless told otherwise. Harmless, but
-# there is no reason for a placeholder distribution to carry the repository's
-# ignore rules.
-exclude = [".gitignore"]
+# Hatchling always ships a .gitignore in the sdist; neither `exclude` nor
+# `ignore-vcs` suppresses it. Without a local one it reaches up and ships the
+# *repository's*, which leaks nothing secret but does publish that project's
+# private housekeeping. The one-line .gitignore beside this file exists purely
+# to be the one that ships. Note this file ships too -- keep incident detail
+# in the repository, not in these comments.
