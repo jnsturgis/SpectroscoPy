@@ -83,6 +83,35 @@ def _axes(ax):
     return ax if ax is not None else _pyplot().subplots()[1]
 
 
+#: matplotlib style arguments that have a short alias. Setting the long form as
+#: a default when the caller passed the short one makes matplotlib raise
+#: "Got both 'lw' and 'linewidth', which are aliases of one another" -- which
+#: blames the caller for something we did.
+_ALIASES = {'linewidth': 'lw', 'linestyle': 'ls', 'color': 'c'}
+
+
+def _default_style(kwargs, **defaults):
+    """``setdefault`` that respects matplotlib's short aliases."""
+    for name, value in defaults.items():
+        if name not in kwargs and _ALIASES.get(name, name) not in kwargs:
+            kwargs[name] = value
+    return kwargs
+
+
+def _merge_style(style, kwargs):
+    """
+    Per-series style, with anything the caller set winning.
+
+    The same alias problem as :func:`_default_style`, one level up: ``style``
+    carries ``color`` and ``linestyle``, so a caller passing ``ls='--'`` to
+    restyle a whole collection would otherwise be handed both spellings.
+    """
+    merged = {name: value for name, value in style.items()
+              if _ALIASES.get(name, name) not in kwargs}
+    merged.update(kwargs)
+    return merged
+
+
 def series_style(index):
     """Colour and line style for series ``index``, counting from 0."""
     return {'color': PALETTE[index % len(PALETTE)],
@@ -139,7 +168,7 @@ def plot(spectrum, ax=None, *args, label=None, apply_labels=True, frame=None,
     make that the default for a whole session.
     """
     ax = _axes(ax)
-    kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
+    _default_style(kwargs, linewidth=DEFAULT_LINEWIDTH)
     lines = ax.plot(spectrum.x, spectrum.y, *args,
                     label=spectrum.name if label is None else label, **kwargs)
     if apply_labels:
@@ -163,14 +192,14 @@ def plot_collection(collection, ax=None, labels=None, colors=None,
     """
     ax = _axes(ax)
     names = _labels_for(collection, labels)
-    kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
+    _default_style(kwargs, linewidth=DEFAULT_LINEWIDTH)
 
     for index, (spectrum, name) in enumerate(zip(collection, names)):
         style = series_style(index)
         if colors is not None:
             style['color'] = colors[index % len(colors)]
         plot(spectrum, ax, label=name, apply_labels=(index == 0),
-             frame=frame, **{**style, **kwargs})
+             frame=frame, **_merge_style(style, kwargs))
 
     if legend is None:
         legend = len(collection) > 1
@@ -191,7 +220,7 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
     """
     ax = _axes(ax)
     names = _labels_for(collection, labels)
-    kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
+    _default_style(kwargs, linewidth=DEFAULT_LINEWIDTH)
 
     # Set the axis direction first: the direct labels below ask the axes which
     # end is on the right, and inverting afterwards would put them all on the
@@ -211,7 +240,7 @@ def stack(collection, ax=None, offsets=None, gap=None, labels=None,
         if colors is not None:
             style['color'] = colors[index % len(colors)]
         ax.plot(spectrum.x, spectrum.y + offset, label=name,
-                **{**style, **kwargs})
+                **_merge_style(style, kwargs))
         if direct_labels:
             # Anchor the label to whichever end of the trace is drawn on the
             # right, and to that end's own y value. Using x[-1] would assume
@@ -312,13 +341,16 @@ def plot_baseline(spectrum, baseline, ax=None, corrected=True, **kwargs):
     obvious here and invisible in the corrected spectrum alone.
     """
     ax = _axes(ax)
-    kwargs.setdefault('linewidth', DEFAULT_LINEWIDTH)
-    plot(spectrum, ax, label='measured', color=PALETTE[0], **kwargs)
-    ax.plot(baseline.x, baseline.y, label='baseline', color=PALETTE[1],
-            linestyle='--', **kwargs)
+    _default_style(kwargs, linewidth=DEFAULT_LINEWIDTH)
+    # Each trace has its own colour, and the baseline is dashed, but all of
+    # that yields to whatever the caller asked for -- see _merge_style.
+    plot(spectrum, ax, label='measured',
+         **_merge_style({'color': PALETTE[0]}, kwargs))
+    ax.plot(baseline.x, baseline.y, label='baseline',
+            **_merge_style({'color': PALETTE[1], 'linestyle': '--'}, kwargs))
     if corrected:
         ax.plot(spectrum.x, spectrum.y - baseline.y, label='corrected',
-                color=PALETTE[2], **kwargs)
+                **_merge_style({'color': PALETTE[2]}, kwargs))
     ax.legend(frameon=False, fontsize='small')
     return ax
 

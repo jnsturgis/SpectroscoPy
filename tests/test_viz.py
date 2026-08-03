@@ -356,3 +356,40 @@ def test_grid_accepts_frame(collection):
     _, axes = viz.grid(collection, ncols=2, frame=True)
     visible = [p for p in axes.ravel() if p.get_visible()]
     assert all(p.spines['top'].get_visible() for p in visible)
+
+
+@pytest.mark.parametrize('kwargs', [
+    {'lw': 0.5}, {'linewidth': 0.5},
+    {'ls': '--'}, {'linestyle': '--'},
+    {'c': 'k'}, {'color': 'k'},
+])
+def test_matplotlib_short_aliases_are_accepted(kwargs):
+    """
+    ``lw`` is the spelling most people type.
+
+    viz set ``linewidth`` as a default and merged ``series_style`` -- which
+    carries ``color`` and ``linestyle`` -- over the caller's kwargs, so any
+    short alias produced "Got both 'lw' and 'linewidth', which are aliases of
+    one another": matplotlib blaming the caller for something viz did.
+    """
+    x = np.linspace(1.0, 10.0, 50)
+    one = Spectrum(x, np.sin(x))
+    many = SpectrumCollection([one, Spectrum(x, np.cos(x))])
+
+    _, ax = plt.subplots()
+    viz.plot(one, ax, **kwargs)
+    viz.plot_collection(many, ax, **kwargs)
+    viz.stack(many, ax, **kwargs)
+    viz.plot_baseline(one, Spectrum(x, np.zeros_like(x)), ax, **kwargs)
+    plt.close('all')
+
+
+def test_a_caller_style_overrides_the_series_style():
+    """The point of accepting them: restyling a whole collection at once."""
+    x = np.linspace(1.0, 10.0, 50)
+    many = SpectrumCollection([Spectrum(x, np.sin(x)), Spectrum(x, np.cos(x))])
+
+    _, ax = plt.subplots()
+    viz.plot_collection(many, ax, c='k')
+    assert all(line.get_color() == 'k' for line in ax.get_lines())
+    plt.close('all')
