@@ -1210,16 +1210,22 @@ class Spectrum:
             if attribute != 'fileinfo':
                 setattr(self, attribute, value)
 
-    def save_as(self, filename, file_type = 'spy') -> None:
+    def save_as(self, filename, file_type = 'spy', **kwargs) -> None:
         """
         Set the path name and type for the spectrum and then save the
         spectrum in the designated spot.
+
+        Extra keywords go to the writer, so the options a format offers are
+        reachable from here rather than only from
+        :func:`spectroscopy.io.write_spectrum`::
+
+            spectrum.save_as("pour_chloe.csv", "csv", decimal=',')
         """
         self.fileinfo['PATH'],self.fileinfo['NAME'] = os.path.split(filename)
         self.fileinfo['TYPE'] = file_type
-        self.save()
+        self.save(**kwargs)
 
-    def save(self) -> None:
+    def save(self, **kwargs) -> None:
         """
         Write the spectrum to the file described by ``fileinfo``.
 
@@ -1228,4 +1234,4 @@ class Spectrum:
         the second half of defect D5.
         """
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
-        registry.write_spectrum(self, filename, self.fileinfo['TYPE'])
+        registry.write_spectrum(self, filename, self.fileinfo['TYPE'], **kwargs)

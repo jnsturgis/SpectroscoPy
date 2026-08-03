@@ -177,6 +177,27 @@ Pass `delimiter=` or `decimal=` to override the sniffing. A `.tsv` pins the
 separator to a tab and still sniffs the decimal, because the locale problem is
 independent of the separator.
 
+Writing works the same way round, for when a file has to go back to somebody
+whose spreadsheet expects it:
+
+```{code-cell}
+out = tmp / "pour_chloe.csv"
+spectrum.save_as(str(out), "csv", decimal=',')
+print(out.read_text()[:60])
+```
+
+Asking for a comma decimal moves the separator to `;` on its own, because a
+comma cannot be both: `400,5,0,1234` is four fields or two and nothing can
+tell which. Setting both to a comma explicitly raises rather than writing a
+file no reader could get right — including this one.
+
+```{code-cell}
+try:
+    spectrum.save_as(str(tmp / "bad.csv"), "csv", decimal=',', delimiter=',')
+except ValueError as error:
+    print(error)
+```
+
 ## Encoding
 
 Byte-order mark first, then UTF-8, then latin-1 as a backstop that maps every
@@ -206,6 +227,10 @@ print("units survived:", restored.x_unit, restored.y_unit)
 Only `.spy` is lossless. Everything else keeps the data and loses the
 provenance, which is fine for handing numbers to somebody else and not fine as
 your own working format.
+
+`save_as` passes anything else it is given to the writer, so a format's
+options are reachable from here — `decimal=','` above being the one most
+likely to be wanted.
 
 The file type is validated *before* the file is opened, so asking for a type
 that cannot be written raises instead of truncating the target to nothing:

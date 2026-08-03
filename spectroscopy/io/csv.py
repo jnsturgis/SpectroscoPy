@@ -127,17 +127,54 @@ def read(  filehandle, my_spectrum, **kwargs):
 def write( filehandle, my_spectrum, **kwargs):
     """
     Write my_spectrum to a file.
+
+    Keyword arguments
+    -----------------
+    delimiter : str, optional
+        Field separator. Defaults to ``','``, or to ``';'`` when
+        ``decimal=','`` -- see below.
+    decimal : str
+        ``'.'`` (default) or ``','``. Use the comma when the file is going to
+        somebody whose spreadsheet expects it; the reader detects either, so
+        nothing here needs it.
+
+    Notes
+    -----
+    Asking for a comma decimal changes the default separator to ``';'``,
+    because a comma cannot be both at once: ``400,5,0,1234`` is four fields
+    or two, and nothing can tell which. Setting both to a comma explicitly
+    raises rather than writing a file no reader could ever get right --
+    including this one.
     """
     options = {
-        'delimiter': ',',
+        'delimiter': None,
+        'decimal': '.',
     }
     # Parse kwargs
     if kwargs:
         options.update({k: v for k, v in kwargs.items() if k in options})
+
+    decimal = options['decimal']
+    if decimal not in ('.', ','):
+        raise ValueError(f"decimal must be '.' or ',', not {decimal!r}")
+
     delimiter = options['delimiter']
+    if delimiter is None:
+        delimiter = ';' if decimal == ',' else ','
+    elif delimiter == decimal:
+        raise ValueError(
+            f"cannot use {delimiter!r} as both the field separator and the "
+            f"decimal point: '400,5,0,1234' cannot be read back. Use "
+            f"delimiter=';' with decimal=','."
+        )
+
+    def field(value, places):
+        text = f"{value:.{places}f}"
+        return text.replace('.', ',') if decimal == ',' else text
+
     filehandle.write(f'{my_spectrum.x_label}{delimiter}{my_spectrum.y_label}\n')
     for x,y in zip(my_spectrum.x, my_spectrum.y):
-        filehandle.write(f'{x:.3f}{delimiter}{y:.5f}\n')
+        filehandle.write(f'{field(x, 3)}{delimiter}{field(y, 5)}\n')
 
 ## ============================================================================
 

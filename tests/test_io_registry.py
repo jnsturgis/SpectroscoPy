@@ -326,3 +326,64 @@ def test_number_parsing_helpers():
     assert table.sniff_format(["400,5;0,1234", "401,0;0,2345"]) == (';', ',')
     assert table.sniff_format(["400.5,0.1234", "401.0,0.2345"]) == (',', '.')
     assert table.sniff_format(["400,5\t0,1234", "401,0\t0,2345"]) == ('\t', ',')
+
+
+@pytest.mark.parametrize('file_type,kwargs,expected_sep', [
+    ('csv', {}, ','),
+    ('csv', {'decimal': ','}, ';'),
+    ('csv', {'decimal': ',', 'delimiter': '\t'}, '\t'),
+    ('tsv', {'decimal': ','}, '\t'),
+])
+def test_a_comma_decimal_can_be_written_and_read_back(file_type, kwargs,
+                                                      expected_sep, tmp_path):
+    """
+    Round trip is the test that matters: whatever we write, we must read.
+    """
+    from spectroscopy.spectra import Spectrum
+
+    original = Spectrum(np.array([400.5, 401.0, 402.5]),
+                        np.array([0.1234, 0.2345, 0.3456]),
+                        x_unit='nm', y_unit='absorbance')
+    path = tmp_path / f"out.{file_type}"
+    original.save_as(str(path), file_type, **kwargs)
+
+    text = path.read_text()
+    assert expected_sep in text
+    if kwargs.get('decimal') == ',':
+        assert '400,500' in text
+        assert '400.500' not in text
+
+    restored = Spectrum.read(path)
+    assert np.allclose(restored.x, original.x)
+    assert np.allclose(restored.y, original.y)
+
+
+def test_writing_a_comma_for_both_separator_and_decimal_is_refused(tmp_path):
+    """
+    '400,5,0,1234' is four fields or two and nothing can tell which -- so this
+    would produce a file no reader could get right, including ours.
+    """
+    from spectroscopy.spectra import Spectrum
+
+    spectrum = Spectrum(np.array([1.0, 2.0]), np.array([3.0, 4.0]))
+    with pytest.raises(ValueError, match="both the field separator"):
+        spectrum.save_as(str(tmp_path / "bad.csv"), 'csv',
+                         decimal=',', delimiter=',')
+
+
+def test_an_unknown_decimal_is_refused(tmp_path):
+    from spectroscopy.spectra import Spectrum
+
+    spectrum = Spectrum(np.array([1.0, 2.0]), np.array([3.0, 4.0]))
+    with pytest.raises(ValueError, match=r"decimal must be"):
+        spectrum.save_as(str(tmp_path / "bad.csv"), 'csv', decimal='x')
+
+
+def test_save_as_passes_options_through_to_the_writer(tmp_path):
+    """Otherwise decimal= is only reachable from the low-level function."""
+    from spectroscopy.spectra import Spectrum
+
+    path = tmp_path / "out.csv"
+    Spectrum(np.array([1.0]), np.array([2.0])).save_as(str(path), 'csv',
+                                                       decimal=',')
+    assert '1,000;2,00000' in path.read_text()
