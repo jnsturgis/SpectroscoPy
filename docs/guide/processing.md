@@ -97,6 +97,53 @@ You get a `PeakTable`: `.position`, `.height`, `.index`, `.prominence`,
 `.width`, plus `.strongest(n)`, `.within(low, high)`, `.sorted_by_position()`,
 `.annotate(ax)` and `.to_dataframe()`.
 
+### Which way the bands point
+
+Bands in transmittance, `%T` and reflectance are **minima**. `find_peaks`
+takes the direction from the y unit, so those spectra are searched downward
+without being asked and `.kind` comes back as `'trough'`:
+
+```python
+spectrum.find_peaks(prominence=0.05, relative=True)
+# transmittance -> searched downward, one band at 1100 found at 1100
+```
+
+This matters because getting it wrong is silent rather than loud. Searching a
+transmission spectrum upward finds the two inflection points that flank each
+band instead of the band: a single band at 1100 cm⁻¹ comes back as a pair at
+1086 and 1114 — a plausible number of plausible-looking positions, none of
+which is a band.
+
+`.properties['direction_from']` says where the direction came from:
+`'y_unit'`, `'caller'`, or `'assumed'` for units like `a.u.` and `counts`
+that do not fix a direction. Those keep the upward default, which is right for
+the Raman and fluorescence cases where they are usual.
+
+Pass `troughs=` to decide for yourself. **A difference spectrum needs this** —
+bands go both ways and the unit cannot know which you meant:
+
+```python
+gained = difference.find_peaks(troughs=False)   # what appeared
+lost   = difference.find_peaks(troughs=True)    # what disappeared
+```
+
+:::{admonition} Amounts need absorbance, not transmittance
+:class: warning
+
+Positions are fine in either unit, but heights, areas and band **ratios** are
+not. Beer–Lambert is linear in absorbance, so an area measured on `%T` is not
+proportional to concentration — a ratio taken there is not a ratio of
+anything. `fit_peaks` warns when you fit a valley-pointing unit. Convert
+first:
+
+```python
+spectrum.to(y_unit='absorbance').fit_peaks(...)
+```
+
+The warning is deliberate rather than a silent conversion: quietly changing
+what a fit was performed on is its own kind of wrong.
+:::
+
 ## Reference subtraction
 
 ```python

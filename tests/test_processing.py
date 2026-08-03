@@ -14,6 +14,7 @@ import warnings
 import numpy as np
 import pytest
 
+from spectroscopy import units
 from spectroscopy.lineshapes import gauss
 from spectroscopy.processing import common
 from spectroscopy.spectra import Spectrum
@@ -432,3 +433,110 @@ def test_halfwidth_resists_a_single_bad_point():
                                   halfwidth=4)
     assert abs(np.mean(robust) - 1.0) < abs(np.mean(naive) - 1.0)
     assert abs(np.mean(robust) - 1.0) < 0.5
+
+
+# ---------------------------------------------------------------------------
+# Band direction follows the y unit
+# ---------------------------------------------------------------------------
+
+def _one_band(y_quantity, y_unit, depth=0.8, up=False):
+    """A single Gaussian band at 1100, pointing whichever way the unit implies."""
+    x = np.linspace(1000, 1200, 801)
+    shape = np.exp(-0.5 * ((x - 1100) / 8.0) ** 2)
+    y = depth * shape if up else 1.0 - depth * shape
+    return Spectrum(x, y, x_unit='cm^-1', y_quantity=y_quantity, y_unit=y_unit)
+
+
+@pytest.mark.parametrize('unit,up,expected_kind', [
+    ('absorbance',    True,  'peak'),
+    ('absorptance',   True,  'peak'),
+    ('transmittance', False, 'trough'),
+    ('%T',            False, 'trough'),
+    ('reflectance',   False, 'trough'),
+])
+def test_the_band_is_found_whichever_way_it_points(unit, up, expected_kind):
+    """
+    The regression this exists for.
+
+    Searching a transmission spectrum upward finds the two inflection points
+    flanking each band and not the band itself: one band at 1100 came back as
+    a pair at 1086 and 1114. Plausible count, plausible positions, no band.
+    """
+    spectrum = _one_band('Signal', unit, up=up)
+    found = spectrum.find_peaks(prominence=0.05, relative=True)
+
+    assert len(found) == 1
+    assert found.position[0] == pytest.approx(1100.0, abs=1.0)
+    assert found.kind == expected_kind
+    assert found.properties['direction_from'] == 'y_unit'
+
+
+def test_an_unknown_unit_keeps_the_upward_default_and_says_so():
+    """
+    a.u. and counts dominate Raman and fluorescence, where upward is right.
+    The assumption is recorded rather than hidden.
+    """
+    spectrum = _one_band('Signal', 'a.u.', up=True)
+    found = spectrum.find_peaks(prominence=0.05, relative=True)
+
+    assert found.position[0] == pytest.approx(1100.0, abs=1.0)
+    assert found.properties['direction_from'] == 'assumed'
+
+
+@pytest.mark.parametrize('troughs', [True, False])
+def test_an_explicit_direction_always_wins(troughs):
+    """
+    A difference spectrum has bands both ways and the unit cannot say which
+    was meant, so the caller must be able to override -- in both directions,
+    including asking for maxima on a transmission spectrum.
+    """
+    spectrum = _one_band('Transmittance', 'transmittance')
+    found = spectrum.find_peaks(prominence=0.05, relative=True, troughs=troughs)
+
+    assert found.properties['direction_from'] == 'caller'
+    assert found.properties['troughs'] is troughs
+    assert found.kind == ('trough' if troughs else 'peak')
+
+
+def test_a_difference_spectrum_can_be_read_both_ways():
+    x = np.linspace(1000, 1200, 801)
+    positive = np.exp(-0.5 * ((x - 1100) / 8.0) ** 2)
+    negative = np.exp(-0.5 * ((x - 1050) / 8.0) ** 2)
+    spectrum = Spectrum(x, 0.4 * positive - 0.3 * negative,
+                        x_unit='cm^-1', y_unit='absorbance')
+
+    gained = spectrum.find_peaks(prominence=0.05, relative=True, troughs=False)
+    lost = spectrum.find_peaks(prominence=0.05, relative=True, troughs=True)
+
+    assert np.any(np.isclose(gained.position, 1100.0, atol=1.0))
+    assert np.any(np.isclose(lost.position, 1050.0, atol=1.0))
+
+
+def test_fit_peaks_seeds_correctly_on_a_transmission_spectrum():
+    """fit_peaks inherited the bug: components landed either side of the band."""
+    spectrum = _one_band('Transmittance', 'transmittance')
+    with pytest.warns(UserWarning, match='not linear'):
+        fit = spectrum.fit_peaks(n_peaks=1)
+    assert fit.position[0] == pytest.approx(1100.0, abs=2.0)
+
+
+def test_fit_peaks_warns_only_where_areas_are_not_linear():
+    """
+    Beer-Lambert is linear in absorbance, so an area taken on %T is not
+    proportional to concentration -- and the fit will still look excellent.
+    """
+    with pytest.warns(UserWarning, match='absorbance'):
+        _one_band('Transmittance', '%T', depth=0.8).fit_peaks(n_peaks=1)
+
+    with warnings.catch_warnings():
+        warnings.simplefilter('error')            # no warning at all
+        _one_band('Absorbance', 'absorbance', up=True).fit_peaks(n_peaks=1)
+
+
+def test_band_direction_vocabulary():
+    assert units.band_direction('absorbance') == 'up'
+    assert units.band_direction('%T') == 'down'
+    assert units.band_direction('counts') == 'unknown'
+    assert units.is_valley_pointing('transmittance')
+    assert not units.is_valley_pointing('absorbance')
+    assert not units.is_valley_pointing('a.u.')

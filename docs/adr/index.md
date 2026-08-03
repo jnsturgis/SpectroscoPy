@@ -13,4 +13,5 @@ record is added instead, so the trail of reasoning stays readable.
 
 0001-core-data-model
 0002-secondary-structure
+0003-band-direction
 ```

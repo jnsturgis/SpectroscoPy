@@ -33,7 +33,8 @@ import numpy as np
 
 __all__ = [
     'convert_x', 'convert_y', 'can_convert_x', 'can_convert_y',
-    'X_UNITS', 'Y_UNITS',
+    'band_direction', 'is_valley_pointing',
+    'X_UNITS', 'Y_UNITS', 'BAND_DIRECTION',
 ]
 
 #: nm per eV, i.e. h*c in eV*nm (CODATA 2018).
@@ -64,6 +65,50 @@ Y_UNITS = {
     'absorptance':   (lambda v: 1.0 - v,              lambda v: 1.0 - v),
     '%absorptance':  (lambda v: 1.0 - v / 100.0,      lambda v: 100.0 * (1.0 - v)),
 }
+
+
+#: Which way a band points in each y unit: ``'up'`` for a maximum, ``'down'``
+#: for a minimum. A unit that is absent is not a statement that bands point
+#: up -- it is an absence of knowledge, and :func:`band_direction` reports it
+#: as ``'unknown'`` so a caller can decide what to do.
+#:
+#: This is not a detail of peak picking; it is a property of the quantity, and
+#: it belongs with the units for the same reason ``absorbance`` vs ``%T``
+#: does. Galactic's SPC format made the same call in 1993 -- ``SPC.H`` splits
+#: its y-type codes at 128 with the comment "ALL HIGHER MUST HAVE VALLEYS",
+#: because every program that draws or picks a spectrum needs to know.
+BAND_DIRECTION = {
+    'absorbance':    'up',
+    'absorptance':   'up',
+    '%absorptance':  'up',
+    'transmittance': 'down',
+    '%T':            'down',
+    'reflectance':   'down',
+}
+
+
+def band_direction(unit) -> str:
+    """
+    ``'up'``, ``'down'`` or ``'unknown'`` for a y unit.
+
+    ``'unknown'`` covers the honestly ambiguous ones -- ``a.u.``, ``counts``,
+    an emission intensity, a difference spectrum -- where the quantity does not
+    fix a direction. Callers should keep their existing behaviour there rather
+    than guess, and say what they assumed.
+    """
+    return BAND_DIRECTION.get(unit, 'unknown')
+
+
+def is_valley_pointing(unit) -> bool:
+    """
+    True when bands in ``unit`` are minima.
+
+    Worth more than the direction alone: these are also the units in which
+    peak *heights*, *areas* and *ratios* are not linear in concentration.
+    Beer-Lambert applies to absorbance, so a band ratio taken on ``%T`` is not
+    a ratio of anything. Callers doing quantitative work should convert.
+    """
+    return band_direction(unit) == 'down'
 
 
 def can_convert_x(unit) -> bool:

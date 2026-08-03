@@ -912,7 +912,7 @@ class Spectrum:
             step=ProcessingStep("baseline_correct", recorded),
         )
 
-    def find_peaks(self, method='second_derivative', *, troughs=False,
+    def find_peaks(self, method='second_derivative', *, troughs=None,
                    relative=False, **kwargs) -> PeakTable:
         """
         Detect peaks and return a :class:`~spectroscopy.peaks.PeakTable`.
@@ -921,6 +921,19 @@ class Spectrum:
         every peak-picking cell in the notebooks does, so that shoulders on a
         broad band are found as well as maxima. Extra keywords (``height``,
         ``distance``, ``prominence``, ``width``) go to scipy's find_peaks.
+
+        **The search direction follows the y unit.** Bands in transmittance,
+        ``%T`` and reflectance are minima, so those spectra are searched
+        downward without being asked; absorbance-like units are searched
+        upward. Pass ``troughs=`` to override, which is what a difference
+        spectrum wants -- there bands go both ways and only you know which
+        you meant. ``result.properties['direction_from']`` says whether the
+        direction came from the unit, from you, or was assumed.
+
+        Getting this wrong used to be silent: searching a transmission
+        spectrum upward finds the two inflection points that flank each band
+        rather than the band, so one band at 1100 cm-1 came back as a pair at
+        1086 and 1114.
 
         Unlike the old :meth:`peaks` stub, the result is a return value rather
         than something written into ``metadata``: analysis results and
@@ -934,14 +947,14 @@ class Spectrum:
         """
         indices, properties = common.detect_peaks(
             self.x, self.y, method=method, troughs=troughs,
-            relative=relative, **kwargs)
+            relative=relative, y_unit=self.y_unit, **kwargs)
         return PeakTable(
             position=self.x[indices],
             height=self.y[indices],
             index=indices,
             prominence=properties.get('prominences'),
             width=properties.get('widths'),
-            kind='trough' if troughs else 'peak',
+            kind='trough' if properties['troughs'] else 'peak',
             x_unit=self.x_unit, y_unit=self.y_unit,
             source=self.name,
             properties=properties,
@@ -994,6 +1007,22 @@ class Spectrum:
         2
         """
         from spectroscopy.fitting import fit_components  # pylint: disable=C0415
+
+        # Positions come out right either way now that detection follows the
+        # unit, but areas do not. Beer-Lambert is linear in absorbance, so a
+        # component area or a band ratio taken on transmittance is not a
+        # quantity with a meaning -- and it will still fit beautifully, which
+        # is the trap (see roadmap sections 19-20). Warn rather than convert:
+        # silently changing what was fitted is its own kind of wrong.
+        if units.is_valley_pointing(self.y_unit):
+            warnings.warn(
+                f"fitting a spectrum in {self.y_unit!r}: component areas and "
+                f"band ratios are not linear in this unit, so the areas this "
+                f"returns are not proportional to concentration. Convert "
+                f"first with .to(y_unit='absorbance') if the amounts matter. "
+                f"Positions are unaffected.",
+                UserWarning, stacklevel=2,
+            )
 
         if positions is None:
             found = self.find_peaks(method='second_derivative')

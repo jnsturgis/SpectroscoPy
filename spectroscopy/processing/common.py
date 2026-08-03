@@ -22,6 +22,8 @@ from scipy.signal import find_peaks as _find_peaks
 from scipy.signal import savgol_filter
 from scipy.spatial import ConvexHull, QhullError
 
+from spectroscopy import units
+
 __all__ = [
     'als_baseline', 'poly_baseline', 'rubberband_baseline',
     'baseline', 'normalize', 'smooth', 'derivative',
@@ -340,8 +342,9 @@ def normalize(x, y, method='max', window=None):
 _MAGNITUDE_ARGUMENTS = ('height', 'prominence', 'threshold')
 
 
-def detect_peaks(x, y, method='second_derivative', *, troughs=False,
-                 window_length=11, polyorder=3, relative=False, **kwargs):
+def detect_peaks(x, y, method='second_derivative', *, troughs=None,
+                 window_length=11, polyorder=3, relative=False, y_unit=None,
+                 **kwargs):
     """
     Locate peaks and return ``(indices, properties)``.
 
@@ -350,12 +353,30 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=False,
     are found as well as maxima. ``method='direct'`` runs scipy's find_peaks on
     the signal itself.
 
-    ``troughs=True`` finds minima instead. Extra keyword arguments go straight
-    to :func:`scipy.signal.find_peaks` (``height``, ``distance``,
-    ``prominence``, ``width`` ...).
+    Extra keyword arguments go straight to :func:`scipy.signal.find_peaks`
+    (``height``, ``distance``, ``prominence``, ``width`` ...).
 
     Parameters
     ----------
+    troughs : bool, optional
+        Look for minima instead of maxima. **Left unset, the direction is
+        taken from** ``y_unit``: bands in transmittance, ``%T`` and reflectance
+        are minima, so those are searched downward, and absorbance-like units
+        upward. Pass it explicitly to override -- which is what a difference
+        spectrum needs, where both directions are meaningful and the unit
+        cannot tell you which one you meant.
+
+        This defaulting exists because getting it wrong is silent. On a
+        transmission spectrum, searching upward returns the two inflection
+        points flanking each band and not the band, so a single band at
+        1100 cm-1 is reported as a pair at 1086 and 1114 -- a plausible number
+        of plausible-looking positions, none of them a band.
+    y_unit : str, optional
+        The y unit of ``y``, used only to choose the direction when ``troughs``
+        is unset. Unknown or absent units keep the historical upward
+        behaviour, which is right for the a.u. and counts cases that dominate
+        Raman and fluorescence; the assumption is reported in the returned
+        properties rather than guessed at silently.
     relative : bool
         Interpret ``height``, ``prominence`` and ``threshold`` as fractions of
         the detection signal's range rather than as absolute values.
@@ -383,6 +404,16 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=False,
             f"Unknown peak method {method!r}; try 'second_derivative' or 'direct'."
         )
 
+    # Direction: an explicit troughs= always wins, because a difference
+    # spectrum has bands both ways and only the caller knows which is meant.
+    direction = units.band_direction(y_unit)
+    if troughs is None:
+        troughs = direction == 'down'
+        chosen_by = 'y_unit' if direction != 'unknown' else 'assumed'
+    else:
+        troughs = bool(troughs)
+        chosen_by = 'caller'
+
     if troughs:
         signal = -signal
 
@@ -394,4 +425,9 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=False,
                   for key, value in kwargs.items()}
 
     indices, properties = _find_peaks(signal, **kwargs)
+    # Recorded, not just acted on: which way the search ran and why is part of
+    # reading the result, and it is the first thing to check when a peak list
+    # looks wrong.
+    properties = {**properties, 'troughs': troughs,
+                  'direction_from': chosen_by, 'y_unit': y_unit}
     return indices, properties
