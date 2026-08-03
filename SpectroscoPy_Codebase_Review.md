@@ -1484,7 +1484,25 @@ it — but it is the reason a mismatched pair (`pip install pyspectroscopy`,
    `spectrokit`, `spectroscope`, `benchspec`. Taken: `spectropy`, `specpy`,
    `spectra`, `spectrapy`, `pyspectra`, `spectrochempy`, `spectrolib`.
 
-### 16.2 Status — drafted 2026-08-02, waiting on James
+### 16.2 Status — ✅ acted on 2026-08-03, now waiting on a reply
+
+Both halves of the recommendation below are done:
+
+- **`pyspectroscopy` 0.0.0 is registered on PyPI**, live at
+  <https://pypi.org/project/pyspectroscopy/>, "Development Status :: 1 -
+  Planning". The fallback name can no longer be taken from under us.
+- **The transfer request to Joey Goodknight was sent on 2026-08-03**, from the
+  university address.
+
+**Next action, and it is a diary entry rather than a task: on or after
+2026-08-31**, if there has been no reply, open the PEP 541 request at
+<https://github.com/pypi/support>. The draft is written; it needs the date
+above and the elapsed weeks filled in. Four weeks is the interval PyPI's
+volunteers expect to see between a direct approach and an escalation, and
+opening it early weakens the request rather than speeding it up.
+
+Realistically these take months once filed, which is exactly why the fallback
+was registered first — nothing downstream is blocked on the answer.
 
 Everything for all three routes is in `packaging/name-reservation/`:
 
@@ -1493,12 +1511,15 @@ Everything for all three routes is in `packaging/name-reservation/`:
 | `email-to-goodknight.md` | The transfer request, ready to send. Needs a PyPI username filled in, and should go from the university address rather than Gmail — the request rests on being a real group with a real project, and the From line does that work before the message is read |
 | `pep541-request.md` | The escalation, for ~4 weeks later if there is no reply. Needs the date the email was sent, which is why the email is kept in the repo rather than only in a sent-mail folder — PyPI wants evidence contact was attempted |
 | `pyproject.toml`, `README.md`, `pyspectroscopy/` | The placeholder distribution: version 0.0.0, "Development Status :: 1 - Planning", one module whose docstring says where the real library is, and a README telling anyone who installs it not to depend on it. Builds clean |
-| `UPLOAD.md` | Token setup and the `twine` invocation. Not run here: uploading needs James's credentials, and there are none on this machine |
+| `UPLOAD.md` | Token setup and the `twine` invocation. ✅ Run 2026-08-03 by James; credentials live in `~/.pypirc` (mode 600) and never entered this repository |
 
 One thing recorded in `UPLOAD.md` and worth repeating: **PyPI does not allow a
 deleted project name to be re-registered.** Deleting the placeholder later would
 burn `pyspectroscopy` rather than release it, so it should be left in place
 indefinitely rather than tidied up once the question is settled.
+
+*(Recommendation below, kept for the reasoning. Both parts were carried out on
+2026-08-03 — see §16.2.)*
 
 **Recommendation: start (1) now and register a fallback name immediately.**
 Registering a placeholder is free and stops the fallback being taken while the

@@ -36,7 +36,7 @@ so there is only one place to keep current.
 | 6. API freeze candidate | 🔨 | surface cut to ten names, ADR-0001 written; shims and `.x`/`.y` outstanding — §14.2 |
 | 7. Technique-specific | 🔨 | FTIR secondary structure built but **not usable** — §19 |
 | 8. GUI MVP | 📋 | pulled forward for the paper — §13 |
-| 9. Packaging & public release | ⏸️ | blocked on the PyPI name — review §16 |
+| 9. Packaging & public release | 🔨 | fallback name secured, so no longer hard-blocked — review §16 |
 | 10. Post-1.0 | 📋 | |
 
 ### The work items
@@ -64,7 +64,7 @@ so there is only one place to keep current.
 | OPUS binary reader | ✅ | written against 43 real files — §21 |
 | `.spc` reader | ✅ | built from the published spec, validated against 12 vendor files — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
-| PyPI name | ⏸️ | email drafted, not sent — review §16 |
+| PyPI name | ⏸️ | `pyspectroscopy` reserved, transfer request sent 2026-08-03; **PEP 541 on/after 2026-08-31 if no reply** — review §16 |
 | JOSS submission | 📋 | November |
 | Domain paper (biofilms) | 📋 | after the GUI — §13, §17 |
 

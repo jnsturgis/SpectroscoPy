@@ -1,8 +1,12 @@
 # PEP 541 request — only if the email goes unanswered
 
+**The email was sent on 2026-08-03.** So: **do not open this before
+2026-08-31**, and only if there has been no reply. Four weeks is the interval
+PyPI's volunteers expect between a direct approach and an escalation; filing
+early weakens the request rather than speeding it up.
+
 **Where it goes:** a new issue at <https://github.com/pypi/support>, choosing the
-**"PEP 541 Request"** issue template. Do not open this until roughly four weeks
-after the email in `email-to-goodknight.md`, and fill in the date you sent it.
+**"PEP 541 Request"** issue template.
 
 **Realistic expectation:** these take months, and PyPI's volunteers work through
 a queue. That is the reason for reserving `pyspectroscopy` in the meantime — the
@@ -36,7 +40,7 @@ installs. I am not aware of any package on PyPI that depends on it.
 
 **The owner has not responded to a direct request.** I emailed
 joey.goodknight@gmail.com — the address published in the project's own metadata —
-on [DATE SENT], asking whether he would be willing to transfer the project. I
+on 2026-08-03, asking whether he would be willing to transfer the project. I
 have had no reply in the [N] weeks since. I am happy to forward that message to
 the PyPI admins if it is useful.
 
@@ -65,7 +69,9 @@ available, and I would publish under a version number well above it.
 ## Before opening the issue
 
 - [ ] Fill in `[YOUR PYPI USERNAME]` in both places.
-- [ ] Fill in `[DATE SENT]` and `[N]` weeks from the email you actually sent.
+- [x] ~~Fill in `[DATE SENT]`~~ — done, 2026-08-03.
+- [ ] Fill in `[N]`, the weeks elapsed since 2026-08-03. Four at the earliest,
+      which is 2026-08-31.
 - [ ] Check the download figures again and update them — they move, and a stale
       number is the kind of thing that costs you credibility in a request whose
       whole argument is "this project is inactive".
