@@ -20,7 +20,7 @@ works but is deprecated.
 # registers itself with a decorator. Anything added here becomes visible to
 # read_spectrum()/write_spectrum() and to Spectrum's file-type inference with
 # no other change anywhere.
-from spectroscopy.io import csv, dpt, jcamp, opus, spy, table  # noqa: F401,E402
+from spectroscopy.io import csv, dpt, jcamp, opus, spc, spy, table  # noqa: F401,E402
 from spectroscopy.io.registry import (  # noqa: F401,E402
     describe_formats,
     detect_encoding,
@@ -35,7 +35,7 @@ from spectroscopy.io.registry import (  # noqa: F401,E402
 )
 
 __all__ = [
-    'jcamp', 'csv', 'dpt', 'spy', 'table',
+    'jcamp', 'csv', 'dpt', 'opus', 'spc', 'spy', 'table',
     'read_spectrum', 'read_spectra', 'write_spectrum',
     'register_reader', 'register_writer',
     'known_types', 'known_extensions', 'infer_file_type', 'describe_formats',

@@ -62,7 +62,7 @@ so there is only one place to keep current.
 | FTIR secondary structure validated | ⏸️ | on §20 |
 | CD deconvolution | ⏸️ | own branch, after JOSS — §17 |
 | OPUS binary reader | ✅ | written against 43 real files — §21 |
-| `.spc` reader | 📋 | **unblocked** — spec and 12 real files in hand, layout validated against them (`SPC_Format_Notes.md`) — §15.3 |
+| `.spc` reader | ✅ | built from the published spec, validated against 12 vendor files — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
 | PyPI name | ⏸️ | email drafted, not sent — review §16 |
 | JOSS submission | 📋 | November |
@@ -600,6 +600,7 @@ exports, and the reader was written against them.)*
 subfiles map onto the registry's existing many-spectra-per-file path. Both
 `brukeropusreader` and `spc-spectra` are abandoned, so these are
 read-them-ourselves jobs consistent with the §5.6 dependency policy.
+***✅ Built 2026-08-03 — `spectroscopy/io/spc.py`, 28 tests. See §22.***
 
 **Found on 2026-08-03, before any code:**
 
@@ -1130,3 +1131,73 @@ rather than a decision about OPUS.
 One consequence worth carrying forward: **Galactic `.spc` is documented**, so a
 `.spc` writer is permissible under that rule where an OPUS writer is not. Worth
 knowing before the `.spc` work starts, since it changes what that task is.
+
+---
+
+## 22. ✅ Galactic `.spc` reader (2026-08-03)
+
+`spectroscopy/io/spc.py`, registered for `.spc` and `.cgm`, `multi=True`,
+`binary=True`. 28 tests in `tests/test_io_spc.py`; suite is 385, lint clean.
+
+This one went the opposite way round from OPUS (§21). OPUS was reverse
+engineered from files and is trustworthy *because* 43 of them had paired
+`.dpt` exports. `.spc` was written from Galactic's published specification and
+then checked against twelve files written by Galactic's own software — the
+order §15.2 always wanted, and the reason the layout notes were written before
+any code existed.
+
+### 22.1 What the reader does
+
+Handles all three storage layouts (`gx-y` generated axis, `x-y` shared axis,
+`-xy` per-subfile axes), block-scaled and IEEE-float y, 16- and 32-bit y,
+custom axis labels, the ASCII log block, and `fmods`. Axis codes map onto the
+project's `units` vocabulary rather than being kept as raw integers, so a
+`.spc` UV spectrum is convertible like any other.
+
+Preserved rather than dropped, on the §21 principle that what the instrument
+software already did to a spectrum matters: `fmods` becomes
+`metadata['spc_modifications']`, and the log block lands under a `log.`
+prefix. `ir-nh4.spc` comes back carrying *"Ammonia Gas at 1 cm-1"* and a
+collection date of 1987-05-28.
+
+Refused clearly rather than guessed at: old-format `0x4D` and MSB-first
+`0x4C`. Both are recognised and raise `NotImplementedError` naming the format
+and asking for the file. No sample of either was available, and writing
+untested binary parsing is precisely what §15.2 exists to prevent.
+
+### 22.2 Two bugs the real files caught
+
+Both were found by tests failing, not by reading — worth recording since the
+reader had been written from a correct specification and still had them.
+
+**Identity was checked after size.** A short file got *"too short to be an SPC
+file"* when the useful answer was *"this is Bruker EPR data"*. Wrong order:
+size is only meaningful once the format is established, and the misleading
+message sends a user to check their disk rather than their format. Now the
+version byte is checked first.
+
+**`.cgm` was not registered.** Galactic's chromatograms use it and are
+byte-for-byte ordinary SPC. It also collides with Computer Graphics Metafile,
+which is a second argument for sniffing over extensions.
+
+### 22.3 Test fixtures — the arrangement
+
+The twelve Galactic sample files are **not committed**: freely published for
+developers in 2003 is not the same as ours to redistribute, and committing
+them would put them in every sdist. Instead
+`scripts/fetch_spc_fixtures.py` pulls them from the Internet Archive into
+`tests/data/spc/` (gitignored), and the fixtures in `tests/conftest.py` skip
+when they are absent — 10 pass and 18 skip on a clean checkout, 28 pass once
+fetched. The script verifies size and version byte so a rate-limited archive
+serving an error page fails loudly.
+
+This keeps §15.2's standard without shipping other people's data. The cost is
+that CI validates only the layout-independent half unless the fetch runs.
+
+### 22.4 Still open
+
+No file was available for: 16-bit y (`TSPREC`), a plain `TMULTI` multifile,
+old-format `0x4D`, MSB-first `0x4C`, or a populated binary log block. The
+multifile path is exercised only by the single-subfile XYXY case, so a real
+multi-subfile file is the one addition that would meaningfully raise
+confidence. A writer remains permissible under §14.7 but has not been needed.

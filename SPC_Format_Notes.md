@@ -388,7 +388,7 @@ would add coverage; another single-spectrum FTIR file would not.
   "not supported, please send the file" rather than mis-parsing.
 - Shimadzu's `0xCF` variant is not SPC and is out of scope.
 
-## 7. Open question for James: the sample files as test fixtures
+## 7. ✅ Decided: the sample files are fetched, not committed
 
 The twelve files in `temp/spc-reference/samples/` are exactly what the test
 suite wants, and they are ideal for it — vendor-written, varied, and covering
@@ -415,6 +415,21 @@ Three options, in the order I would rank them:
    tests then only prove self-consistency — the exact weakness §15.2 warned
    about.
 
-My recommendation is 1, moving to 2 if the skipping proves annoying. Either
-way the reader gets built from the specification, and this only decides what
-ships.
+**Option 1, as implemented.** `scripts/fetch_spc_fixtures.py` pulls the files
+from the Internet Archive into `tests/data/spc/` (gitignored); the fixtures in
+`tests/conftest.py` skip when they are absent. A clean checkout runs 10 tests
+and skips 18; after fetching, all 28 run. The script checks size and version
+byte, so an archive serving an error page fails loudly rather than producing a
+confusing parse error.
+
+Move to option 2 if the skipping becomes annoying in CI — the provenance is
+recorded here either way.
+
+## 8. The reader
+
+Built 2026-08-03: `spectroscopy/io/spc.py`, registered for `.spc` and `.cgm`.
+Roadmap §22 records what it covers, what it refuses, and the two bugs the real
+files caught that reading the specification had not.
+
+Everything in §3 is exercised by the tests, so this document and the code are
+checked against each other rather than merely agreeing by construction.
