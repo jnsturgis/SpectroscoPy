@@ -62,7 +62,7 @@ so there is only one place to keep current.
 | FTIR secondary structure validated | ⏸️ | on §20 |
 | CD deconvolution | ⏸️ | own branch, after JOSS — §17 |
 | OPUS binary reader | ✅ | written against 43 real files — §21 |
-| `.spc` reader | ⏸️ | layout verified (`SPC_Format_Notes.md`); waiting on real files — §15.3 |
+| `.spc` reader | 📋 | **unblocked** — spec and 12 real files in hand, layout validated against them (`SPC_Format_Notes.md`) — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
 | PyPI name | ⏸️ | email drafted, not sent — review §16 |
 | JOSS submission | 📋 | November |
@@ -639,17 +639,37 @@ the OPUS reader does for `.0` — and a file that fails the Galactic check shoul
 say *"this looks like Bruker EPR data, which is a different format"* rather than
 "corrupt", because that is the confusion a user will actually hit.
 
-Still wanted, therefore: **real Galactic `.spc` files**. James has some in an
-archive. Until they arrive the position is §15.2's — a reader written against a
-specification and checked with files I generated myself tests only my reading of
-the specification. Having the specification changes what is blocked: the code
-can now be *written*, but not *trusted*. Most useful, in order: 3–5 real files
-with text exports of the same data; one multi-subfile XYXY example, since that
-is where `fnpts` stops meaning "number of points" and where readers break; one
-old-format `0x4D` file if the archive has one. Also wanted, and independent of
-the archive: a surviving copy of **`SPC.H`** for the axis-unit and
-experiment-type code tables, which the brief guide does not reproduce and which
-are currently the one part of the notes resting on a single source.
+*✅ Both remaining gaps closed on 2026-08-03 — this is now unblocked.* The
+Internet Archive's crawl of Galactic's own site preserved two things:
+
+1. **`gspc_udf.pdf`** — the full *Galactic Universal Data Format
+   Specification* (9/4/97), which reproduces **the complete `SPC.H` in
+   Appendix A**. Every enumerated code, authoritative. This settles the
+   axis-unit and experiment-type tables that the brief guide omitted.
+2. **Twelve real `.spc` files written by GRAMS itself** — Galactic's
+   demonstration set (IR, Raman, UV, NIR, VIS, NMR, MS, fluorescence, X-ray,
+   two chromatograms).
+
+Every claim in the notes has been executed against those files. For all eleven
+evenly-spaced ones, the file size predicted from the parsed header matches the
+actual byte count **exactly**; a single wrong offset would not close. Two
+traps were caught that the specification alone left ambiguous — an XYXY file
+with `fnsub = 1` has **no directory block** (`fnpts = 0` means no directory
+offset, not no points), and the fixed-point Y exponent is real rather than
+hypothetical (`subexp = 15`, read naively gives ~8×10¹⁵). Also found: the
+GPL reference implementation mislabels every experiment type from code 6
+onward, because `SPC.H` skips 6 and it indexes a plain list — which we would
+have inherited by copying.
+
+So the reader can now be both *written* and *trusted*. James's archive is
+still worth finding but no longer blocks: what would add coverage is a plain
+`TMULTI` **multifile**, a 16-bit-Y (`TSPREC`) file, or an **old-format**
+`0x4D` file. Another single-spectrum FTIR file would add nothing.
+
+**One decision needed before the reader ships** (notes §7): the twelve Thermo
+files are ideal test fixtures but carry no stated licence, so committing them
+puts them in an MPL-2.0 repo and every sdist. Recommendation is to keep them
+out of the tree and fetch them as an optional fixture that skips when absent.
 
 **FTIR secondary structure** — water and vapour subtraction, crop, second
 derivative, constrained fit, assign, integrate. It needs `fit_peaks()` and

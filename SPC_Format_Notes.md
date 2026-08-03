@@ -8,24 +8,40 @@ Nothing here is copied from an implementation. See §4 for why that matters.
 
 ## 1. Provenance
 
-Two independent sources were used, and they agree.
+Three sources, in descending order of authority. They agree.
 
-**A. Thermo Galactic, "A Brief Guide to SPC File Format and Using GSPCIO"
-(2001).** Publicly downloadable; a copy was retrieved from
-<https://docs.c6h6.org/docs/assets/files/spc-3bb9ec9e4c158c5418bcfcc970be77f1.pdf>.
-This is the vendor's own document. It gives the block structure and a
-field-by-field table of the 512-byte main header, the 32-byte subheader and
-the 64-byte log header. It refers to `SPC.H` and to the fuller "Galactic
-Universal Data Format Specification" for the enumerated code values; both ship
-in the SPC File Developer's Kit, whose original download URL
-(`thermogalactic.com/instruments/spcdata/spc_sdk.zip`) is long dead.
+**A. "Galactic Universal Data Format Specification", 9/4/97 — ✅ the
+authoritative one, and it contains `SPC.H` itself.** Recovered from the
+Internet Archive's copy of Galactic's own site:
 
-The other copy that search turns up, on the Met Office's ensembles-eu host,
-now 301s to an unrelated page. If a second copy is ever needed, that is a dead
-end.
+```
+https://web.archive.org/web/20040116104459id_/http://www.thermogalactic.com:80/instruments/spcdata/gspc_udf.pdf
+```
 
-**B. The `struct` format strings in a working reader** (Rohan Isaac's `spc`,
-seen in `temp/spc2.py`). Used only as a *cross-check on the layout* — see §4.
+50-odd pages, with the complete `SPC.H` header reproduced in Appendix A —
+every `#define`, every structure, every enumerated code. This is the document
+the brief guide keeps referring to, and it settles everything §3.7 was
+previously guessing at. Local copy: `temp/spc-reference/galactic-udf-spec.pdf`
+(with extracted text alongside it, which is the more useful form).
+
+**B. Thermo Galactic, "A Brief Guide to SPC File Format and Using GSPCIO"
+(2001).** The short version — block structure plus field tables. Copies at
+<https://docs.c6h6.org/docs/assets/files/spc-3bb9ec9e4c158c5418bcfcc970be77f1.pdf>
+and, via the docuri viewer, at `docuri.com/downloadFile/59c1d322f581710b28653306`
+(the "download doesn't work" page: the real file is behind the pdf.js embed).
+Both are byte-for-byte the same document, and it is the one whose printed
+offsets are wrong — §2.
+
+The Met Office `ensembles-eu` copy that search still turns up now 301s to an
+unrelated page. Dead end.
+
+**C. The `struct` format strings in a working reader** (Rohan Isaac's `spc`,
+in `temp/spc2.py`). Used only as a *cross-check on the layout*, and now
+superseded by A — which is just as well, because A shows it has a real bug
+(§3.9). See §4 for why it could not have been used anyway.
+
+**D. Twelve real `.spc` files written by Galactic's own software** — §5.
+Every claim in §3 has been executed against them.
 
 ## 2. The finding that matters: the vendor's printed offsets are wrong
 
@@ -158,20 +174,106 @@ offset of the subfile directory. The directory is `fnsub` entries of
 This is the sharpest edge in the format and the reason a reader should branch
 on the flag early rather than treat `fnpts` as a count everywhere.
 
-### 3.7 Axis unit codes
+⚠️ **And `fnpts = 0` means there is no directory at all** — verified against a
+real file in §5.1. The subfiles then follow the header directly and each
+`subnpts` carries its own count. Seeking unconditionally to a directory when
+`TXYXYS` is set will read the main header as directory entries.
 
-The `fxtype`/`fytype`/`fztype` code tables are enumerations in `SPC.H`; the
-brief guide does not reproduce them. Relevant to us: X `1` = wavenumber cm⁻¹,
-`13` = Raman shift cm⁻¹, `3` = nm; Y `2` = absorbance, `1` = interferogram,
-`4` = counts, `128` = transmission. These need checking against a real file or
-`SPC.H` before being trusted — they are the one part of these notes with only
-one source behind them, and they should map onto our existing `units`
-vocabulary rather than being stored as raw integers.
+### 3.7 Axis unit codes — ✅ authoritative, from `SPC.H`
 
-### 3.8 Packed date
+`fxtype`, `fztype` and `fwtype` share one table:
+
+| | | | | | |
+|--:|:--|--:|:--|--:|:--|
+| 0 | Arbitrary | 11 | Days | 22 | Data points |
+| 1 | **Wavenumber (cm⁻¹)** | 12 | Years | 23 | Milliseconds |
+| 2 | Micrometers (µm) | 13 | **Raman shift (cm⁻¹)** | 24 | Microseconds |
+| 3 | **Nanometers (nm)** | 14 | eV | 25 | Nanoseconds |
+| 4 | Seconds | 15 | *(text labels, old `0x4D` only)* | 26 | Gigahertz |
+| 5 | Minutes | 16 | Diode number | 27 | Centimeters |
+| 6 | Hertz | 17 | Channel | 28 | Meters |
+| 7 | Kilohertz | 18 | Degrees | 29 | Millimeters |
+| 8 | Megahertz | 19 | Temperature (°F) | 30 | Hours |
+| 9 | Mass (m/z) | 20 | Temperature (°C) | 255 | Double interferogram |
+| 10 | Parts per million | 21 | Temperature (K) | | |
+
+`fytype`:
+
+| | | | | | |
+|--:|:--|--:|:--|--:|:--|
+| 0 | Arbitrary intensity | 9 | Millivolts | 21 | Temperature (K) |
+| 1 | Interferogram | 10 | log(1/R) | 22 | Refractive index |
+| 2 | **Absorbance** | 11 | Percent | 23 | Extinction coeff. |
+| 3 | Kubelka-Munk | 12 | Intensity | 24 | Real |
+| 4 | **Counts** | 13 | Relative intensity | 25 | Imaginary |
+| 5 | Volts | 14 | Energy | 26 | Complex |
+| 6 | Degrees | 16 | Decibel | 128 | **Transmission** |
+| 7 | Milliamps | 19 | Temperature (°F) | 129 | Reflectance |
+| 8 | Millimeters | 20 | Temperature (°C) | 130 | Arbitrary / single beam |
+| | | | | 131 | Emission |
+
+Note the gaps — 15, 17, 18 in the Y table are genuinely undefined, not an
+omission here. `SPC.H` flags 128 as the threshold above which *"ALL HIGHER
+MUST HAVE VALLEYS"*: codes ≥ 128 are quantities whose bands point down. That
+is a real display/processing distinction and worth preserving in metadata even
+though our own `units` vocabulary does not currently encode it.
+
+These should map onto the project's `units` vocabulary rather than being
+stored as raw integers.
+
+### 3.8 Experiment type `fexper` — and why not to rely on it
+
+| | | | |
+|--:|:--|--:|:--|
+| 0 | General SPC | 8 | X-ray diffraction |
+| 1 | Gas chromatogram | 9 | Mass spectrum |
+| 2 | General chromatogram | 10 | NMR spectrum or FID |
+| 3 | HPLC chromatogram | 11 | Raman spectrum |
+| 4 | FT-IR / FT-NIR / FT-Raman | 12 | Fluorescence spectrum |
+| 5 | NIR spectrum | 13 | Atomic spectrum |
+| 7 | UV-VIS spectrum | 14 | Chromatography diode array |
+
+**There is no code 6.** The enumeration skips it. See §3.9.
+
+Empirically (§5): **all twelve real files report `fexper = 0`**, including the
+Raman, NMR, mass spectrum and X-ray ones. `SPC.H` explains why — in older
+software `TCGRAM` had to be set for `fexper` to mean anything. So:
+
+> Do not use `fexper` to decide what technique a file holds. Use `fxtype` and
+> `fytype`, which are populated correctly in every real file tested.
+
+### 3.9 A bug in the reference implementation
+
+`SPC.H` skips code 6, but `temp/spc2.py` stores the experiment names in a
+plain Python list and indexes it directly. From 6 onward every label is
+therefore shifted by one: a file marked `9` (mass spectrum) is reported as
+*NMR*, `10` (NMR) as *Raman*, and so on.
+
+We would have inherited this silently by copying. It is a small vindication of
+writing §3 from the specification first, and a reason to be wary of the other
+enumerations in that file.
+
+### 3.10 Packed date
 
 `fdate` is a bitfield in one 32-bit word: year 12, month 4, day 5, hour 5,
-minute 6, packed from the top. Zero means no date.
+minute 6, packed from the top. Zero means no date. Verified: the sample files
+decode to 1987-05-28, 1989-07-28, 1992-03-04, 1997-10-01 and so on — all
+plausible, none absurd, which a wrong bit layout would not manage.
+
+### 3.11 `fmods` — what was done to the spectrum
+
+A bitfield, one letter per operation, which is the `.spc` counterpart of the
+OPUS history block: `A` averaging (2¹), `B` baseline (2²), `C` interferogram→
+spectrum (2³), `D` derivative/integrate (2⁴), `E` resolution enhancement (2⁶),
+`I` interpolation (2⁹), `N` smoothing (2¹⁴), `O` other arithmetic (2¹⁵),
+`S` spectral subtraction (2¹⁹), `T` truncation (2²⁰), `W` collection time
+modified (2²³), `X` X-units conversion (2²⁴), `Y` Y-units conversion (2²⁵),
+`Z` zap (2²⁶).
+
+Worth decoding into `metadata` rather than dropping. §21 is the precedent:
+the OPUS work turned up files that had already been reference-subtracted
+inside the instrument software, which nothing in the text export revealed.
+`fmods` is where `.spc` records the same thing.
 
 ## 4. Licensing — the constraint on how this gets built
 
@@ -198,24 +300,81 @@ with a shared axis, and `-xy` to a list — the same split our registry's
 `spc-spectra`, the maintained fork, publishes no license metadata on PyPI
 while being a derivative of GPL-3.0 code. Not usable either.
 
-## 5. Still outstanding
+## 5. ✅ Real files — obtained, and the layout is confirmed against them
 
-**Real `.spc` files.** The specification closes the gap §15.3 opened, but not
-the one §15.2 cares about: a reader written from a specification and tested
-against files I generated from the same specification only proves I read it
-consistently. The OPUS reader is trustworthy because 43 real files came with
-paired `.dpt` exports of the same measurements.
+The same Internet Archive crawl that yielded the specification also preserved
+**Galactic's own demonstration data set**, twelve files written by GRAMS
+itself, in `temp/spc-reference/samples/`:
 
-What would make this immediately buildable, in order of usefulness:
+```
+http://www.thermogalactic.com/products/dataviewer/spcfiles/*.spc
+```
 
-1. Three to five real `.spc` files with a text export of the same data.
-2. One multi-subfile example — ideally XYXY, since §3.6 is where a reader
-   breaks and where the registry's many-spectra path gets exercised.
-3. One old-format (`0x4D`, 256-byte header) file, if any exist in the archive.
+These are better than anything generated from the specification, because they
+were written by the software that defined the format.
 
-**`SPC.H` itself**, for the §3.7 code tables and the `fexper` enumeration.
-The SDK zip is gone from Thermo's site; a copy may survive in a Linux distro
-package or a mirror of the developer's kit.
+| File | `ftflgs` | npts | Range | X | Y |
+|:--|--:|--:|:--|:--|:--|
+| `ir-nh4.spc` | 0 | 8289 | 4398.10 → 401.23 | cm⁻¹ | Transmission |
+| `raman.spc` | 0 | 1260 | 96.31 → 1728.00 | Raman cm⁻¹ | Counts |
+| `uv-holm.spc` | 0 | 901 | 250 → 700 | nm | Absorbance |
+| `nir-poly.spc` | 0 | 700 | 1100 → 2498 | nm | Absorbance |
+| `vis-mirr.spc` | 0 | 692 | 890 → 199 | nm | Reflectance |
+| `nmr-unk.spc` | 0 | 8192 | 14.83 → −5.24 | ppm | Arbitrary |
+| `fluor.spc` | 0 | 491 | 255 → 500 | nm | Arbitrary |
+| `gamma.spc` | 0 | 4076 | 0 → 4075 | Arbitrary | Arbitrary |
+| `xraydiff.spc` | `0x20` | 18014 | 9.88 → 99.93 | Arbitrary | Counts |
+| `ms-barb.spc` | `0xF0` | *(XYXY)* | 27.05 → 160.90 | Arbitrary | Arbitrary |
+| `gc_gasln.cgm` | `0x02` | 54000 | 0 → 30 | min | Millivolts |
+| `hplc.cgm` | `0x02` | 27200 | 0 → 34 | min | Arbitrary |
+
+**The decisive check.** For every evenly-spaced file, the size predicted from
+the parsed header —
+
+```
+512 + (4 × fnpts if TXVALS) + fnsub × (32 + 4 × fnpts)
+```
+
+— equals the actual file length **exactly**, to the byte, for all eleven. A
+single wrong offset anywhere in §3.1 would put garbage in `fnpts` or `fnsub`
+and this would not close. The axis values are independently sensible: an IR
+spectrum descending 4398→401 cm⁻¹, NMR descending 14.83→−5.24 ppm, a holmium
+oxide UV standard over 250–700 nm.
+
+### 5.1 What `ms-barb.spc` settled
+
+The one XYXY file resolved two things that the specification alone left
+ambiguous, and both are traps:
+
+**With `fnsub = 1` there is no directory block.** `fnpts` is `0` — meaning *no
+directory offset*, not *no points* — and the subheader sits directly at 512
+with the real count in `subnpts` (37). Size works out as
+`512 + 32 + 8 × 37 = 840`, exactly. A reader that unconditionally seeks to a
+directory when `TXYXYS` is set will read the file header as directory entries.
+
+**The fixed-point exponent is not hypothetical.** `subexp = 15`, not `0x80`,
+so the Y values are integers needing `2^15 × y / 2^32`. Read naively as
+float32 they come out around 8×10¹⁵. Applied correctly they become 562 …
+11798 — and, tellingly, *every one is an exact integer*, which is the
+signature of correctly recovered fixed-point counts and makes a good assertion
+in the test. The resulting spectrum is chemically sound for a barbiturate:
+base peak m/z 119, with 91 (tropylium), 105, 57, and m/z 28/32 air background.
+
+### 5.2 Still not covered
+
+The set exercises `gx-y`, `x-y`, XYXY, custom axis labels and fixed-point Y.
+It does **not** cover:
+
+- `TSPREC` — 16-bit Y storage (`/2^16` rather than `/2^32`).
+- A plain `TMULTI` multifile with several evenly-spaced subfiles — the
+  ordinary many-spectra case the registry's `multi=True` path exists for.
+- The old `0x4D` 256-byte-header format.
+- `0x4C`, new-format MSB-first. Rare; detect and refuse clearly.
+- A log block with real `key=value` acquisition text.
+
+So James's archive is still worth finding — but it is no longer blocking.
+Anything from it that is a **multifile** or an **old-format** file is what
+would add coverage; another single-spectrum FTIR file would not.
 
 ## 6. Consequences already agreed
 
@@ -228,3 +387,34 @@ package or a mirror of the developer's kit.
 - `0x4C` (new MSB-first) is big-endian and rare; detect it and raise a clear
   "not supported, please send the file" rather than mis-parsing.
 - Shimadzu's `0xCF` variant is not SPC and is out of scope.
+
+## 7. Open question for James: the sample files as test fixtures
+
+The twelve files in `temp/spc-reference/samples/` are exactly what the test
+suite wants, and they are ideal for it — vendor-written, varied, and covering
+the two paths most likely to break.
+
+They are also **Thermo Galactic's demonstration data from around 2003**, and
+their licensing is unstated. They were freely published for developers working
+with the format, which is the use here, and the company and its website are
+long gone; but "no stated licence" is not the same as "ours to redistribute",
+and committing them puts them in an MPL-2.0 repository and onto PyPI in every
+sdist.
+
+Three options, in the order I would rank them:
+
+1. **Keep them out of the repository; check them into the test suite as an
+   optional fixture** that skips when absent, with a download script pointing
+   at the Internet Archive URLs. Costs a skipped test in CI unless the archive
+   is reachable, keeps the distribution clean. This is what §14.7's caution
+   about other people's material would suggest.
+2. **Commit them** under a clearly labelled `tests/data/spc/` with provenance
+   and the archive URLs recorded. Simplest, best CI, small residual risk.
+3. **Generate our own fixtures** from the now-verified writer once it exists,
+   and use the Thermo files only locally during development. Clean, but the
+   tests then only prove self-consistency — the exact weakness §15.2 warned
+   about.
+
+My recommendation is 1, moving to 2 if the skipping proves annoying. Either
+way the reader gets built from the specification, and this only decides what
+ships.
