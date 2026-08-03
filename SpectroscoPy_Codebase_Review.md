@@ -1531,6 +1531,54 @@ plan, and **a paper must cite a name that still resolves years later**. Renaming
 after publication breaks the citation. Renaming now costs one commit — there are
 no testers holding installs yet, and 0.1.0 is 20 minutes old.
 
+### 16.3 Incident — 0.0.0 published a credentials file (2026-08-03, resolved)
+
+**What happened.** The sdist of `pyspectroscopy` 0.0.0 contained
+`PyPI-Recovery-Codes-jnsturgis-….txt` — PyPI two-factor *account recovery
+codes*, which bypass 2FA and are therefore worse than a scoped API token. The
+file had been saved into `packaging/name-reservation/` while setting the
+account up. `python -m build` ran in that directory minutes later, and
+hatchling's default is to sweep in everything it finds. The wheel was
+unaffected; only the sdist.
+
+**How it was caught.** Not by tooling. `twine check` passed both artefacts —
+it validates that metadata renders and has no opinion whatsoever about
+credentials in an archive. Nothing between "the file exists here" and
+"published to a global mirror network" looked at the contents.
+
+**Resolution.** Recovery codes regenerated, API token rotated, release 0.0.0
+deleted, 0.0.1 published clean. Verified: only 0.0.1 is served and 0.0.0 is no
+longer a valid release. The project itself was *not* deleted — that would
+release the name, which PyPI never re-issues, and holding the name is the
+entire purpose of the placeholder.
+
+**Four things worth keeping.**
+
+*Rotate before you delete.* PyPI files are mirrored, cached and scraped within
+minutes. Removing a file does not unpublish it. Deletion is damage limitation;
+regenerating the secret is the fix, and doing them in the wrong order leaves a
+live credential in the wild while you feel like you have dealt with it.
+
+*Yanking is not deletion.* A yanked file is still downloadable — it only stops
+resolvers selecting it by default. For a leaked secret it achieves nothing.
+
+*A deleted version number is burned.* Hence 0.0.0 → 0.0.1. The same rule that
+makes deleting the *project* unthinkable applies in miniature to versions.
+
+*Whitelist, do not blacklist.* The build config now uses `only-include` rather
+than an exclude list. An exclude list only defends against filenames somebody
+anticipated, and the failure mode here was exactly a file nobody anticipated.
+A whitelist fails safe: new files are out unless named. `UPLOAD.md` also now
+requires `tar tzf dist/*.tar.gz` before any upload, because the general lesson
+is that **a build step is a publication step**, and nothing else in the chain
+was looking.
+
+The wider version of this applies beyond PyPI: `git add -A`, `docs/_build`,
+CI artefacts and sdists all move files from "on my machine" to "public" by
+default rather than by choice. Credentials belong in `~` with mode 600, never
+in a working tree — the `.gitignore` rules added the same day were a backstop
+against git, and git was not the channel that leaked.
+
 ---
 
 ## Appendix — files consulted
