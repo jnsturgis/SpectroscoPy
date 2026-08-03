@@ -1,15 +1,33 @@
 # Reserving `pyspectroscopy` — how to upload
 
-Built and ready in `dist/`:
-
-    pyspectroscopy-0.0.0-py3-none-any.whl
-    pyspectroscopy-0.0.0.tar.gz
-
 This is a placeholder: version 0.0.0, one module containing a docstring that
 says where the real library is, "Development Status :: 1 - Planning", and a
 README that tells anyone who installs it not to depend on it.
 
 ## Steps
+
+0. **Build first.** `dist/` is not committed — it is in `.gitignore`, like
+   every other build artefact — so on a fresh checkout it does not exist and
+   `twine upload dist/*` fails with
+
+       InvalidDistribution: Cannot find file (or expand pattern): 'dist/*'
+
+   That error means "nothing has been built yet", not "something is wrong
+   with your account or token". From this directory:
+
+       pip install --user build twine
+       python -m build
+       python -m twine check dist/*
+
+   which should leave you with
+
+       pyspectroscopy-0.0.0-py3-none-any.whl
+       pyspectroscopy-0.0.0.tar.gz
+
+   ⚠️ Build **here**, in `packaging/name-reservation/`, not at the repository
+   root. The root builds the real library under the name `spectroscopy`,
+   which belongs to somebody else on PyPI — uploading it would be rejected,
+   and it is not what you want to publish yet in any case.
 
 1. **Register on PyPI** if you have not: https://pypi.org/account/register/
    Enable 2FA — PyPI requires it for uploading.
@@ -21,11 +39,20 @@ README that tells anyone who installs it not to depend on it.
 
 3. **Upload**, from this directory:
 
-       pip install --user twine
        python -m twine upload dist/*
 
-   Username: `__token__`
-   Password: the token, `pypi-…` included.
+   Username: `__token__` — literally that, underscores included. Not your
+   PyPI username; that is the commonest way this step fails.
+   Password: the token, `pypi-…` prefix included.
+
+   Keep the token out of the shell history and out of this repository. If you
+   want it stored, `~/.pypirc` with mode 600 is the usual place:
+
+       [pypi]
+         username = __token__
+         password = pypi-…
+
+       chmod 600 ~/.pypirc
 
    Or test the mechanics first against TestPyPI, which is a separate registry
    and does not reserve the real name:

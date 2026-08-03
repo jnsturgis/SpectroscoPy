@@ -38,3 +38,9 @@ docs/jupyter_execute/
 # Vendor sample .spc files: fetched on demand, never committed (unstated
 # licence). See scripts/fetch_spc_fixtures.py and SPC_Format_Notes.md s7.
 tests/data/spc/
+
+# Credentials. These belong in a password manager, not a git repository --
+# this is a backstop against `git add -A`, not a place to keep them.
+*Recovery-Codes*
+.pypirc
+*.token
