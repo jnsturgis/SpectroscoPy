@@ -4,7 +4,10 @@ build-backend = "hatchling.build"
 
 [project]
 name = "pyspectroscopy"
-version = "0.0.0"
+# 0.0.0 was deleted from PyPI: its sdist accidentally contained a credentials
+# file. A deleted PyPI version can never be re-uploaded, so this starts at
+# 0.0.1. See the sdist whitelist at the bottom of this file.
+version = "0.0.1"
 description = "Name reservation for SpectroscoPy — a unified Python library for Raman, FTIR, UV-Vis and fluorescence spectra"
 readme = "README.md"
 requires-python = ">=3.10"
@@ -25,3 +28,19 @@ Issues = "https://github.com/jnsturgis/SpectroscoPy/issues"
 
 [tool.hatch.build.targets.wheel]
 packages = ["pyspectroscopy"]
+
+# An explicit whitelist, not an exclude list. Hatchling's default is to put
+# everything in this directory into the sdist, and that is how 0.0.0 shipped a
+# credentials file that happened to be sitting here at build time. An exclude
+# list only protects against the filenames somebody thought of in advance; a
+# whitelist fails safe, because anything new is out unless it is named here.
+[tool.hatch.build.targets.sdist]
+only-include = [
+    "pyspectroscopy",
+    "README.md",
+    "pyproject.toml",
+]
+# Hatchling ships the VCS ignore file unless told otherwise. Harmless, but
+# there is no reason for a placeholder distribution to carry the repository's
+# ignore rules.
+exclude = [".gitignore"]
