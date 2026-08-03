@@ -11,7 +11,8 @@ library, you have the placeholder rather than the thing itself. See the URL
 above for what to install.
 """
 
-from importlib.metadata import PackageNotFoundError, version as _version
+from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
+from importlib.metadata import version as _version
 
 # Derived, not written down twice. This was hardcoded to "0.0.0" and stayed
 # there when pyproject.toml went to 0.0.1, so the published 0.0.1 reports
@@ -19,7 +20,7 @@ from importlib.metadata import PackageNotFoundError, version as _version
 # package has always done it this way; the placeholder had drifted.
 try:
     __version__ = _version("pyspectroscopy")
-except PackageNotFoundError:         # running from a source tree, not installed
+except _PackageNotFoundError:        # running from a source tree, not installed
     __version__ = "0.0.0+unknown"
 
 __url__ = "https://github.com/jnsturgis/SpectroscoPy"
