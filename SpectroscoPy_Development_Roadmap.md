@@ -529,7 +529,7 @@ stability.
 
 | When | What | Why then |
 |---|---|---|
-| **August, immediately** | Hand 0.1.0 to the testers | The whole critical path. An API frozen without tester friction is a guess, and §9's entire structure exists to avoid that. Nothing else in this table can start it |
+| **~20 August** | Hand 0.1.0 to the testers | The whole critical path. An API frozen without tester friction is a guess, and §9's entire structure exists to avoid that. Nothing else in this table can start it. Not earlier: everyone is away, and an email sent into the August holiday is an email answered in September or not at all (James, 2026-08-04) |
 | August | Define the public surface: `__all__` at top level and in `spectra.py`; audit the 40 names | Blocker 1. Independent of feedback, so it can run in parallel |
 | August–September | Collect and triage friction; relay reports into issues by proxy (review §14.5) | Feedback has to be *in hand* by mid-September to inform the freeze |
 | September | Make every breaking change there is going to be: shims removed, names settled, signatures fixed | Last window. After this, breaking anything costs a major version |
@@ -547,11 +547,18 @@ freeze an API that no outsider has exercised — and the second is the option th
 looks fine now and hurts for years, because §9's whole premise is that the core
 must be validated by real use before it is locked.
 
-Mitigation is unglamorous: hand the alpha over *this week*, ask each tester for
-one concrete workflow rather than general impressions, and chase in early
-September rather than waiting politely. The three named in review §9.5 cover the
-four techniques between them, which is the minimum for a freeze that claims to
-serve all four.
+Mitigation is unglamorous: send on **20 August** and not a day later, ask each
+tester for one concrete workflow rather than general impressions, and chase in
+early September rather than waiting politely. The three named in review §9.5
+cover the four techniques between them, which is the minimum for a freeze that
+claims to serve all four.
+
+The August holiday costs about three weeks and there is no way to buy them
+back, which makes the September chase load-bearing rather than optional: the
+gap between sending and the mid-September deadline is now under four weeks. The
+two capabilities §15 wanted before the testers — secondary structure, and OPUS
+and `.spc` input — are all shipped (§21, §22), so nothing but the calendar is
+holding the emails.
 
 ---
 
