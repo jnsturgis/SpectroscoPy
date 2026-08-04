@@ -22,9 +22,23 @@ branch; a structure read from a PDB file is planned. All three return the same
 object, which is the point of
 [ADR-0002](../adr/0002-secondary-structure.md).
 
-The estimator has been checked against synthetic bands of known composition. It
-has **not** yet been checked against a protein whose structure is published —
-until it has, treat the numbers as arithmetic rather than as biology.
+**The estimator does not yet produce numbers anyone should use.** It recovers
+synthetic bands of known composition correctly. Run on measured spectra it does
+not: BSA and lysozyme, each at several concentrations, give helix fractions
+spread over roughly **±20 percentage points** — 15 %, 34 %, 17 %, 37 % for the
+same BSA. A protein at four concentrations is the same protein, so that spread
+is error, not biology.
+
+Every one of those fits had an R² between 0.998 and 0.9997. That is the point
+worth taking away even if you never use this module: **goodness of fit does not
+validate a composition.** All of them look perfect on a plot.
+
+The causes are known — too few components found automatically, and water
+subtraction dominating the answer for solution spectra — and the fix is being
+worked on, with the spread across a concentration series as the thing to
+minimise. Until that spread is small, treat what comes out as arithmetic rather
+than as biology, and read the machinery below for how the pipeline fits
+together rather than for the numbers it prints.
 :::
 
 ## The recipe
