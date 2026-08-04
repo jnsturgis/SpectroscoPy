@@ -13,5 +13,6 @@ data-model
 reading-files
 processing
 secondary-structure
+uv-vis-components
 plotting
 ```

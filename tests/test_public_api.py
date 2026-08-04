@@ -29,6 +29,7 @@ EXPECTED_ALL = {
     'ProcessingStep',
     'datasets',
     'io',
+    'library',
     'processing',
     'units',
     'lineshapes',

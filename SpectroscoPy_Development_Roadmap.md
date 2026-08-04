@@ -57,6 +57,8 @@ so there is only one place to keep current.
 | `paper.md` | 📋 | October — README "Why" is the statement of need |
 | Documentation traps (execute the guide, doctests) | 📋 | review §14.4 |
 | Comparison pages (baselines, normalisation…) | 📋 | review §14.2 |
+| UV-Vis component separation | ✅ | library, unmixing, calibration — §23 |
+| UV-Vis scattering correction | 📋 | the one piece of §23 not yet built |
 | `parameter_from=` on collections | 📋 | **unblocked and useful now** — §16.3 |
 | Amide I diagnosis | 📋 | **early September, James in the lab** — §20 |
 | FTIR secondary structure validated | ⏸️ | on §20 |
@@ -399,11 +401,11 @@ Ordered by how much the paper depends on them, not by difficulty.
 
 | | Feature | Why the paper needs it |
 |---|---|---|
-| 1 | **Library/reference lookup *and* decomposition** | Competitors offer spectrum-vs-library matching; none couple it to decomposition. Identify the components NMF pulls out by matching them against references, rather than assigning them by eye — that pairing is the methodological novelty, not the lookup alone |
-| 2 | **`concentration()` — Beer–Lambert** | Cross-validated against **Bradford protein assays** on the same samples. This turns a convenience helper into a validation figure: spectroscopic concentration vs a wet-chemistry standard |
+| 1 | ✅ **Library/reference lookup *and* decomposition** (§23) | Competitors offer spectrum-vs-library matching; none couple it to decomposition. Identify the components NMF pulls out by matching them against references, rather than assigning them by eye — that pairing is the methodological novelty, not the lookup alone |
+| 2 | 🔨 **`concentration()` — Beer–Lambert** (§23; the calibration half is built, the Bradford cross-validation is not) | Cross-validated against **Bradford protein assays** on the same samples. This turns a convenience helper into a validation figure: spectroscopic concentration vs a wet-chemistry standard |
 | 3 | **OPUS native binary (`.0`, `.1`, `.2`)** | The biofilm FTIR data arrives this way. `.dpt` export is a step the paper's readers should not have to be told to perform, and review §3 already names this as the honest I/O gap |
 | 4 | **Galactic `.spc`** | The other format reviewers will ask about; `spc-spectra` exists but is unmaintained since 2018, so this is a read-it-ourselves job |
-| 5 | **A260/A280 decomposition** | Openly a hoop to jump through — the number is close to worthless as a purity measure and the two-component decomposition is three lines. It is asked for often enough that its absence reads as a gap, so it costs less to have than to keep explaining |
+| 5 | ✅ **A260/A280 decomposition** (§23 — it is the two-component case of item 1, so it cost nothing extra) | Openly a hoop to jump through — the number is close to worthless as a purity measure and the two-component decomposition is three lines. It is asked for often enough that its absence reads as a gap, so it costs less to have than to keep explaining |
 | 6 | **Fluorescence line narrowing / hole burning** | For the fun of it, and there is old data. Compared against Raman and FTIR of the same system, it is a genuinely unusual thing for a general-purpose package to handle, and it exercises the "one data model, many instruments" claim harder than four routine techniques do |
 
 Items 1–3 are load-bearing for the paper. Items 4–6 strengthen it; 6 in
@@ -1201,3 +1203,79 @@ old-format `0x4D`, MSB-first `0x4C`, or a populated binary log block. The
 multifile path is exercised only by the single-subfile XYXY case, so a real
 multi-subfile file is the one addition that would meaningfully raise
 confidence. A writer remains permissible under §14.7 but has not been needed.
+
+---
+
+## 23. ✅ UV-Vis component separation (2026-08-04)
+
+`spectroscopy/library.py` and `spectroscopy/processing/unmix.py`, 25 tests, an
+executing guide page. This covers three of the four UV-Vis analyses James
+asked for, and lands §13.3's items 1, 5 and half of 2.
+
+### 23.1 The structural point
+
+**Splitting a sample into nucleic acid and protein is not a separate
+algorithm.** It is the two-component case of fitting a spectrum as a sum of
+known references, and building it as its own thing would have been the third
+time this library wrote a bespoke version of a general operation — §16.1
+already names the first two. So `unmix()` is the function and
+`nucleic_acid_and_protein()` is four lines that call it with a clearer name.
+
+The same argument connects the rest. `library.from_series()` runs Beer–Lambert
+backwards to *produce* extinction spectra, which `unmix()` then *consumes*, so
+the calibration and the analysis are two ends of one pipeline rather than two
+features.
+
+### 23.2 What is deliberately not shipped
+
+**No reference spectra.** Inventing a plausible absorbance curve for dsDNA
+would be fabricating reference data, and a fabricated reference is worse than
+none: it makes an unmixing look quantitative when it is decorative. What ships
+is the *machinery*, plus published **scalar** coefficients with their sources
+attached, plus `from_series()` so a lab can measure its own. The references in
+the guide are built in the page that uses them and labelled synthetic there.
+
+This is §14.7's reasoning applied to data rather than to file formats.
+
+### 23.3 What the guide demonstrates
+
+Numbers below are generated by the page, not asserted in it.
+
+- **A260/A280 cannot see a contaminant.** A clean mixture and one carrying a
+  third absorbing species both read **1.306**, identical to three decimals.
+  Two numbers taken from 241 points cannot do better.
+- **R² cannot either.** The same contaminated sample fits the wrong two-
+  component model at **R² = 0.98**. The residual, however, has a band sitting
+  at 300 nm, exactly where the missing species absorbs. That is why
+  `UnmixResult.residual` is documented as the diagnostic and R² is documented
+  as nearly worthless on a smooth spectrum — the same lesson as §19–20.
+- **Peak position is the wrong criterion for choosing wavelengths.**
+  `best_wavelengths()` picks 224.5 and 260 nm over the traditional 260 and
+  280, giving a condition number of **1.9 against 20.2** — an order of
+  magnitude better separation. Both components absorb at 280; what matters is
+  that the extinction vectors point in different directions, not that either
+  one peaks.
+- **Non-negativity is physical, not cosmetic.** A negative amount is the fit
+  compensating for a missing component; constraining it keeps that pressure in
+  the residual where it can be seen. `non_negative=False` remains right for a
+  difference spectrum, where a negative coefficient means a component was lost.
+
+### 23.4 Still to build
+
+**Scattering correction** — the fourth analysis, and the one piece not yet
+started. The plan is a basis of scattering shapes (λ⁻ⁿ for several n) fitted
+on a region where nothing absorbs and extrapolated, rather than a single
+Rayleigh λ⁻⁴, which is what James asked for and is better than the usual
+single power law. It belongs *before* unmixing in the pipeline: a scattering
+background is not one of the components, and `unmix()` will otherwise
+distribute it across the ones it has. The two shipped `uvvis_*` datasets are
+bacterial membrane fractions and should show it well.
+
+**The Bradford cross-validation** for §13.3 item 2 still needs samples
+measured both ways.
+
+**§16.3 would make calibration read better.** `from_series()` takes
+concentrations as a parallel list because a collection cannot yet carry a
+continuous parameter per spectrum. With `parameter_from=` it would read
+`from_series(series, series.parameter('concentration'), ...)`. Not blocking,
+but this is now the second caller that wants it.

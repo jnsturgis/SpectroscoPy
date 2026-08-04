@@ -17,7 +17,7 @@ Layout (see SpectroscoPy_Codebase_Review.md):
 from importlib.metadata import PackageNotFoundError as _PackageNotFoundError
 from importlib.metadata import version as _version
 
-from . import datasets, fitting, io, lineshapes, processing, units
+from . import datasets, fitting, io, library, lineshapes, processing, units
 from .collection import SpectrumCollection
 from .fitting import FitResult
 from .history import ProcessingStep
@@ -39,7 +39,8 @@ __all__ = [
     # -- submodules ----------------------------------------------------------
     'datasets',              # bundled example data, so the docs run anywhere
     'io',                    # readers, writers, and the format registry
-    'processing',            # common, ftir, multivariate
+    'library',               # reference spectra and extinction coefficients
+    'processing',            # common, ftir, multivariate, unmix
     'units',                 # unit names, conversion, axis quantities
     'lineshapes',            # gaussian / lorentzian components
     'viz',                   # plotting -- imported lazily, see below
