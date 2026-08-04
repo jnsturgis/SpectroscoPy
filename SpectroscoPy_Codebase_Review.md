@@ -1494,22 +1494,36 @@ Both halves of the recommendation below are done:
 - **The transfer request to Joey Goodknight was sent on 2026-08-03**, from the
   university address.
 
-**Next action, and it is a diary entry rather than a task: on or after
-2026-08-31**, if there has been no reply, open the PEP 541 request at
-<https://github.com/pypi/support>. The draft is written; it needs the date
-above and the elapsed weeks filled in. Four weeks is the interval PyPI's
-volunteers expect to see between a direct approach and an escalation, and
-opening it early weakens the request rather than speeding it up.
+**✅ He said yes (2026-08-04.)** Joey Goodknight replied agreeing to hand over
+the name. He cannot act on it yet: he is locked out of his PyPI account and
+has filed a recovery request. So the position is now "owner consents,
+transfer waiting on PyPI restoring his access" rather than anything
+contested.
 
-Realistically these take months once filed, which is exactly why the fallback
-was registered first — nothing downstream is blocked on the answer.
+Three consequences:
+
+- **The PEP 541 escalation planned for 2026-08-31 is off.** Its central
+  argument was that the owner had not responded, which is now false. Filing it
+  as written would be both wrong and gratuitously hostile to somebody who has
+  been helpful. `pep541-request.md` has been rewritten around this; the old
+  text is kept below a line, marked historical.
+- **Keep his email, with headers.** It is the single most valuable document
+  here — it turns a contested claim into a formality, and if a support request
+  is ever needed, that email *is* the request.
+- **No admin involvement is needed if his recovery works.** Once he is back
+  in, he can invite `jnsturgis` as Owner from the project's collaboration page
+  himself. Worth telling him, since it is not obvious that a project can be
+  handed over without going through support.
+
+If nothing has moved by **2026-09-15**, ask him how the recovery is going
+rather than escalating — the delay is not his doing.
 
 Everything for all three routes is in `packaging/name-reservation/`:
 
 | File | What it is |
 |---|---|
 | `email-to-goodknight.md` | The transfer request, ready to send. Needs a PyPI username filled in, and should go from the university address rather than Gmail — the request rests on being a real group with a real project, and the From line does that work before the message is read |
-| `pep541-request.md` | The escalation, for ~4 weeks later if there is no reply. Needs the date the email was sent, which is why the email is kept in the repo rather than only in a sent-mail folder — PyPI wants evidence contact was attempted |
+| `pep541-request.md` | Rewritten 2026-08-04 around the reply. Now: the status, what happens on each path, and a short *owner-consents* text for the case where his account recovery stalls. The old contested-claim version is kept below a line as history |
 | `pyproject.toml`, `README.md`, `pyspectroscopy/` | The placeholder distribution: version 0.0.0, "Development Status :: 1 - Planning", one module whose docstring says where the real library is, and a README telling anyone who installs it not to depend on it. Builds clean |
 | `UPLOAD.md` | Token setup and the `twine` invocation. ✅ Run 2026-08-03 by James; credentials live in `~/.pypirc` (mode 600) and never entered this repository |
 

@@ -64,7 +64,7 @@ so there is only one place to keep current.
 | OPUS binary reader | ✅ | written against 43 real files — §21 |
 | `.spc` reader | ✅ | built from the published spec, validated against 12 vendor files — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
-| PyPI name | ⏸️ | `pyspectroscopy` reserved, transfer request sent 2026-08-03; **PEP 541 on/after 2026-08-31 if no reply** — review §16 |
+| PyPI name | 🔨 | **owner agreed 2026-08-04**; waiting on his PyPI account recovery, chase 2026-09-15. PEP 541 no longer needed — review §16 |
 | JOSS submission | 📋 | November |
 | Domain paper (biofilms) | 📋 | after the GUI — §13, §17 |
 
