@@ -77,6 +77,8 @@ class UnmixResult:
     r_squared: float
     unit: str = ''
     condition_number: float = float('nan')
+    #: Path length used to turn the fitted ``c*l`` into a concentration, cm.
+    path_length: float = 1.0
     metadata: dict = field(default_factory=dict, repr=False)
 
     def __len__(self):
@@ -108,10 +110,13 @@ class UnmixResult:
         lines.append(f"\nR^2 = {self.r_squared:.5f}{unit}")
         if np.isfinite(self.condition_number):
             lines.append(f"condition number = {self.condition_number:.1f}")
+        if self.path_length != 1.0:
+            lines.append(f"path length = {self.path_length:g} cm")
         return "\n".join(lines)
 
 
-def unmix(spectrum, library, *, non_negative=True, wavelengths=None):
+def unmix(spectrum, library, *, path_length=None, non_negative=True,
+          wavelengths=None):
     """
     Fit a spectrum as a sum of known references.
 
@@ -124,6 +129,18 @@ def unmix(spectrum, library, *, non_negative=True, wavelengths=None):
     library : Library or sequence of Reference
         What it may be made of. References are resampled onto the spectrum's
         own wavelength grid.
+    path_length : float, optional
+        Cuvette path length in cm. Beer-Lambert is ``A = eps * c * l``, so
+        fitting extinction spectra to an absorbance recovers ``c * l``, and
+        the concentration needs the division. Defaults to
+        ``spectrum.metadata['path_length']`` if that is set, and otherwise to
+        the standard 1 cm.
+
+        Worth stating whenever it is not 1 cm: a 1 mm cuvette left unstated
+        makes every concentration here ten times too small, and nothing in the
+        result looks wrong. It has no effect at all when the references are
+        relative rather than absolute, since there is no concentration to get
+        wrong.
     non_negative : bool
         Constrain the amounts to be at least zero, the default and the
         physical choice. Setting it False is occasionally useful for a
@@ -169,6 +186,16 @@ def unmix(spectrum, library, *, non_negative=True, wavelengths=None):
     else:
         amounts, *_ = np.linalg.lstsq(design, fit_y, rcond=None)
 
+    # The fit recovers c*l; Beer-Lambert wants c. Only meaningful when the
+    # references are absolute -- with relative references there is no
+    # concentration for a path length to be wrong about.
+    if path_length is None:
+        path_length = float(spectrum.metadata.get('path_length', 1.0))
+    if path_length <= 0:
+        raise ValueError(f"path length must be positive, got {path_length}")
+    absolute = any(reference.is_absolute for reference in library)
+    concentrations = amounts / path_length if absolute else amounts
+
     # Uncertainties from the covariance of the unconstrained problem. With the
     # non-negative constraint active on a component this understates it, which
     # is another reason the residual is the honest diagnostic.
@@ -180,6 +207,8 @@ def unmix(spectrum, library, *, non_negative=True, wavelengths=None):
         stderr = np.sqrt(np.clip(np.diag(covariance), 0.0, None))
     except np.linalg.LinAlgError:
         stderr = np.full(design.shape[1], np.nan)
+    if absolute:
+        stderr = stderr / path_length          # scales with the amounts
 
     # Reconstruct across the whole axis even when the fit used a few points,
     # so the residual shows what the model does everywhere and not only where
@@ -201,13 +230,15 @@ def unmix(spectrum, library, *, non_negative=True, wavelengths=None):
 
     units = {reference.unit for reference in library if reference.unit}
     return UnmixResult(
-        names=tuple(library.names), amounts=amounts, stderr=stderr,
+        names=tuple(library.names), amounts=concentrations, stderr=stderr,
         residual=residual, reconstruction=reconstruction,
         r_squared=r_squared,
         unit=(units.pop() if len(units) == 1 else ''),
         condition_number=float(np.linalg.cond(design)),
+        path_length=path_length,
         metadata={'non_negative': non_negative,
                   'n_points': len(fit_y),
+                  'absolute': absolute,
                   'wavelengths': None if wavelengths is None
                   else list(np.asarray(fit_x))},
     )

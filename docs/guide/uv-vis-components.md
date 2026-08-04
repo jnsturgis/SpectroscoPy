@@ -35,7 +35,7 @@ from spectroscopy.processing.unmix import (
 # be checked against a known truth. They are the right shape and the wrong
 # spectrum: do not use them for anything. Real ones are measured -- see
 # "Making your own references" at the end.
-x = np.linspace(220.0, 340.0, 241)
+x = np.linspace(220.0, 400.0, 361)
 dna_eps = 20.0 * gauss(x, 260, 22, 1.0) + 8.0 * gauss(x, 230, 18, 1.0)
 protein_eps = 1.0 * gauss(x, 280, 14, 1.0) + 12.0 * gauss(x, 225, 12, 1.0)
 haem_eps = 30.0 * gauss(x, 300, 10, 1.0)
@@ -50,6 +50,11 @@ references = Library([
     Reference('protein', uv(protein_eps, 'protein'), unit='(ug/mL)^-1 cm^-1',
               source='SYNTHETIC — for documentation only'),
 ], name='documentation')
+
+# The mixture used throughout: amounts we choose, so every number below can be
+# checked against a known answer.
+truth = {'dsDNA': 0.030, 'protein': 0.400}          # µg/mL
+sample = uv(truth['dsDNA'] * dna_eps + truth['protein'] * protein_eps, 'sample')
 ```
 
 ## The references
@@ -75,14 +80,80 @@ when it is decorative. It ships published *scalar* coefficients, and the means
 to measure your own spectra.
 ```
 
-## Unmixing a known mixture
+## First: scattering
 
-Make a mixture with amounts we know, and see whether they come back:
+A turbid sample — membranes, vesicles, anything not fully dissolved —
+attenuates light by scattering as well as absorbing, and the spectrophotometer
+cannot tell the difference. **This has to be dealt with before unmixing**, and
+here is why:
 
 ```{code-cell}
-truth = {'dsDNA': 0.030, 'protein': 0.400}      # µg/mL
-sample = uv(truth['dsDNA'] * dna_eps + truth['protein'] * protein_eps, 'sample')
+from spectroscopy.processing.scattering import correct_scattering
 
+scatter = 0.6 * (x / 400.0) ** -3.2 + 0.25 * (x / 400.0) ** -1.5
+turbid = uv(truth['dsDNA'] * dna_eps + truth['protein'] * protein_eps + scatter,
+            'turbid')
+
+spoiled = unmix(turbid, references)
+print("true      ", truth)
+print("uncorrected", {n: round(float(v), 4) for n, v in spoiled})
+```
+
+The nucleic acid comes out **eight times too high**. Scattering is not one of
+the components, so the fit spreads it across the ones it has — and R² stays
+respectable throughout.
+
+The background is fitted where nothing absorbs (320–400 nm by default for
+protein and nucleic acid) and extrapolated:
+
+```{code-cell}
+corrected, background = correct_scattering(turbid, return_background=True)
+
+fig, ax = plt.subplots()
+turbid.plot(ax, label='measured')
+background.plot(ax, label='fitted scattering', linestyle='--')
+corrected.plot(ax, label='corrected')
+ax.axvspan(320, 400, color='k', alpha=0.07)
+ax.legend(fontsize='small');
+```
+
+```{code-cell}
+print("corrected ", {n: round(float(v), 4) for n, v in unmix(corrected, references)})
+```
+
+Rayleigh scattering goes as λ⁻⁴, but real samples are polydisperse and the
+exponent falls toward zero as particles approach and exceed the wavelength. So
+the default fits a **basis of power laws** rather than one, which spans that
+range without anyone having to declare a particle size:
+
+```{code-cell}
+from spectroscopy.processing.scattering import scatter_baseline
+
+basis = scatter_baseline(x, turbid.y)                       # the default
+rayleigh = scatter_baseline(x, turbid.y, exponents=[4.0])   # fixed exponent
+for label, estimate in (('power basis', basis), ('Rayleigh only', rayleigh)):
+    print(f"{label:<14} max error {np.max(np.abs(estimate - scatter)):.4f}")
+```
+
+Where you have blanks — the same particles without the chromophore —
+`scattering.from_references` fits those instead, and that is better still,
+because a measured background scatters the way your sample does including
+whatever a power law cannot express.
+
+```{warning}
+The fit region must be one where your sample really does not absorb. Fit
+through a band and the background will eat it; the correction warns when the
+region still holds structure afterwards, but it cannot know what your sample
+contains. A haem or a carotenoid needs a different window.
+```
+
+## Unmixing a known mixture
+
+The mixture was built from known amounts, so the test is whether they come
+back:
+
+```{code-cell}
+print("true:", truth)
 result = unmix(sample, references)
 print(result)
 ```
@@ -113,7 +184,7 @@ print(f"clean        A260/A280 = {absorbance_ratio(sample):.3f}")
 print(f"contaminated A260/A280 = {absorbance_ratio(contaminated):.3f}")
 ```
 
-Two numbers taken from 241 points cannot see it. The ratio barely moves.
+Two numbers taken from 361 points cannot see it. The ratio barely moves.
 
 ## The residual is the diagnostic
 
@@ -228,6 +299,52 @@ removed.
 
 A reference measured this way goes straight back into a library and is used
 like any other — which closes the loop.
+
+## Path length
+
+Beer–Lambert is `A = ε·c·l`, so fitting extinction spectra recovers `c·l` and
+the concentration needs the division. The default is the standard 1 cm cuvette;
+anything else has to be said, because nothing about the result looks wrong when
+it is not:
+
+```{code-cell}
+print("1 cm  :", np.round(unmix(sample, references).amounts, 4))
+print("1 mm  :", np.round(unmix(sample, references, path_length=0.1).amounts, 4))
+```
+
+A spectrum that records its own path length is used without being asked:
+
+```{code-cell}
+in_a_short_cell = sample._derive()
+in_a_short_cell.metadata['path_length'] = 0.1
+print(unmix(in_a_short_cell, references).amounts.round(4),
+      "from metadata, path length",
+      unmix(in_a_short_cell, references).path_length, "cm")
+```
+
+## Is ε a unit?
+
+Not a convertible one, and the distinction is deliberate. `spectroscopy.units`
+knows about `M^-1 cm^-1` and its relatives, but they are **not** in the
+convertible `Y_UNITS` table:
+
+```{code-cell}
+from spectroscopy import units
+
+for unit in ('M^-1 cm^-1', '(ug/mL)^-1 cm^-1', 'absorbance', 'cm^-1'):
+    print(f"{unit:<18} extinction={units.is_extinction(unit)!s:<6}"
+          f" bands={units.band_direction(unit):<8}"
+          f" convertible={units.can_convert_y(unit)}")
+```
+
+`Y_UNITS` means "can be converted to transmittance". ε cannot: going from ε to
+absorbance is `A = ε·c·l`, which needs two numbers that are not properties of
+the spectrum. It is a different quantity, not another spelling of absorbance.
+
+It *is* absorbance-shaped, though — bands point up — so it is registered in
+`BAND_DIRECTION` and peak-finding on an ε spectrum does the right thing rather
+than falling back on an assumption. Note that `cm^-1` is excluded: that is
+wavenumber, an x unit.
 
 ## Published coefficients
 

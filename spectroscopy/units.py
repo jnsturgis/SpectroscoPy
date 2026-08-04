@@ -29,12 +29,14 @@ point pint earns its place. See also review section 5.6 on dependency policy.
 
 from __future__ import annotations
 
+import re
+
 import numpy as np
 
 __all__ = [
     'convert_x', 'convert_y', 'can_convert_x', 'can_convert_y',
-    'band_direction', 'is_valley_pointing',
-    'X_UNITS', 'Y_UNITS', 'BAND_DIRECTION',
+    'band_direction', 'is_valley_pointing', 'is_extinction',
+    'X_UNITS', 'Y_UNITS', 'BAND_DIRECTION', 'EXTINCTION_UNITS',
 ]
 
 #: nm per eV, i.e. h*c in eV*nm (CODATA 2018).
@@ -87,6 +89,38 @@ BAND_DIRECTION = {
 }
 
 
+#: Extinction-coefficient units, matched exactly. Anything of the form
+#: ``<concentration>^-1 cm^-1`` is also recognised by :func:`is_extinction`.
+EXTINCTION_UNITS = (
+    'M^-1 cm^-1', 'mM^-1 cm^-1', 'uM^-1 cm^-1', 'nM^-1 cm^-1',
+    '(mg/mL)^-1 cm^-1', '(ug/mL)^-1 cm^-1', '(mg/mL)^-1', 'M^-1',
+)
+
+#: ``<concentration>^-1 cm^-1``. The ``cm^-1`` suffix is required, not
+#: optional: without it the pattern also matches ``cm^-1`` itself, which is
+#: wavenumber -- an x unit, and emphatically not an extinction coefficient.
+#: Path-length-free spellings such as ``M^-1`` are listed explicitly instead.
+_EXTINCTION_PATTERN = re.compile(r'^\(?[^()]+\)?\^-1\s+cm\^-1$')
+
+
+def is_extinction(unit) -> bool:
+    """
+    True for an extinction-coefficient unit -- ``M^-1 cm^-1`` and friends.
+
+    Deliberately **not** a member of :data:`Y_UNITS`. That table means "can be
+    converted to transmittance", and epsilon cannot: going from epsilon to
+    absorbance is ``A = eps * c * l``, which needs a concentration and a path
+    length that are not properties of the spectrum. It is a different
+    quantity, not another spelling of absorbance.
+
+    It is absorbance-*shaped* though -- bands point up -- which is why it
+    appears in :data:`BAND_DIRECTION`.
+    """
+    if unit in EXTINCTION_UNITS:
+        return True
+    return bool(unit) and bool(_EXTINCTION_PATTERN.match(str(unit).strip()))
+
+
 def band_direction(unit) -> str:
     """
     ``'up'``, ``'down'`` or ``'unknown'`` for a y unit.
@@ -96,7 +130,12 @@ def band_direction(unit) -> str:
     fix a direction. Callers should keep their existing behaviour there rather
     than guess, and say what they assumed.
     """
-    return BAND_DIRECTION.get(unit, 'unknown')
+    if unit in BAND_DIRECTION:
+        return BAND_DIRECTION[unit]
+    # An extinction spectrum is absorbance divided by two constants, so its
+    # bands point the same way absorbance's do. Recognised by shape rather than
+    # by enumeration, because the concentration unit in front varies.
+    return 'up' if is_extinction(unit) else 'unknown'
 
 
 def is_valley_pointing(unit) -> bool:

@@ -288,3 +288,68 @@ def test_protein_epsilon_from_sequence():
     assert lib.protein_epsilon_280(0, 1, 0) == pytest.approx(1490.0)
     # Lysozyme: 6 Trp, 3 Tyr, 4 cystines -> about 38 000, the accepted figure.
     assert lib.protein_epsilon_280(6, 3, 4) == pytest.approx(37970.0)
+
+
+# ---------------------------------------------------------------------------
+# Path length
+# ---------------------------------------------------------------------------
+
+def test_path_length_scales_the_concentrations(references):
+    """A = eps*c*l, so the fit gives c*l and the concentration needs l."""
+    mixture = _spectrum(0.03 * DNA_EPS + 0.40 * PROTEIN_EPS)
+
+    standard = unmix(mixture, references)
+    short = unmix(mixture, references, path_length=0.1)
+
+    assert standard.path_length == 1.0
+    assert short['dsDNA'] == pytest.approx(10.0 * standard['dsDNA'])
+    assert short.stderr[0] == pytest.approx(10.0 * standard.stderr[0])
+
+
+def test_path_length_is_taken_from_metadata_when_not_given(references):
+    """So a reader that knows the cuvette can record it once."""
+    mixture = _spectrum(0.03 * DNA_EPS + 0.40 * PROTEIN_EPS)
+    mixture.metadata['path_length'] = 0.5
+
+    result = unmix(mixture, references)
+    assert result.path_length == 0.5
+    assert result['dsDNA'] == pytest.approx(0.06, rel=1e-6)
+    # An explicit argument still wins over the recorded value.
+    assert unmix(mixture, references, path_length=1.0)['dsDNA'] == \
+        pytest.approx(0.03, rel=1e-6)
+
+
+def test_path_length_does_nothing_to_relative_references():
+    """With no absolute reference there is no concentration to get wrong."""
+    relative = Library([Reference('a', _spectrum(DNA_EPS)),
+                        Reference('b', _spectrum(PROTEIN_EPS))])
+    mixture = _spectrum(0.03 * DNA_EPS + 0.40 * PROTEIN_EPS)
+    assert np.allclose(unmix(mixture, relative, path_length=0.1).amounts,
+                       unmix(mixture, relative).amounts)
+
+
+def test_a_nonsense_path_length_is_refused(references):
+    mixture = _spectrum(DNA_EPS)
+    with pytest.raises(ValueError, match='must be positive'):
+        unmix(mixture, references, path_length=0.0)
+
+
+def test_extinction_units_are_recognised_but_not_convertible():
+    """
+    Epsilon is absorbance-shaped, not another spelling of absorbance.
+
+    Bands point up, so peak finding works; but eps -> A needs a concentration
+    and a path length that are not properties of the spectrum, so it is
+    deliberately absent from the convertible table.
+    """
+    from spectroscopy import units
+
+    for unit in ('M^-1 cm^-1', 'mM^-1 cm^-1', '(ug/mL)^-1 cm^-1'):
+        assert units.is_extinction(unit)
+        assert units.band_direction(unit) == 'up'
+        assert not units.can_convert_y(unit)
+
+    # cm^-1 is wavenumber -- an x unit, and emphatically not an extinction.
+    assert not units.is_extinction('cm^-1')
+    assert not units.is_extinction('absorbance')
+    assert not units.is_extinction('')
