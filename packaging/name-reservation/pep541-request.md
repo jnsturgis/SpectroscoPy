@@ -2,9 +2,20 @@
 
 ## ✅ Status: the owner has agreed (2026-08-04)
 
-Joey Goodknight replied to the 2026-08-03 email and **is willing to hand over
-the name**. He cannot act on it yet: he is locked out of his PyPI account and
-has filed an account recovery request.
+Joey Knightbrook — who published the existing `spectroscopy` as Joey
+Goodknight, and whose PyPI and GitHub account is still `jgoodknight` — replied
+to the 2026-08-03 email and **is willing to hand over the name**.
+
+He cannot act on it yet: he is locked out of his PyPI account and has filed
+
+> **account recovery request:
+> <https://github.com/pypi/support/issues/11748>** (open as of 2026-08-04)
+
+The cause is an unverified email address rather than a lost account, and his
+GitHub account is still verified against it, so this looks recoverable. The
+outgoing email already explained the collaboration-page route, and he has been
+a software engineer at Google and Snap since graduating, so the mechanics are
+not the obstacle — access is.
 
 So the position is no longer "dormant project, silent owner". It is "owner
 consents, and the transfer is waiting on PyPI restoring his access".
@@ -24,14 +35,13 @@ request.
 ## What happens next
 
 **Path 1 — his recovery succeeds (expected).** No PyPI admin involvement is
-needed at all. Once he is back in, he can do it himself:
+needed at all. Once he is back in:
 
 > `https://pypi.org/manage/project/spectroscopy/collaboration/` → invite
 > `jnsturgis` as **Owner**. He can then remove himself, or not; either way the
 > name is usable.
 
-That is the clean route and it is worth saying so to him explicitly, because
-it is not obvious that a project can be handed over without involving support.
+Already explained in the outgoing email, and he almost certainly knew.
 
 **Path 2 — his recovery stalls.** Then a support request is still needed, but
 it is a *completely different and much easier* one than the draft below: not
@@ -39,12 +49,27 @@ it is a *completely different and much easier* one than the draft below: not
 his account". PyPI's volunteers handle that routinely and sympathetically.
 
 Both his recovery request and any transfer request live in the same tracker,
-<https://github.com/pypi/support>, which makes cross-referencing easy — quote
-his recovery issue number if he will share it.
+so a transfer request can simply point at
+<https://github.com/pypi/support/issues/11748>.
 
 **When to chase.** Account recovery is usually days to a few weeks. If nothing
 has moved by **2026-09-15**, ask him how it is going rather than escalating;
 he is on our side and the delay is not his doing.
+
+## Two commitments made, to be honoured on transfer
+
+**Version 0.10 stays.** His release remains available on PyPI. Anyone with
+`spectroscopy==0.10` pinned keeps working, and the historical record of the
+project stays intact. Our first release under the name goes well above it —
+`0.2.0` or later, never a number that could collide.
+
+This is not merely politeness: silently removing a release that somebody might
+depend on is the kind of thing the whole `pyspectroscopy` placeholder exists to
+avoid on our own side.
+
+**He is acknowledged for the name**, in `README.md`, on the documentation
+site, and in `CITATION.cff`. Written down here because an acknowledgement that
+depends on somebody remembering is not a commitment.
 
 ---
 
@@ -141,13 +166,13 @@ available, and I would publish under a version number well above it.
 
 ## Before opening anything
 
-- [x] ~~Fill in the PyPI username~~ — `jnsturgis`. **Check this is right**; it
-      was taken from the account-recovery filename, not confirmed directly.
+- [x] ~~Fill in the PyPI username~~ — `jnsturgis`, confirmed.
 - [x] ~~Fill in the date the email was sent~~ — 2026-08-03, replied 2026-08-04.
-- [ ] Ask Joey for his account-recovery issue number, so a transfer request
-      can point at it.
-- [ ] Tell him about the collaboration page — he may not know he can do it
-      himself once he is back in.
+- [x] ~~Ask for his account-recovery issue number~~ — he supplied it:
+      <https://github.com/pypi/support/issues/11748>.
+- [x] ~~Tell him about the collaboration page~~ — done in the email.
 - [ ] If quoting the test count or CI matrix, take the current numbers. A
       stale figure costs credibility in a request whose argument is that the
       replacement is real and maintained.
+- [ ] On transfer: check `spectroscopy==0.10` still installs, and that our
+      first upload is numbered above it.

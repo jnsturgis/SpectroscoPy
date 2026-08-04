@@ -155,6 +155,12 @@ to add a file format, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 Cite the repository URL rather than a `pip` name for now: the PyPI name is not
 yet settled.
 
+## Acknowledgements
+
+The PyPI name `spectroscopy` was given to this project by **Joey Knightbrook**,
+who published the original package of that name in 2017. His release stays
+available: anything pinned to `spectroscopy==0.10` keeps working.
+
 ## Licence
 
 [Mozilla Public License 2.0](LICENSE). Use it in anything; changes to these

@@ -30,6 +30,19 @@ license: MPL-2.0
 version: 0.1.0
 date-released: "2026-08-01"
 
+references:
+  - type: software
+    title: "spectroscopy (original PyPI package of that name)"
+    authors:
+      - family-names: Knightbrook
+        given-names: Joey
+    year: 2017
+    url: "https://github.com/jgoodknight/spectroscopy"
+    notes: >-
+      Joey Knightbrook, who published this package as Joey Goodknight, gave the
+      PyPI name `spectroscopy` to the present project. His version 0.10 remains
+      available on PyPI and is not superseded by it.
+
 # Notes for whoever updates this file.
 #
 # Update `version` and `date-released` on every tagged release. GitHub reads

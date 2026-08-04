@@ -1515,8 +1515,17 @@ Three consequences:
   himself. Worth telling him, since it is not obvious that a project can be
   handed over without going through support.
 
-If nothing has moved by **2026-09-15**, ask him how the recovery is going
-rather than escalating — the delay is not his doing.
+His recovery request is
+[pypi/support#11748](https://github.com/pypi/support/issues/11748), open, and
+the cause is an unverified email address with a still-verified GitHub account
+attached — which reads as recoverable. If nothing has moved by **2026-09-15**,
+ask him how it is going rather than escalating; the delay is not his doing.
+
+**Two commitments made in return, and recorded so they do not depend on
+memory:** his version 0.10 stays on PyPI, so anything pinned to
+`spectroscopy==0.10` keeps working and our first release under the name goes
+well above it; and he is acknowledged for the name in `README.md`, on the
+documentation site, and in `CITATION.cff`.
 
 Everything for all three routes is in `packaging/name-reservation/`:
 

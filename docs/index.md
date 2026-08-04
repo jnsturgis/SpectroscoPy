@@ -55,6 +55,13 @@ format it cannot verify it is writing correctly.
 Techniques with built-in axis conventions: ATR-FTIR, FTIR, UV-Vis, Raman,
 fluorescence.
 
+## Acknowledgements
+
+The PyPI name `spectroscopy` was given to this project by **Joey
+Knightbrook**, who published the original package of that name in 2017. His
+release stays available: anything pinned to `spectroscopy==0.10` keeps
+working.
+
 ```{toctree}
 :maxdepth: 2
 :hidden:
