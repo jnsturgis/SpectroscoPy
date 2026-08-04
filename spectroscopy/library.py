@@ -282,7 +282,7 @@ class Library:
                           for reference in self])
 
 
-def from_series(collection, concentrations, name, *, path_length=1.0,
+def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
                 unit='M^-1 cm^-1', source=''):
     """
     Build a :class:`Reference` from spectra of known concentration.
@@ -303,8 +303,14 @@ def from_series(collection, concentrations, name, *, path_length=1.0,
     collection : SpectrumCollection
         Spectra of the same species at different known concentrations, on a
         common wavelength axis.
-    concentrations : sequence of float
+    concentrations : sequence of float, optional
         One per spectrum, in whatever unit ``unit`` is the inverse of.
+        Defaults to the collection's own parameter, so a series loaded with
+        ``from_files(parameter_from=...)`` or labelled with
+        ``set_parameters(...)`` needs no second list -- and cannot fall out of
+        step with one.
+    name : str, optional
+        What the reference is called. Defaults to the collection's name.
     path_length : float
         Cuvette path length, cm.
 
@@ -314,6 +320,23 @@ def from_series(collection, concentrations, name, *, path_length=1.0,
         With :attr:`Reference.uncertainty` set per wavelength.
     """
     from spectroscopy.spectra import Spectrum  # noqa: PLC0415
+
+    if concentrations is None:
+        concentrations = getattr(collection, 'parameters', None)
+        if concentrations is None or np.isnan(concentrations).any():
+            raise ValueError(
+                "no concentrations given and the collection does not carry "
+                "them. Either pass them, or attach them when loading with "
+                "SpectrumCollection.from_files(parameter_from=...) or "
+                "collection.set_parameters([...])."
+            )
+    if name is None:
+        name = getattr(collection, 'name', None)
+        if not name:
+            raise ValueError(
+                "no name given and the collection has none; a reference has "
+                "to be called something to be selected from a Library later"
+            )
 
     concentrations = np.asarray(concentrations, dtype=float)
     if len(concentrations) != len(collection):

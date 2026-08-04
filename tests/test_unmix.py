@@ -252,6 +252,46 @@ def test_a_single_concentration_is_refused():
         from_series(series, [1.0], 'dsDNA')
 
 
+def test_a_series_carries_its_own_concentrations():
+    """
+    The second list is the thing that falls out of step with the spectra, so a
+    collection that carries its concentrations should not need one.
+    """
+    concentrations = [5.0, 10.0, 20.0]
+    series = SpectrumCollection(
+        [_spectrum(c * DNA_EPS) for c in concentrations],
+        name='dsDNA').set_parameters(concentrations,
+                                     name='concentration', unit='ug/mL')
+
+    reference = from_series(series, unit='(ug/mL)^-1 cm^-1')
+
+    assert reference.name == 'dsDNA'
+    assert np.allclose(reference.spectrum.y, DNA_EPS, atol=1e-6)
+
+
+def test_an_explicit_list_still_wins_over_the_carried_one():
+    concentrations = [5.0, 10.0, 20.0]
+    series = SpectrumCollection(
+        [_spectrum(c * DNA_EPS) for c in concentrations],
+        name='dsDNA').set_parameters([1.0, 2.0, 4.0])
+
+    reference = from_series(series, concentrations)
+    assert np.allclose(reference.spectrum.y, DNA_EPS, atol=1e-6)
+
+
+def test_a_series_with_no_concentrations_anywhere_says_so():
+    series = SpectrumCollection([_spectrum(DNA_EPS), _spectrum(2 * DNA_EPS)],
+                                name='dsDNA')
+    with pytest.raises(ValueError, match='parameter_from'):
+        from_series(series)
+
+
+def test_a_reference_has_to_be_called_something():
+    series = SpectrumCollection([_spectrum(DNA_EPS), _spectrum(2 * DNA_EPS)])
+    with pytest.raises(ValueError, match='called something'):
+        from_series(series, [1.0, 2.0])
+
+
 # ---------------------------------------------------------------------------
 # Published coefficients
 # ---------------------------------------------------------------------------

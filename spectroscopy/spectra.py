@@ -1116,6 +1116,45 @@ class Spectrum:
         """
         self.metadata['reference'] = ref_name
 
+    def set_parameter(self, value, name=None, unit=None) -> None:
+        """
+        Record the **continuous** condition this spectrum was measured at.
+
+        ``sample`` is categorical -- two spectra either are the same sample or
+        are not. A titration, a melt or a dilution series is not like that: the
+        spectra differ along an axis with an order and a distance, and the
+        analysis needs the number, not a label. -120 mV, 37 C, 5 uM.
+
+        The value goes in ``metadata['parameter']`` and stays there, so that
+        anything reading a collection knows where to look without being told;
+        ``name`` and ``unit`` are stored alongside as labels for axes and
+        reports, not as lookup keys.
+
+        Parameters
+        ----------
+        value : float
+            The condition. Must be a real number -- that is the whole point of
+            this being separate from :meth:`set_sample`.
+        name : str, optional
+            What it is: ``'potential'``, ``'temperature'``, ``'concentration'``.
+        unit : str, optional
+            What it is in: ``'mV'``, ``'C'``, ``'uM'``.
+        """
+        try:
+            value = float(value)
+        except (TypeError, ValueError) as error:
+            raise TypeError(
+                f"parameter must be a number, got {value!r}. For a categorical "
+                f"label use set_sample() instead -- the difference matters "
+                f"because a parameter gets sorted and fitted along, and a "
+                f"sample name does not."
+            ) from error
+        self.metadata['parameter'] = value
+        if name is not None:
+            self.metadata['parameter_name'] = name
+        if unit is not None:
+            self.metadata['parameter_unit'] = unit
+
     def set_type( self, spec_type, force_units=False ) -> None:
         """
         Set the technique, and with it the default axis quantities and units.

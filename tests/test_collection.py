@@ -198,3 +198,146 @@ def test_rejects_non_spectra():
 def test_empty_collection_reduction_is_an_error():
     with pytest.raises(ValueError, match="empty collection"):
         SpectrumCollection().mean()
+
+
+# ---------------------------------------------------------------------------
+# a continuous parameter -- the axis a titration, a melt or a series varies
+# along, which `sample` cannot express because it is categorical (roadmap 16.3)
+# ---------------------------------------------------------------------------
+
+@pytest.fixture
+def titration_tree(tmp_path):
+    """
+    A redox titration, named the way one really would be.
+
+    The potentials are deliberately chosen so that text order and numeric order
+    disagree: sorted as strings, -120 comes before -20.
+    """
+    for potential, level in [(-120, 1.0), (-20, 2.0), (0, 3.0), (60, 4.0)]:
+        path = tmp_path / f"cyt_{potential}mV.dpt"
+        path.write_text("".join(f"{x}\t{level}\n" for x in X))
+    return tmp_path
+
+
+def test_parameter_from_a_regular_expression(titration_tree):
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV',
+        parameter_name='potential', parameter_unit='mV')
+    assert sorted(collection.parameters) == [-120.0, -20.0, 0.0, 60.0]
+    assert collection.parameter_name == 'potential'
+    assert collection.parameter_unit == 'mV'
+
+
+def test_parameter_from_a_callable(titration_tree):
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"),
+        parameter_from=lambda p: float(p.split('_')[-1].removesuffix('mV.dpt')))
+    assert sorted(collection.parameters) == [-120.0, -20.0, 0.0, 60.0]
+
+
+def test_files_load_in_text_order_which_is_the_wrong_order(titration_tree):
+    """The trap sorted_by_parameter exists for: '-120' sorts before '-20'."""
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV')
+    assert list(collection.parameters) == [-120.0, -20.0, 0.0, 60.0]
+
+    # ... but make the trap bite: text order puts -20 before -60.
+    (titration_tree / "cyt_-60mV.dpt").write_text(
+        "".join(f"{x}\t9.0\n" for x in X))
+    reloaded = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV')
+    assert list(reloaded.parameters) == [-120.0, -20.0, -60.0, 0.0, 60.0]
+    assert list(reloaded.sorted_by_parameter().parameters) == [
+        -120.0, -60.0, -20.0, 0.0, 60.0]
+
+
+def test_sorted_by_parameter_reverse(titration_tree):
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV')
+    assert list(collection.sorted_by_parameter(reverse=True).parameters) == [
+        60.0, 0.0, -20.0, -120.0]
+
+
+def test_sorting_carries_the_spectra_not_just_the_numbers(titration_tree):
+    """The y values must travel with their potential, or the fit is nonsense."""
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV')
+    ordered = collection.sorted_by_parameter()
+    for spectrum in ordered:
+        assert spectrum.metadata['parameter'] == pytest.approx(
+            {1.0: -120.0, 2.0: -20.0, 3.0: 0.0, 4.0: 60.0}[spectrum.y[0]])
+
+
+def test_a_pattern_that_matches_nothing_says_which_file(titration_tree):
+    with pytest.raises(ValueError, match="does not match"):
+        SpectrumCollection.from_files(str(titration_tree / "*.dpt"),
+                                      parameter_from=r'(\d+)degC')
+
+
+def test_a_pattern_needs_exactly_one_capture_group(titration_tree):
+    with pytest.raises(ValueError, match="capture group"):
+        SpectrumCollection.from_files(str(titration_tree / "*.dpt"),
+                                      parameter_from=r'(-?\d+)(mV)')
+
+
+def test_set_parameters_from_a_lab_notebook(collection):
+    """The usual case: the numbers were never in the filenames."""
+    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30],
+                                         name='concentration', unit='uM')
+    assert list(labelled.parameters) == [1.0, 2.0, 3.0, 10.0, 20.0, 30.0]
+    assert labelled.parameter_unit == 'uM'
+
+
+def test_set_parameters_does_not_touch_the_original(collection):
+    collection.set_parameters([1, 2, 3, 4, 5, 6])
+    assert np.isnan(collection.parameters).all()
+
+
+def test_set_parameters_checks_the_count(collection):
+    with pytest.raises(ValueError, match="6 spectra"):
+        collection.set_parameters([1, 2, 3])
+
+
+def test_parameters_are_nan_when_absent(collection):
+    assert np.isnan(collection.parameters).all()
+
+
+def test_to_matrix_with_parameter(collection):
+    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30])
+    x, matrix, parameter = labelled.to_matrix(with_parameter=True)
+    assert x.shape == (91,)
+    assert matrix.shape == (6, 91)
+    assert list(parameter) == [1.0, 2.0, 3.0, 10.0, 20.0, 30.0]
+
+
+def test_to_matrix_refuses_to_hand_a_fit_a_nan(collection):
+    with pytest.raises(ValueError, match="no parameter"):
+        collection.to_matrix(with_parameter=True)
+
+
+def test_to_matrix_without_a_parameter_is_unchanged(collection):
+    assert len(collection.to_matrix()) == 2
+
+
+def test_sorting_needs_every_parameter(collection):
+    with pytest.raises(ValueError, match="no parameter"):
+        collection.sorted_by_parameter()
+
+
+def test_a_parameter_must_be_a_number():
+    spectrum = _spectrum("s", 1)
+    with pytest.raises(TypeError, match="set_sample"):
+        spectrum.set_parameter("cold")
+
+
+def test_the_parameter_survives_processing(collection):
+    """It lives in metadata, so _derive carries it -- worth pinning."""
+    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30])
+    assert list(labelled.crop(1000, 1700).parameters) == [
+        1.0, 2.0, 3.0, 10.0, 20.0, 30.0]
+
+
+def test_repr_shows_the_range(collection):
+    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30],
+                                         name='potential', unit='mV')
+    assert 'potential 1 to 30 mV' in repr(labelled)

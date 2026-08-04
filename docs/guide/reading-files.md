@@ -133,6 +133,94 @@ except ValueError as error:
 
 Returning the first of three silently would be worse than failing.
 
+## A series measured along something
+
+`sample` is a **label**: two spectra either are the same sample or they are
+not. A titration, a melt or a dilution series is not like that. Those spectra
+differ along an axis that has an order and a distance — −120 mV, 37 °C, 5 µM —
+and the analysis needs the number, not a name.
+
+`parameter_from` reads it out of the path, either with a callable or with a
+regular expression holding one capture group:
+
+```{code-cell}
+titration = tmp / "titration"
+titration.mkdir()
+for potential in (-120, -60, -20, 0, 60):
+    text = "".join(f"{v}\t{0.5 + potential / 400:.4f}\n"
+                   for v in np.linspace(400, 700, 6))
+    (titration / f"cyt_{potential}mV.dpt").write_text(text)
+
+series = spc.SpectrumCollection.from_files(
+    titration / "*.dpt",
+    parameter_from=r'(-?\d+)mV',
+    parameter_name='potential', parameter_unit='mV')
+
+print(series)
+print(series.parameters)
+```
+
+Look at the order. Those files were sorted, and they still came back
+**−120, −20, −60, 0, 60** — because sorting a path sorts it as *text*, where
+`-120` precedes `-20`. Plot that as it stands and you get a scribble; fit it
+and you get a number with no warning attached to it.
+
+```{code-cell}
+print(series.sorted_by_parameter().parameters)
+```
+
+That is the whole reason a parameter is worth having as a first-class thing
+rather than a note in `metadata`: the library can put the spectra in order
+because it knows which number means *order*.
+
+When the numbers were never in the filenames — the usual case, since the
+potentiostat does not write into the spectrophotometer's files — attach them
+from the lab notebook instead.
+
+`set_parameters` matches **by position**, so look at the order you actually
+have before you write the list down. That is not a formality: the order is the
+one from the filenames, which is the text order shown above, not the order the
+experiment was run in.
+
+```{code-cell}
+plain = spc.SpectrumCollection.from_files(titration / "*.dpt")
+for spectrum in plain:
+    print(spectrum.metadata['sample'])
+```
+
+```{code-cell}
+labelled = plain.set_parameters([-120, -20, -60, 0, 60],
+                                name='potential', unit='mV')
+print(labelled.sorted_by_parameter().parameters)
+
+try:
+    plain.set_parameters([-120, -20, -60])
+except ValueError as error:
+    print(error)
+```
+
+If a list in numeric order looks more natural to you than that one did, that is
+the argument for `parameter_from`: it reads each number off the file it belongs
+to, so there is no order to get right.
+
+`to_matrix()` then hands over all three arrays together, which is what fitting
+along the parameter needs:
+
+```{code-cell}
+x, matrix, potential = labelled.sorted_by_parameter().to_matrix(
+    with_parameter=True)
+print(x.shape, matrix.shape, potential)
+```
+
+It refuses if any spectrum lacks a parameter, rather than passing a fit a
+silent `nan`. Reading `.parameters` on a part-labelled collection is fine and
+gives `nan` — looking is not the same as fitting.
+
+A calibration series is the same idea with concentration as the parameter, and
+[`library.from_series`](uv-vis-components.md) will then take the concentrations
+from the collection rather than from a second list you have to keep in step
+with it.
+
 ## A `.csv` is often neither comma separated nor dot decimal
 
 A spreadsheet exported under a French, German, Spanish or Italian locale

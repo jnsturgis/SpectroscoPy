@@ -763,7 +763,7 @@ to say that the standard tools do not — the usual practice is to pick a
 wavelength, plot absorbance against potential, and fit, which silently assumes
 the species are spectrally resolved at that wavelength.
 
-### 16.3 ⚠️ A collection cannot yet carry a continuous parameter
+### 16.3 ✅ A collection can now carry a continuous parameter (2026-08-04)
 
 `SpectrumCollection.from_files(..., sample_from=...)` attaches a **categorical
 sample name** to each spectrum, and `group_by` groups on it. There is nowhere to
@@ -776,6 +776,43 @@ from the filename or the file's own metadata, and an accessor on the collection
 that returns it as an array aligned with the spectra. Worth doing before the
 freeze because it is the natural partner to `to_matrix()` — the analysis wants
 `(x, X, parameter)` and can currently only get the first two.
+
+**Built 2026-08-04.** `Spectrum.set_parameter(value, name=, unit=)` stores the
+number under one canonical key, `metadata['parameter']`, with the name and unit
+alongside as *labels* rather than lookup keys — so anything reading a
+collection finds it without being told which field to look in, which is the
+same single-source-of-truth argument as the reader registry. On the collection:
+
+- `from_files(parameter_from=...)`, taking a callable or a regex with one
+  capture group searched against the path.
+- `.parameters` → array, `nan` where absent; `.parameter_name`, `.parameter_unit`.
+- `set_parameters(values, ...)` for numbers that live in a lab notebook, which
+  is the commoner case.
+- `to_matrix(with_parameter=True)` → `(x, X, parameter)`, refusing rather than
+  handing a fit a `nan`.
+- `sorted_by_parameter()`.
+
+`library.from_series` now defaults its concentrations to the collection's
+parameter, which was the second caller this was waiting for.
+
+**`sorted_by_parameter()` was not in the original ask, and is the part that
+earns its place.** `from_files(sort=True)` sorts paths as *text*, so a
+titration loads as −120, −20, −60, 0, 60. That is not a hypothetical: the
+executing guide page prints exactly that array, because the example was built
+from ordinary filenames and no effort was made to trip it. Plotted it is a
+scribble; fitted it is a number with nothing wrong on the face of it.
+
+**One trap survives and is documentation-only.** `set_parameters` matches by
+position and nothing can validate that — a list written in the order the
+experiment was run is silently wrong if the files loaded in another order, and
+they usually did. Writing the guide, I walked into it myself and paired every
+potential with the wrong spectrum; it was caught by checking the executed
+output rather than by any test, since both orderings are internally consistent.
+The guide now prints the load order before writing the list, and says that
+`parameter_from` avoids the question by reading each number off the file it
+belongs to. **A wrong answer that cannot be distinguished from a right one by
+looking at it is the recurring shape of every real bug in this project** — see
+§19's R² of 0.999, and §23's eightfold nucleic acid error.
 
 ### 16.4 What the dataset needs to contain
 
@@ -799,10 +836,14 @@ sometimes impossible to reconstruct afterwards:
 
 ### 16.5 Status
 
-Nothing is built. Working agreement §14.1 applies as it does to OPUS, `.spc` and
-CD: the dataset comes first, and it becomes the tutorial. What can be done ahead
-of it is the `parameter_from=` gap in §16.3, which is needed regardless of which
-of §16.1's five applications arrives first.
+The analysis is not built, and working agreement §14.1 applies as it does to
+OPUS, `.spc` and CD: the dataset comes first, and it becomes the tutorial.
+
+What could be done ahead of it was the `parameter_from=` gap in §16.3, needed
+regardless of which of §16.1's five applications arrives first. **That is now
+done**, so a titration can be loaded, ordered and handed to a fit as
+`(x, X, potential)`; what is missing is `processing.titration` and the Nernst
+fit itself, which wait on real data as planned.
 
 ---
 
