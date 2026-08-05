@@ -925,10 +925,13 @@ class Spectrum:
         **The search direction follows the y unit.** Bands in transmittance,
         ``%T`` and reflectance are minima, so those spectra are searched
         downward without being asked; absorbance-like units are searched
-        upward. Pass ``troughs=`` to override, which is what a difference
-        spectrum wants -- there bands go both ways and only you know which
-        you meant. ``result.properties['direction_from']`` says whether the
-        direction came from the unit, from you, or was assumed.
+        upward. Signed units -- dichroism, anisotropy -- are searched **both
+        ways**, because for those a band pointing down is not a failure to
+        point up. Pass ``troughs=`` to override, including ``troughs='both'``,
+        which is what a difference spectrum wants: there bands go both ways
+        and the unit still just says ``absorbance``, so only you know.
+        ``result.properties['direction_from']`` says whether the direction came
+        from the unit, from you, or was assumed.
 
         Getting this wrong used to be silent: searching a transmission
         spectrum upward finds the two inflection points that flank each band
@@ -954,7 +957,9 @@ class Spectrum:
             index=indices,
             prominence=properties.get('prominences'),
             width=properties.get('widths'),
-            kind='trough' if properties['troughs'] else 'peak',
+            kind={'both': 'both', 'down': 'trough'}.get(
+                properties['direction'], 'peak'),
+            sign=properties['sign'],
             x_unit=self.x_unit, y_unit=self.y_unit,
             source=self.name,
             properties=properties,

@@ -121,3 +121,77 @@ new vocabulary was invented.
   the unit is honestly insufficient. A `Spectrum.band_direction` attribute
   that defaults to the unit's would cover it, and would let a difference
   spectrum say so once instead of at every call.
+
+---
+
+## 7. Amendment, 2026-08-05 — `'both'`, for signed quantities
+
+**Status:** Accepted. Extends §2 rather than replacing it; nothing above is
+withdrawn.
+
+§6 named the trigger for revisiting this, and it has fired — from the
+direction it predicted, though for a wider class of spectra than it named.
+
+### 7.1 What changed
+
+`band_direction()` now returns **four** values: `'up'`, `'down'`, `'both'`,
+`'unknown'`.
+
+`'both'` is for the **signed** quantities — circular and linear dichroism,
+fluorescence anisotropy and polarisation, an explicitly labelled difference
+spectrum. These are listed in `units.BIPOLAR_UNITS` and answered by
+`units.is_bipolar()`.
+
+A dichroism spectrum is a *difference between two measurements* — left minus
+right circular polarisation, parallel minus perpendicular — so its sign
+carries meaning an absorbance never has. An α-helix shows negative bands at
+208 and 222 nm and a positive one at 193 nm, in one spectrum, and none of the
+three is a baseline artefact. Searching such a spectrum one way finds half of
+it, and the half it finds looks like a complete answer.
+
+### 7.2 Why not `'unknown'`
+
+This was the tempting cheap option and it is wrong. **`'unknown'` means nobody
+knows; `'both'` means the answer is known and is *both*.** Collapsing them
+would throw away a fact the unit does determine, and would leave CD sharing a
+category with `counts` — after which the only available behaviour is the
+assumption of upward, which for CD is a silent half-answer.
+
+### 7.3 Consequences
+
+1. `find_peaks` on a signed unit searches both ways without being asked, and
+   returns one table containing both.
+2. `troughs=` gains a third accepted value, `'both'`. This is the case §6
+   anticipated: a difference spectrum in plain `absorbance` **cannot** be
+   recognised from its unit, because subtracting two absorbance spectra leaves
+   the unit saying `absorbance`. It has to say so at the call site.
+3. `PeakTable.kind` gains `'both'`, and the table gains a per-peak `sign`
+   array with `maxima()` and `minima()` selectors. §5 previously said no new
+   vocabulary was invented; that is no longer true, and the reason is that
+   this is genuinely a third case rather than a relabelling of the first two.
+4. `sign` is populated for *every* table, not only the mixed ones, so no
+   caller has to special-case `kind`.
+
+`sign` is necessary and not merely convenient: **a positive band sitting on a
+negative offset still has a negative height**, so height cannot be used to
+recover which is which.
+
+### 7.4 Why now, when CD is post-1.0
+
+`band_direction()` freezes at 1.0. Adding a fourth return value afterwards
+breaks every caller that wrote `if direction == 'up' ... else ...` against a
+documented three. Doing it before costs a line, and the change is useful on
+its own account: difference spectra are not a CD feature, and neither is
+fluorescence anisotropy.
+
+This is roadmap **D1**, raised by the CD branch plan and settled on `main`
+before any CD code exists — which is what §17.3 means by the half built now
+not foreclosing the half built later.
+
+### 7.5 Still open
+
+The §6 suggestion of a `Spectrum.band_direction` **attribute**, letting a
+difference spectrum declare itself once instead of at every call, is not
+adopted here. `troughs='both'` covers the case; an attribute would be the
+better answer if labelling difference spectra turns out to be common, and it
+remains additive.

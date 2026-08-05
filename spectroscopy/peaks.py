@@ -35,7 +35,15 @@ class PeakTable:
     prominence, width : ndarray or None
         From scipy, when the detection call asked for them.
     kind : str
-        ``'peak'`` or ``'trough'``.
+        ``'peak'``, ``'trough'``, or ``'both'`` for a signed spectrum --
+        dichroism, anisotropy, a difference spectrum -- where maxima and
+        minima are equally real and one table holds both.
+    sign : ndarray or None
+        ``+1`` for a maximum, ``-1`` for a minimum, per peak. Always populated
+        for a table from :meth:`~spectroscopy.spectra.Spectrum.find_peaks`;
+        the only way to tell the two apart when ``kind`` is ``'both'``, since
+        a positive band sitting on a negative offset still has a negative
+        height.
     x_unit, y_unit : str
         Carried through so a table can be labelled without the spectrum.
     """
@@ -46,6 +54,7 @@ class PeakTable:
     prominence: np.ndarray | None = None
     width: np.ndarray | None = None
     kind: str = 'peak'
+    sign: np.ndarray | None = None
     x_unit: str = ''
     y_unit: str = ''
     source: str | None = None
@@ -60,13 +69,23 @@ class PeakTable:
 
     def __repr__(self) -> str:
         where = f" of {self.source}" if self.source else ""
+        if self.kind == 'both' and self.sign is not None:
+            up = int(np.sum(np.asarray(self.sign) > 0))
+            return (f"<PeakTable: {up} peaks and {len(self) - up} troughs"
+                    f"{where}>")
         return f"<PeakTable: {len(self)} {self.kind}s{where}>"
 
     def __str__(self) -> str:
         if not len(self):
             return f"No {self.kind}s found."
-        lines = [f"{'position':>12} {'height':>12}"]
-        lines += [f"{p:12.1f} {h:12.5g}" for p, h in zip(self.position, self.height)]
+        signed = self.kind == 'both' and self.sign is not None
+        header = f"{'position':>12} {'height':>12}"
+        lines = [header + ("  kind" if signed else "")]
+        for row, (p, h) in enumerate(zip(self.position, self.height)):
+            line = f"{p:12.1f} {h:12.5g}"
+            if signed:
+                line += "  peak" if self.sign[row] > 0 else "  trough"
+            lines.append(line)
         return "\n".join(lines)
 
     # -- selection ---------------------------------------------------------
@@ -80,9 +99,26 @@ class PeakTable:
             index=self.index[selection],
             prominence=sub(self.prominence),
             width=sub(self.width),
-            kind=self.kind, x_unit=self.x_unit, y_unit=self.y_unit,
+            kind=self.kind, sign=sub(self.sign),
+            x_unit=self.x_unit, y_unit=self.y_unit,
             source=self.source,
         )
+
+    def maxima(self) -> PeakTable:
+        """Only the bands pointing up. The whole table unless ``kind`` is both."""
+        return self._signed(1, 'peak')
+
+    def minima(self) -> PeakTable:
+        """Only the bands pointing down."""
+        return self._signed(-1, 'trough')
+
+    def _signed(self, wanted, kind) -> PeakTable:
+        if self.sign is None:
+            return self if self.kind == kind else self._take(
+                np.zeros(len(self), dtype=bool))
+        selected = self._take(np.asarray(self.sign) == wanted)
+        selected.kind = kind
+        return selected
 
     def strongest(self, count) -> PeakTable:
         """The ``count`` most prominent peaks (falling back to height)."""

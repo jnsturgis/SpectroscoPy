@@ -30,6 +30,7 @@ EXPECTED_ALL = {
     'datasets',
     'io',
     'library',
+    'metadata',
     'processing',
     'units',
     'lineshapes',
@@ -116,8 +117,10 @@ def test_the_surface_is_no_larger_than_it_looks():
     """A blunt count, so a slow drift upward is visible in a diff.
 
     It was 40 names, 17 of them modules, before roadmap section 14.2.
+    Raised to 18 on 2026-08-05 for ``metadata``, which documents the keys that
+    freeze with the ``.spy`` format (roadmap D2).
     """
-    assert len(_fresh_public_names()) <= 17
+    assert len(_fresh_public_names()) <= 18
 
 
 def test_viz_is_not_imported_eagerly():
@@ -140,3 +143,68 @@ def test_viz_is_not_imported_eagerly():
 
 def test_viz_is_still_reachable_without_a_separate_import():
     assert spc.viz.plot is not None
+
+
+# ---------------------------------------------------------------------------
+# metadata keys freeze with the .spy format, whether or not anyone says so:
+# the writer serialises the dictionary verbatim. Roadmap D2.
+# ---------------------------------------------------------------------------
+
+def test_the_metadata_keys_the_library_reads_are_pinned():
+    """
+    These names are in every .spy file ever written. Renaming one silently
+    orphans the data in existing files -- the key is still there, and nothing
+    reads it any more.
+    """
+    from spectroscopy import metadata
+
+    assert set(metadata.KNOWN_KEYS) == {
+        # sample conditions
+        'path_length', 'concentration', 'mass_concentration',
+        'n_residues', 'mean_residue_weight', 'temperature', 'pH',
+        'reference_electrode',
+        # identification
+        'sample', 'reference', 'spec_type',
+        'parameter', 'parameter_name', 'parameter_unit',
+        # acquisition
+        'excitation_nm', 'z_value', 'z_quantity', 'scans',
+    }
+
+
+def test_the_keys_the_code_actually_reads_are_in_the_schema():
+    """
+    The schema is only worth having if it describes the real thing. This
+    catches a module that starts reading a key nobody wrote down -- which is
+    how path_length arrived in the first place.
+    """
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent / 'spectroscopy'
+    from spectroscopy import metadata
+
+    pattern = re.compile(r"metadata(?:\[|\.get\()'([a-zA-Z_]+)'")
+    found = set()
+    for source in root.rglob('*.py'):
+        if source.name in ('metadata.py', 'jcamp.py'):
+            continue                       # the schema itself; vendored parser
+        found |= set(pattern.findall(source.read_text()))
+
+    undocumented = {key for key in found
+                    if key not in metadata.KNOWN_KEYS
+                    and not key.startswith(metadata.PROVENANCE_PREFIXES)}
+    assert not undocumented, (
+        f"these metadata keys are read by the code but are not in the "
+        f"schema: {sorted(undocumented)}. Add them to spectroscopy/metadata.py "
+        f"or give them a provenance prefix."
+    )
+
+
+def test_unknown_keys_finds_the_near_miss():
+    """'pathlength' is ignored by every consumer and looks exactly like
+    having forgotten to set it."""
+    from spectroscopy import metadata
+
+    assert metadata.unknown_keys({'path_length': 1.0}) == []
+    assert metadata.unknown_keys({'pathlength': 1.0}) == ['pathlength']
+    assert metadata.unknown_keys({'opus_history': '...'}) == []

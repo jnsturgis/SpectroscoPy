@@ -35,8 +35,9 @@ import numpy as np
 
 __all__ = [
     'convert_x', 'convert_y', 'can_convert_x', 'can_convert_y',
-    'band_direction', 'is_valley_pointing', 'is_extinction',
+    'band_direction', 'is_valley_pointing', 'is_extinction', 'is_bipolar',
     'X_UNITS', 'Y_UNITS', 'BAND_DIRECTION', 'EXTINCTION_UNITS',
+    'BIPOLAR_UNITS',
 ]
 
 #: nm per eV, i.e. h*c in eV*nm (CODATA 2018).
@@ -86,7 +87,36 @@ BAND_DIRECTION = {
     'transmittance': 'down',
     '%T':            'down',
     'reflectance':   'down',
+    # Signed quantities: bands go both ways in the same spectrum, and both
+    # signs are signal. See BIPOLAR_UNITS below.
+    'mdeg':          'both',
+    'deg':           'both',
+    'anisotropy':    'both',
+    'polarization':  'both',
+    'dA':            'both',
+    'delta absorbance': 'both',
 }
+
+#: The signed y quantities, listed together because they are a class rather
+#: than a handful of special cases.
+#:
+#: A dichroism spectrum is a **difference** between two measurements -- left
+#: minus right circular polarisation for CD, parallel minus perpendicular for
+#: LD -- so its sign carries meaning that an absorbance never has. An
+#: alpha-helix shows negative bands at 208 and 222 nm and a positive one at
+#: 193 nm, in one spectrum, and none of the three is a baseline artefact.
+#: Fluorescence anisotropy and polarisation are signed for the same reason.
+#:
+#: ``'unknown'`` would be the wrong answer for these. Unknown means the
+#: quantity does not fix a direction; here it fixes it precisely, and the
+#: answer is *both*.
+#:
+#: **A plain difference spectrum cannot be recognised this way**, because
+#: subtracting two absorbance spectra leaves the unit saying ``absorbance``.
+#: Label it ``'dA'`` to have it treated as signed, or say so at the call site
+#: with ``troughs='both'`` -- which is why that spelling exists.
+BIPOLAR_UNITS = ('mdeg', 'deg', 'anisotropy', 'polarization',
+                 'dA', 'delta absorbance')
 
 
 #: Extinction-coefficient units, matched exactly. Anything of the form
@@ -123,12 +153,20 @@ def is_extinction(unit) -> bool:
 
 def band_direction(unit) -> str:
     """
-    ``'up'``, ``'down'`` or ``'unknown'`` for a y unit.
+    ``'up'``, ``'down'``, ``'both'`` or ``'unknown'`` for a y unit.
+
+    ``'both'`` is for the **signed** quantities of :data:`BIPOLAR_UNITS` --
+    dichroism, anisotropy, an explicitly labelled difference spectrum -- where
+    maxima and minima are equally real and a caller looking for one of them
+    will miss half the spectrum.
 
     ``'unknown'`` covers the honestly ambiguous ones -- ``a.u.``, ``counts``,
-    an emission intensity, a difference spectrum -- where the quantity does not
-    fix a direction. Callers should keep their existing behaviour there rather
-    than guess, and say what they assumed.
+    an emission intensity, an *unlabelled* difference spectrum -- where the
+    quantity does not fix a direction. Callers should keep their existing
+    behaviour there rather than guess, and say what they assumed.
+
+    The distinction between the last two is worth keeping sharp: ``'unknown'``
+    means nobody knows, ``'both'`` means the answer is known and is *both*.
     """
     if unit in BAND_DIRECTION:
         return BAND_DIRECTION[unit]
@@ -146,8 +184,17 @@ def is_valley_pointing(unit) -> bool:
     peak *heights*, *areas* and *ratios* are not linear in concentration.
     Beer-Lambert applies to absorbance, so a band ratio taken on ``%T`` is not
     a ratio of anything. Callers doing quantitative work should convert.
+
+    False for the signed units of :data:`BIPOLAR_UNITS`, and correctly so on
+    both counts: their bands are not *exclusively* minima, and a dichroism
+    signal is linear in concentration in the way ``%T`` is not.
     """
     return band_direction(unit) == 'down'
+
+
+def is_bipolar(unit) -> bool:
+    """True when bands in ``unit`` go both ways and both signs are signal."""
+    return band_direction(unit) == 'both'
 
 
 def can_convert_x(unit) -> bool:

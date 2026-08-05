@@ -299,7 +299,7 @@ def read_table(handle, *, x_col=0, y_cols=None, paired=False, delimiter=None,
                 spectrum.x_label = header[x_index]
                 spectrum.y_label = header[y_index]
 
-        spectrum.metadata['column'] = y_index
+        spectrum.metadata['file_column'] = y_index
         spectrum.set_sample(spectrum.name)
         spectra.append(spectrum)
 
