@@ -1,9 +1,9 @@
 # API guessability audit (2026-08-05)
 
 :::{note}
-**Applied 2026-08-05.** A1, A2 and every alias in B are done. A3 is
-deferred with a reason; the C items are recorded below with decisions. See
-"What was done" at the foot.
+**Applied 2026-08-05.** A1, A2 and every alias in B are done. A3 was
+**rejected** by James, on a rule the API already follows — see below. The C
+items are recorded with decisions. See "What was done" at the foot.
 :::
 
 **One question, asked of every public name: what would somebody who knows
@@ -91,8 +91,32 @@ looking closely at the figure would notice.
 
 **Recommended:** keep both, and make the pairing self-describing —
 `estimate_baseline()` and `subtract_baseline()`, with the current names kept as
-aliases. If only one change is made, renaming `baseline()` is the one that
-pays, because it is the name that reads like a verb but is not.
+aliases.
+
+:::{admonition} Rejected (James, 2026-08-05) — and the audit was wrong here
+:class: important
+
+**"`baseline` is an object, `baseline_correct` is an action."**
+
+That is not a defence of the existing names; it is a naming rule, and the API
+already obeys it. A bare noun returns that thing; a verb performs an action.
+Checked against the whole public surface: the *only* two bare-noun methods on
+`Spectrum` and `SpectrumCollection` are `baseline` and `derivative`, and both
+return exactly the noun they are named for.
+
+So `baseline()` does not "read like a verb", as this section claimed. It reads
+like a noun, because it is one, and renaming it to `estimate_baseline` would
+have made it the exception rather than fixing one.
+
+**The rule is worth applying to new names**, and it settles cases the audit
+handled ad hoc: `parameters` and `samples` are nouns and are properties;
+`with_parameters` returns a copy while `set_parameter` mutates; `describe`
+and `find_peaks` are verbs that do something.
+
+The residual risk — that someone calls `baseline()` expecting a corrected
+spectrum, as happened once in the guide — is a *documentation* problem, not a
+naming one, and the fix is the two being documented together.
+:::
 
 ---
 
@@ -189,12 +213,13 @@ deprecation: it was added on 2026-08-04, after the 0.1.0 tag, so nothing has
 ever been released under the old name. The `set_` prefix now means "mutates,
 returns None" without exception.
 
-**A3 — deferred, deliberately.** `baseline()` / `baseline_correct()` were left
-alone. Renaming them is the one change here that would break working code, and
-`baseline_correct` is established spectroscopy English rather than a slip. The
-mitigation already in place is that both are documented together and the guide
-shows the mistake. Revisit in September with the other breaking changes, where
-it can be done with a deprecation cycle rather than bundled in with aliases.
+**A3 — rejected, and the finding itself was wrong.** James: "`baseline` is an
+object, `baseline_correct` is an action." The API already follows that rule —
+the only two bare-noun methods across `Spectrum` and `SpectrumCollection` are
+`baseline` and `derivative`, and both return the noun they name. Renaming
+`baseline()` would have created the exception, not removed one. **Closed, not
+deferred**; nothing to revisit in September. The naming rule is now recorded
+above and applies to new names.
 
 **B — all applied**, as forwarding methods with one-line docstrings rather
 than bare assignments, so they read correctly in the API documentation:
