@@ -135,6 +135,10 @@ class PeakTable:
         """Peaks in ascending position order."""
         return self._take(np.argsort(self.position))
 
+    def nlargest(self, count) -> PeakTable:
+        """Alias for :meth:`strongest`."""
+        return self.strongest(count)
+
     # -- interop -----------------------------------------------------------
 
     def to_dataframe(self):

@@ -296,6 +296,27 @@ class SpectrumCollection(Sequence):
         return SpectrumCollection([s for s in self._spectra if predicate(s)],
                                   name=self.name)
 
+    # -- aliases -----------------------------------------------------------
+    #
+    # The spellings a pandas user reaches for without thinking. Guessability
+    # audit, 2026-08-05.
+
+    def groupby(self, key='sample'):
+        """Alias for :meth:`group_by`, which is how pandas spells it."""
+        return self.group_by(key)
+
+    def filter(self, predicate) -> SpectrumCollection:
+        """Alias for :meth:`select`."""
+        return self.select(predicate)
+
+    def normalise(self, method='max', window=None):
+        """Alias for :meth:`normalize`, for British spelling."""
+        return self.normalize(method, window)
+
+    def to_numpy(self, with_parameter=False):
+        """Alias for :meth:`to_matrix`."""
+        return self.to_matrix(with_parameter=with_parameter)
+
     # -- interop -----------------------------------------------------------
 
     def to_matrix(self, with_parameter=False):
@@ -323,7 +344,7 @@ class SpectrumCollection(Sequence):
                 f"parameter, so there is nothing to fit against: "
                 f"{', '.join(str(n) for n in names)}"
                 f"{' ...' if int(missing.sum()) > 5 else ''}. Set them with "
-                f"from_files(parameter_from=...) or set_parameters()."
+                f"from_files(parameter_from=...) or with_parameters()."
             )
         return x, matrix, parameters
 
@@ -358,7 +379,7 @@ class SpectrumCollection(Sequence):
         labels = {s.metadata.get(key) for s in self._spectra} - {None}
         return labels.pop() if len(labels) == 1 else None
 
-    def set_parameters(self, values, name=None, unit=None):
+    def with_parameters(self, values, name=None, unit=None):
         """
         Attach parameters from a sequence aligned with the spectra.
 

@@ -195,3 +195,27 @@ difference spectrum declare itself once instead of at every call, is not
 adopted here. `troughs='both'` covers the case; an attribute would be the
 better answer if labelling difference spectra turns out to be common, and it
 remains additive.
+
+### 7.6 Two kinds of difference spectrum (James, 2026-08-05)
+
+`'dA'` is not for every subtraction, and the distinction is about **intent**,
+not arithmetic. Both come out of the same operator, which is exactly why
+neither can be inferred.
+
+**Corrections** subtract in order to arrive at a *better absolute spectrum* —
+a baseline, a buffer blank, a scattering background. The result is still an
+absorbance: its bands point up, and a negative excursion is an artefact worth
+investigating rather than a measurement. These keep `'absorbance'`, and
+should, because peak finding on them should behave exactly as it does on the
+uncorrected spectrum.
+
+**Comparisons** put the information *in the sign* — reduced minus oxidised,
+ligand-bound minus free, illuminated minus dark. A band pointing down means a
+species was lost; one pointing up means a species was gained; both are the
+answer, and a tool that reports only one has described half the experiment.
+These are `'dA'`.
+
+This is why `subtract_reference` leaves the y unit alone rather than
+promoting the result to `'dA'`. It cannot know which of the two you were
+doing, and guessing wrong in the correction direction would make every
+baseline-corrected spectrum report its noise as bands.

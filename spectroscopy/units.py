@@ -115,6 +115,25 @@ BAND_DIRECTION = {
 #: subtracting two absorbance spectra leaves the unit saying ``absorbance``.
 #: Label it ``'dA'`` to have it treated as signed, or say so at the call site
 #: with ``troughs='both'`` -- which is why that spelling exists.
+#:
+#: Not every subtraction produces a signed spectrum, and the difference is
+#: about intent rather than arithmetic. Two kinds:
+#:
+#: **Corrections**, which subtract in order to get a *better absolute
+#: spectrum* -- a baseline, a buffer blank, a scattering background. The
+#: result is still an absorbance, its bands still point up, and a negative
+#: excursion is an artefact worth investigating rather than a measurement.
+#: These stay ``'absorbance'``.
+#:
+#: **Comparisons**, where the information *is* in the sign -- reduced minus
+#: oxidised, ligand-bound minus free, illuminated minus dark. A band pointing
+#: down means a species was lost and one pointing up means a species was
+#: gained, and both are the result. These are ``'dA'``.
+#:
+#: The same subtraction operator produces both, so nothing can infer which was
+#: meant. That is the case for labelling it, and for
+#: :meth:`~spectroscopy.spectra.Spectrum.subtract_reference` leaving the unit
+#: alone rather than guessing.
 BIPOLAR_UNITS = ('mdeg', 'deg', 'anisotropy', 'polarization',
                  'dA', 'delta absorbance')
 

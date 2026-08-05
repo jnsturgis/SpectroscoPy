@@ -177,7 +177,7 @@ When the numbers were never in the filenames — the usual case, since the
 potentiostat does not write into the spectrophotometer's files — attach them
 from the lab notebook instead.
 
-`set_parameters` matches **by position**, so look at the order you actually
+`with_parameters` matches **by position**, so look at the order you actually
 have before you write the list down. That is not a formality: the order is the
 one from the filenames, which is the text order shown above, not the order the
 experiment was run in.
@@ -189,12 +189,12 @@ for spectrum in plain:
 ```
 
 ```{code-cell}
-labelled = plain.set_parameters([-120, -20, -60, 0, 60],
-                                name='potential', unit='mV')
+labelled = plain.with_parameters([-120, -20, -60, 0, 60],
+                                 name='potential', unit='mV')
 print(labelled.sorted_by_parameter().parameters)
 
 try:
-    plain.set_parameters([-120, -20, -60])
+    plain.with_parameters([-120, -20, -60])
 except ValueError as error:
     print(error)
 ```

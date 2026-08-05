@@ -280,22 +280,22 @@ def test_a_pattern_needs_exactly_one_capture_group(titration_tree):
                                       parameter_from=r'(-?\d+)(mV)')
 
 
-def test_set_parameters_from_a_lab_notebook(collection):
+def test_with_parameters_from_a_lab_notebook(collection):
     """The usual case: the numbers were never in the filenames."""
-    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30],
+    labelled = collection.with_parameters([1, 2, 3, 10, 20, 30],
                                          name='concentration', unit='uM')
     assert list(labelled.parameters) == [1.0, 2.0, 3.0, 10.0, 20.0, 30.0]
     assert labelled.parameter_unit == 'uM'
 
 
-def test_set_parameters_does_not_touch_the_original(collection):
-    collection.set_parameters([1, 2, 3, 4, 5, 6])
+def test_with_parameters_does_not_touch_the_original(collection):
+    collection.with_parameters([1, 2, 3, 4, 5, 6])
     assert np.isnan(collection.parameters).all()
 
 
-def test_set_parameters_checks_the_count(collection):
+def test_with_parameters_checks_the_count(collection):
     with pytest.raises(ValueError, match="6 spectra"):
-        collection.set_parameters([1, 2, 3])
+        collection.with_parameters([1, 2, 3])
 
 
 def test_parameters_are_nan_when_absent(collection):
@@ -303,7 +303,7 @@ def test_parameters_are_nan_when_absent(collection):
 
 
 def test_to_matrix_with_parameter(collection):
-    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30])
+    labelled = collection.with_parameters([1, 2, 3, 10, 20, 30])
     x, matrix, parameter = labelled.to_matrix(with_parameter=True)
     assert x.shape == (91,)
     assert matrix.shape == (6, 91)
@@ -332,12 +332,12 @@ def test_a_parameter_must_be_a_number():
 
 def test_the_parameter_survives_processing(collection):
     """It lives in metadata, so _derive carries it -- worth pinning."""
-    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30])
+    labelled = collection.with_parameters([1, 2, 3, 10, 20, 30])
     assert list(labelled.crop(1000, 1700).parameters) == [
         1.0, 2.0, 3.0, 10.0, 20.0, 30.0]
 
 
 def test_repr_shows_the_range(collection):
-    labelled = collection.set_parameters([1, 2, 3, 10, 20, 30],
+    labelled = collection.with_parameters([1, 2, 3, 10, 20, 30],
                                          name='potential', unit='mV')
     assert 'potential 1 to 30 mV' in repr(labelled)

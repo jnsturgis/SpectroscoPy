@@ -208,3 +208,103 @@ def test_unknown_keys_finds_the_near_miss():
     assert metadata.unknown_keys({'path_length': 1.0}) == []
     assert metadata.unknown_keys({'pathlength': 1.0}) == ['pathlength']
     assert metadata.unknown_keys({'opus_history': '...'}) == []
+
+
+# ---------------------------------------------------------------------------
+# Guessability: the wrong guess should work, or fail loudly -- never work and
+# be wrong. SpectroscoPy_API_Guessability.md, applied 2026-08-05.
+# ---------------------------------------------------------------------------
+
+def test_assigning_technique_does_what_set_type_does():
+    """
+    A1, the one that was silently wrong: `.technique` was a plain attribute,
+    so the guessable line left an infrared spectrum labelled in nm and reading
+    it back reported exactly what had been asked for.
+    """
+    import numpy as np
+
+    def fresh():
+        return spc.Spectrum(np.linspace(900, 1800, 50), np.ones(50))
+
+    assigned, called = fresh(), fresh()
+    assigned.technique = 'ATR-FTIR'
+    called.set_type('ATR-FTIR')
+
+    for attribute in ('technique', 'x_unit', 'x_quantity', 'y_unit'):
+        assert getattr(assigned, attribute) == getattr(called, attribute)
+    assert assigned.metadata['spec_type'] == 'ATR-FTIR'
+    assert assigned.x_unit == 'cm^-1'
+
+
+def test_assigning_an_unknown_technique_is_refused():
+    with pytest.raises(TypeError, match='Unknown spectrum type'):
+        spc.Spectrum().technique = 'NMR'
+
+
+def test_technique_can_still_be_cleared():
+    spectrum = spc.Spectrum()
+    spectrum.set_type('UV-Vis')
+    spectrum.technique = None
+    assert spectrum.technique is None
+    assert 'spec_type' not in spectrum.metadata
+
+
+def test_copying_keeps_the_axes_the_original_had():
+    """
+    The property setter applies the technique's default axes, so the copy
+    constructor must not go through it -- a UV-Vis spectrum deliberately held
+    in cm^-1 would come back in nm.
+    """
+    import numpy as np
+
+    original = spc.Spectrum(np.linspace(400, 700, 10), np.ones(10),
+                            technique='UV-Vis')
+    original.x_unit = 'cm^-1'
+    assert spc.Spectrum(original).x_unit == 'cm^-1'
+
+
+@pytest.mark.parametrize('alias, canonical', [
+    ('get_info', 'describe'),
+    ('normalise', 'normalize'),
+    ('write', 'save_as'),
+])
+def test_spectrum_aliases_exist(alias, canonical):
+    assert hasattr(spc.Spectrum, alias) and hasattr(spc.Spectrum, canonical)
+
+
+@pytest.mark.parametrize('alias, canonical', [
+    ('groupby', 'group_by'),
+    ('filter', 'select'),
+    ('normalise', 'normalize'),
+    ('to_numpy', 'to_matrix'),
+])
+def test_collection_aliases_exist(alias, canonical):
+    assert (hasattr(spc.SpectrumCollection, alias)
+            and hasattr(spc.SpectrumCollection, canonical))
+
+
+def test_aliases_return_what_the_canonical_names_do():
+    import numpy as np
+
+    x = np.linspace(900, 1800, 50)
+    spectra = [spc.Spectrum(x, np.full_like(x, level), technique='ATR-FTIR')
+               for level in (1.0, 2.0)]
+    for index, spectrum in enumerate(spectra):
+        spectrum.set_sample(f"s{index}")
+    collection = spc.SpectrumCollection(spectra)
+
+    assert set(collection.groupby('sample')) == set(
+        collection.group_by('sample'))
+    assert len(collection.filter(lambda s: True)) == len(collection)
+    assert np.array_equal(collection.to_numpy()[1], collection.to_matrix()[1])
+    assert spectra[0].describe() == spectra[0].get_info()
+
+
+def test_the_mutating_and_copying_prefixes_are_kept_apart():
+    """
+    A2: `set_` mutates and returns None on a Spectrum; the collection method
+    returns a new collection, so it is `with_parameters` and not `set_`.
+    """
+    assert hasattr(spc.SpectrumCollection, 'with_parameters')
+    assert not hasattr(spc.SpectrumCollection, 'set_parameters')
+    assert spc.Spectrum().set_sample('x') is None

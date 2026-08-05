@@ -307,7 +307,7 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
         One per spectrum, in whatever unit ``unit`` is the inverse of.
         Defaults to the collection's own parameter, so a series loaded with
         ``from_files(parameter_from=...)`` or labelled with
-        ``set_parameters(...)`` needs no second list -- and cannot fall out of
+        ``with_parameters(...)`` needs no second list -- and cannot fall out of
         step with one.
     name : str, optional
         What the reference is called. Defaults to the collection's name.
@@ -328,7 +328,7 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
                 "no concentrations given and the collection does not carry "
                 "them. Either pass them, or attach them when loading with "
                 "SpectrumCollection.from_files(parameter_from=...) or "
-                "collection.set_parameters([...])."
+                "collection.with_parameters([...])."
             )
     if name is None:
         name = getattr(collection, 'name', None)

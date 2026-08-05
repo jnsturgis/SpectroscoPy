@@ -1,5 +1,11 @@
 # API guessability audit (2026-08-05)
 
+:::{note}
+**Applied 2026-08-05.** A1, A2 and every alias in B are done. A3 is
+deferred with a reason; the C items are recorded below with decisions. See
+"What was done" at the foot.
+:::
+
 **One question, asked of every public name: what would somebody who knows
 numpy, scipy and pandas — or a language model that half-remembers this
 library — *guess* it was called?**
@@ -165,3 +171,58 @@ For each public name, in order: (1) write down the guess before looking at the
 code; (2) run the guess; (3) grade by what happened — silently wrong, raised,
 or worked. Step 2 is the one that cannot be skipped. A1 was found by running
 the guess and reading the resulting units, not by thinking about the name.
+
+
+---
+
+## What was done, 2026-08-05
+
+**A1 — fixed.** `technique` is now a property whose setter calls `set_type`,
+so the guessable line and the correct line are the same line. The copy
+constructor assigns `_technique` directly, because going through the setter
+would apply the technique's default axes over the ones just copied — a UV-Vis
+spectrum deliberately held in cm⁻¹ would have come back in nm. Four tests,
+including that one.
+
+**A2 — fixed.** `set_parameters` → `with_parameters`. No alias and no
+deprecation: it was added on 2026-08-04, after the 0.1.0 tag, so nothing has
+ever been released under the old name. The `set_` prefix now means "mutates,
+returns None" without exception.
+
+**A3 — deferred, deliberately.** `baseline()` / `baseline_correct()` were left
+alone. Renaming them is the one change here that would break working code, and
+`baseline_correct` is established spectroscopy English rather than a slip. The
+mitigation already in place is that both are documented together and the guide
+shows the mistake. Revisit in September with the other breaking changes, where
+it can be done with a deprecation cycle rather than bundled in with aliases.
+
+**B — all applied**, as forwarding methods with one-line docstrings rather
+than bare assignments, so they read correctly in the API documentation:
+
+| Alias | Forwards to |
+|---|---|
+| `Spectrum.get_info` | `describe` *(renamed; `get_info` kept)* |
+| `Spectrum.normalise` | `normalize` |
+| `Spectrum.write` | `save_as` |
+| `SpectrumCollection.groupby` | `group_by` |
+| `SpectrumCollection.filter` | `select` |
+| `SpectrumCollection.normalise` | `normalize` |
+| `SpectrumCollection.to_numpy` | `to_matrix` |
+| `PeakTable.nlargest` | `strongest` |
+
+**`library.coefficient` vs `library.Coefficient` — no alias is possible**, and
+that is worth stating rather than leaving as an omission. The problem is a
+function and a class differing only in case, so there is no third name that
+helps; `library.Coefficient('dsDNA')` still raises a `TypeError` from the
+dataclass constructor. Fixing it means renaming one of them, which is a
+September decision. Recorded in C below.
+
+## C items — decisions
+
+| Item | Decision |
+|---|---|
+| `processing.common` is undiscoverable | **Keep.** Renaming a module is a bigger break than the problem. The guide is the discovery route, and `Spectrum` methods cover the same ground for most users |
+| `set_sample(info)` parameter named `info` | **Rename to `name` in September**, with the positional call unaffected. Cosmetic, zero risk, but it is still a breaking change for anyone using the keyword |
+| `clip()` deprecated alias for `crop` | **Keep.** Already documented as deprecated and correctly behaved |
+| `calc`, `formats`, `tools_spc` promise removal "in 0.2" | **Still open — §14.2 blocker 5.** There is no 0.2; the next release is 1.0. Either they go before the freeze or the promise is rewritten. This is the only C item with a deadline |
+| `library.coefficient` / `Coefficient` | **September.** Rename one; `Coefficient` → `CoefficientRecord` or the function → `lookup_coefficient`. Needs a decision, not an alias |

@@ -254,7 +254,10 @@ class Spectrum:
                            other.y_quantity, other.y_unit)
             self._x_label_override = other._x_label_override
             self._y_label_override = other._y_label_override
-            self.technique   = other.technique
+            # _technique, not the property: the setter applies the
+            # technique's default axes, which would overwrite the ones just
+            # copied from `other` on the line above.
+            self._technique  = other._technique
             self.units_from_file = other.units_from_file
             self.history     = list(other.history)
             self.x      = np.copy(other.x)
@@ -328,7 +331,7 @@ class Spectrum:
         self.name        = 'unnamed'
         self.fileinfo    = {'PATH':'','NAME':'','TYPE':'csv'}
         self._set_axes('Wavelength', 'nm', 'Absorbance', 'absorbance')
-        self.technique   = None
+        self._technique  = None
         self.history     = []
         self.x      = np.empty(1)
         self.y      = np.empty(1)
@@ -484,6 +487,33 @@ class Spectrum:
     def reversed_x(self) -> bool:
         """Whether this technique is conventionally plotted high-to-low."""
         return self.technique in REVERSED_AXIS_TECHNIQUES
+
+    @property
+    def technique(self):
+        """
+        The technique, e.g. ``'ATR-FTIR'``. Assigning to it calls
+        :meth:`set_type`, so the axes follow.
+
+        This is a property rather than a plain attribute because the obvious
+        line has to be the correct one. ``spectrum.technique = 'ATR-FTIR'``
+        used to assign a string and nothing else, leaving an infrared spectrum
+        labelled in nm with ``metadata['spec_type']`` unset -- and reading
+        ``.technique`` back reported exactly what had been asked for, so the
+        one check anybody would think to make passed. Every plot from such a
+        spectrum is wrong and :meth:`to` converts against the wrong axis.
+
+        Use :meth:`set_type` where ``force_units=True`` is wanted; this is the
+        short form for the common case.
+        """
+        return self._technique
+
+    @technique.setter
+    def technique(self, value):
+        if value is None:
+            self._technique = None
+            self.metadata.pop('spec_type', None)
+            return
+        self.set_type(value)
 
 ##=============================================================================
 #
@@ -1160,6 +1190,25 @@ class Spectrum:
         if unit is not None:
             self.metadata['parameter_unit'] = unit
 
+    # -- aliases -----------------------------------------------------------
+    #
+    # Names a reader is likely to reach for first. Each forwards to the
+    # canonical spelling rather than duplicating it, and they cost nothing to
+    # keep: the guessability audit of 2026-08-05 found these to be the guesses
+    # people and code-writing assistants actually make.
+
+    def get_info(self) -> str:
+        """Alias for :meth:`describe`."""
+        return self.describe()
+
+    def normalise(self, method='max', window=None) -> "Spectrum":
+        """Alias for :meth:`normalize`, for British spelling."""
+        return self.normalize(method, window)
+
+    def write(self, filename, file_type='spy', **kwargs) -> None:
+        """Alias for :meth:`save_as`, symmetrical with :meth:`read`."""
+        return self.save_as(filename, file_type, **kwargs)
+
     def set_type( self, spec_type, force_units=False ) -> None:
         """
         Set the technique, and with it the default axis quantities and units.
@@ -1178,7 +1227,7 @@ class Spectrum:
                 f"Unknown spectrum type {spec_type}; "
                 f"known types are {', '.join(KNOWNSPECTYPES)}"
             )
-        self.technique = spec_type
+        self._technique = spec_type
         self.metadata['spec_type'] = spec_type
 
         if self.units_from_file and not force_units:
@@ -1188,9 +1237,12 @@ class Spectrum:
         self._set_axes(data['x_quantity'], data['x_unit'],
                        data['y_quantity'], data['y_unit'])
 
-    def get_info( self ) -> str:
+    def describe( self ) -> str:
         """
-        Get information about the spectrum as a (multiline) string
+        Information about the spectrum as a (multiline) string.
+
+        Named to sit beside :meth:`describe_history`; ``get_info`` remains as
+        an alias.
         """
         spec_type = self.technique or self.metadata.get('spec_type')
         sample    = self.metadata.get('sample')
