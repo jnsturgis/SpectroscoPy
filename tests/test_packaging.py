@@ -7,6 +7,7 @@ boundaries hold, and the deprecated top-level names still work for existing
 notebooks.
 """
 
+import pathlib
 import subprocess
 import sys
 import warnings
@@ -114,3 +115,15 @@ def test_formats_and_io_share_module_objects():
 def test_cli_entry_point_is_importable():
     from spectroscopy.cli.ftir_sidechains import main
     assert callable(main)
+
+
+def test_py_typed_marker_is_present_and_shipped():
+    """
+    PEP 561: without this file no type checker reads the annotations, however
+    many there are, so it is what makes the signatures visible to a user's
+    tooling. It is data rather than code, which is exactly the kind of file a
+    build backend drops silently -- hence the test.
+    """
+    import spectroscopy
+    marker = pathlib.Path(spectroscopy.__file__).parent / 'py.typed'
+    assert marker.is_file(), "spectroscopy/py.typed is missing"

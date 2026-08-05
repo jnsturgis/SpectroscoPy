@@ -4,7 +4,11 @@
 """Sphinx configuration."""
 
 import datetime
+import os
+import sys
 from urllib.parse import quote
+
+sys.path.insert(0, os.path.abspath("_ext"))
 
 project = "SpectroscoPy"
 author = "James N. Sturgis"
@@ -26,7 +30,38 @@ extensions = [
     "matplotlib.sphinxext.plot_directive",
     "myst_nb",
     "sphinx_copybutton",
+    "llms_txt",
 ]
+
+# -- llms.txt --------------------------------------------------------------
+#
+# https://llmstxt.org -- a plain-text index of the documentation, plus a
+# full-text companion, written into the built site by docs/_ext/llms_txt.py.
+# Both are generated rather than hand-maintained: a summary of the docs that
+# is not built from the docs is a second source of truth, and it drifts.
+
+html_baseurl = "https://jnsturgis.github.io/SpectroscoPy/"
+
+llms_txt_summary = (
+    "A Python library for spectroscopy: one way of handling spectra whatever "
+    "instrument they came from. Reads Bruker OPUS, Galactic SPC, JCAMP-DX and "
+    "delimited text into a single Spectrum object with units and a recorded "
+    "processing history; baseline, normalise, average replicates, find peaks, "
+    "decompose mixtures. ATR-FTIR, FTIR, UV-Vis, Raman and fluorescence."
+)
+
+llms_txt_notes = """
+Import name and install name are both `spectroscopy`; the usual alias is
+`import spectroscopy as spc`.
+
+Two things about this documentation are worth knowing before relying on it.
+Every code example on the guide pages is executed when the site is built, so
+the outputs shown are real rather than typed out by hand. And the status
+claims are deliberately conservative: where a method is tested only against
+synthetic data, or is known not yet to give trustworthy numbers, the page
+says so rather than presenting it as finished. Prefer those statements over
+inference from the presence of a function.
+""".strip()
 
 # -- Content ---------------------------------------------------------------
 

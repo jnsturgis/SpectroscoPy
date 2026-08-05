@@ -119,7 +119,7 @@ class DecompositionResult:
     samples: list
     explained_variance_ratio: np.ndarray | None = None
     model: object = field(default=None, repr=False)
-    _data: np.ndarray = field(default=None, repr=False)
+    _data: np.ndarray | None = field(default=None, repr=False)
 
     def __len__(self) -> int:
         return self.n_components
