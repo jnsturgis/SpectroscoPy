@@ -30,6 +30,8 @@ from .spectra import Spectrum
 #: always works); what this list settles is what ``spc.<name>`` offers and what
 #: the freeze covers. Roadmap section 14.2 has the audit that produced it.
 __all__ = [
+    # -- opening a file ------------------------------------------------------
+    'read',                  # spc.read(path) -- the first thing anyone types
     # -- core objects --------------------------------------------------------
     'Spectrum',              # one spectrum: x, y, units, metadata, history
     'SpectrumCollection',    # many, with grouping and batch operations
@@ -46,6 +48,57 @@ __all__ = [
     'lineshapes',            # gaussian / lorentzian components
     'viz',                   # plotting -- imported lazily, see below
 ]
+
+def read(path, file_type=None, **kwargs):
+    """
+    Read one spectrum from a file. ``spc.read("sample.dpt")``.
+
+    The format is worked out from the file itself -- the two binary formats
+    check their own magic value rather than trusting the extension -- so
+    ``file_type`` is only needed to override that.
+
+    This exists because it is what everybody types first. An empirical run on
+    2026-08-05 gave four spectroscopy tasks to cold assistants: eight of the
+    nine wrong API calls they made were guesses at a top-level reader,
+    ``spectroscopy.read``, ``spectroscopy.load``, ``spectroscopy.io.read`` and
+    ``Spectrum.from_file``, none of which existed. Opening a file is the first
+    thing anybody does and it was the hardest thing to find.
+
+    Parameters
+    ----------
+    path : str or Path
+        The file to read.
+    file_type : str, optional
+        Force a format, e.g. ``'jcamp'``. Otherwise inferred.
+    **kwargs
+        Passed to the reader, e.g. ``x_col=0`` for a table.
+
+    Returns
+    -------
+    Spectrum
+
+    Raises
+    ------
+    ValueError
+        If the file holds several spectra, naming
+        :func:`spectroscopy.io.read_spectra`, which returns them all. Handing
+        back the first of three silently would be worse than failing.
+
+    See also
+    --------
+    spectroscopy.io.read_spectra : every spectrum in one file.
+    spectroscopy.SpectrumCollection.from_files : many files at once, with
+        globs, sample names and a measured parameter.
+
+    Notes
+    -----
+    There is deliberately no ``spc.load``. Two of the agents guessed it, but
+    ``load`` already means something else here -- :func:`datasets.load` fetches
+    a bundled example by name -- and one word cannot mean both "open this
+    path" and "fetch that example" without becoming a coin toss.
+    """
+    return io.read_spectrum(path, file_type, **kwargs)
+
 
 #: ``__version__`` is public but deliberately not in __all__: ``from
 #: spectroscopy import *`` would then bind it in the caller's namespace and

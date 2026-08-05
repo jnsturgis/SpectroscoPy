@@ -24,13 +24,17 @@ from spectroscopy import datasets
 ## Just open it
 
 ```{code-cell}
-spectrum = spc.Spectrum.read(datasets.path("ethanol"))
+spectrum = spc.read(datasets.path("ethanol"))
 spectrum
 ```
 
-The format is worked out from the extension, and the details from the file
-itself: separators, header rows and text encoding are all detected rather than
-assumed.
+That is the whole of it. `spc.read` takes a path and gives you a spectrum;
+`Spectrum.read` is the same thing spelled longer, if you prefer the class to
+say so.
+
+The format is worked out from the file itself, not from the extension:
+separators, header rows, text encoding and — for the two binary formats — the
+magic value at the start of the file are all detected rather than assumed.
 
 ```{code-cell}
 print(spectrum.x_quantity, "in", spectrum.x_unit)
@@ -120,13 +124,12 @@ names the series — the one whose values actually distinguish them — and whic
 row supplies axis labels, one whose x and y entries differ, so a run name
 repeated across every column is not mistaken for a label.
 
-`read_spectra` always returns a `SpectrumCollection`. `read_spectrum` is the
-convenience form for a single-spectrum file, and it **raises** if the file
-turns out to hold several:
+`read_spectra` always returns a `SpectrumCollection`. `spc.read` is the
+single-spectrum form, and it **raises** if the file turns out to hold several:
 
 ```{code-cell}
 try:
-    spc.io.read_spectrum(wide, 'table', x_col=0)
+    spc.read(wide, 'table', x_col=0)
 except ValueError as error:
     print(error)
 ```

@@ -22,6 +22,7 @@ import spectroscopy as spc
 
 #: Exactly what ``from spectroscopy import *`` should bind.
 EXPECTED_ALL = {
+    'read',
     'Spectrum',
     'SpectrumCollection',
     'PeakTable',
@@ -118,9 +119,9 @@ def test_the_surface_is_no_larger_than_it_looks():
 
     It was 40 names, 17 of them modules, before roadmap section 14.2.
     Raised to 18 on 2026-08-05 for ``metadata``, which documents the keys that
-    freeze with the ``.spy`` format (roadmap D2).
+    freeze with the ``.spy`` format (roadmap D2), and to 19 for ``read``.
     """
-    assert len(_fresh_public_names()) <= 18
+    assert len(_fresh_public_names()) <= 19
 
 
 def test_viz_is_not_imported_eagerly():
@@ -360,3 +361,33 @@ def test_a_coefficient_says_which_way_round_it_is():
     assert dsdna.value == pytest.approx(0.02)
     assert dsdna.quoted_as == pytest.approx(50.0)
     assert '50 ug/mL' in str(dsdna)
+
+
+def test_the_front_door_is_where_people_knock():
+    """
+    Eight of the nine wrong API calls in the 2026-08-05 cold-agent run were
+    guesses at a top-level reader. This is that reader.
+    """
+    import pathlib as _pathlib
+
+    root = _pathlib.Path(__file__).resolve().parent.parent
+    spectrum = spc.read(root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    assert isinstance(spectrum, spc.Spectrum)
+    assert spectrum.technique == 'FTIR'
+    # the format comes from the file, not the extension
+    assert spc.read(root / 'spectroscopy/data/infrared_spectra/ethanol.jdx'
+                    ).y_unit == 'transmittance'
+
+
+def test_reading_a_multi_spectrum_file_says_where_to_go(tmp_path):
+    """Returning the first of several silently would be worse than failing."""
+    wide = tmp_path / 'wide.csv'
+    wide.write_text('wavelength,a,b\n400,0.1,0.2\n401,0.3,0.4\n402,0.5,0.6\n')
+    with pytest.raises(ValueError, match='read_spectra'):
+        spc.read(wide, 'table', x_col=0)
+
+
+def test_there_is_deliberately_no_top_level_load():
+    """`load` already means "fetch a bundled example" -- datasets.load(name)."""
+    assert not hasattr(spc, 'load')
+    assert callable(spc.datasets.load)

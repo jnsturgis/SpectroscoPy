@@ -294,3 +294,57 @@ then broke it, which is worse than not having the alias — a guess that works
 and returns the wrong shape or order is precisely the class this audit exists
 to remove. **Lesson: an alias inherits the semantics of the name it borrows.
 If the behaviour cannot match, the alias is a trap, not a courtesy.**
+
+
+## Re-run protocol (James, 2026-08-05): more real data, and a before/after
+
+The first run is a baseline, and its main weakness is that only two of the four
+tasks used real measurements. Repeating it is worth doing, but **only if the
+second run is comparable with the first**, so the protocol is fixed here rather
+than reinvented later.
+
+**What must stay identical**, or the two runs cannot be compared: two
+conditions (cold and directed), cold agents told nothing about any library,
+one agent per cell, agents working outside the repository, the same closing
+question in both conditions, and scoring written down before any agent runs.
+
+**What should change:**
+
+1. **Real data throughout.** The first run used real files for T1 (FTIR
+   replicates) and T2 (ethanol JCAMP) and synthetic ones for T3 and T4. The
+   measurements in `Reference_Spectra_Wanted.md` would supply real versions of
+   both — a dilution series with known concentrations for T3, and a titration
+   or melt for T4. Until then the AqpZ temperature scan of roadmap §18.3 is
+   the nearest real series.
+2. **More tasks, and at least one with no right answer**, to see what an
+   assistant does when the analysis is genuinely open — "is there anything
+   odd about these spectra?" rather than "compute X".
+3. **A task requiring two techniques**, which is where the library's actual
+   claim lies and where hand-rolling costs most.
+4. **n > 1 per cell.** The first run cannot distinguish a 75% give-up rate
+   from a 50% one; three agents per cell would.
+
+**What to measure, beyond the two headline numbers.** The first run found that
+the give-up rate is the interesting quantity but not the whole story: every
+cold run got the *right answer*, so the cost was reusability, not correctness.
+Worth recording explicitly next time:
+
+- Give-up rate, and API mistakes, as before.
+- **Whether the library route reached a better answer than the hand-rolled
+  one.** On T3 it did not: the cold agent's joint fit of background and bands
+  gave 32.0 µg/mL against the truth of 32.0, while `correct_scattering`'s
+  fit-a-window-and-extrapolate gave 30. That is a finding about the method,
+  not about findability, and it would have been missed by counting API errors
+  alone.
+- **Whether using the library made the analyst look less carefully.** On T1 it
+  did: the cold agent found a diamond/CO₂ artefact at 1900–2400 cm⁻¹ that
+  tilts the rubberband hull and leaves a pedestal 51 % of the weakest sample's
+  peak height. The directed agent called `baseline_correct('rubberband')`,
+  got a clean-looking result, and never saw it. **A convenience that hides a
+  decision is a cost, and this is the way to detect it.**
+
+**The point of the re-run is the before/after.** The first run's numbers were
+taken against a library with no `spc.read`, a `.dpt` reader that did not know
+it was infrared, and a `strongest()` that lied about its order. If findability
+has improved, the API-mistake count should fall; if it has not, that is worth
+knowing before November rather than after.
