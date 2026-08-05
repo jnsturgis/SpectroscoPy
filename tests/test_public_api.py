@@ -188,7 +188,7 @@ def test_the_keys_the_code_actually_reads_are_in_the_schema():
     for source in root.rglob('*.py'):
         if source.name in ('metadata.py', 'jcamp.py'):
             continue                       # the schema itself; vendored parser
-        found |= set(pattern.findall(source.read_text()))
+        found |= set(pattern.findall(source.read_text(encoding='utf-8')))
 
     undocumented = {key for key in found
                     if key not in metadata.KNOWN_KEYS
