@@ -4,9 +4,19 @@
 """
 Processing and analysis algorithms.
 
-Currently holds only technique-specific FTIR code (``ftir``). The
-technique-agnostic algorithms (baseline, smoothing, normalisation, peak
-detection and fitting) arrive in Phase 1/4 as ``processing.common``.
+``common``
+    Technique-agnostic: baseline, smoothing, normalisation, peak detection.
+    Every one is also a :class:`~spectroscopy.spectra.Spectrum` method.
+``ftir``
+    Amide I side-chain contributions and residual spectra.
+``multivariate``
+    PCA / NMF / ICA across a collection, with bootstrap stability.
+``scattering``
+    Removing a scattering background before anything is quantified.
+``structure``
+    Secondary structure, as a :class:`~.structure.Composition`.
+``unmix``
+    Supervised separation against known reference spectra.
 """
 
 __all__ = ['common', 'ftir', 'multivariate', 'scattering', 'structure', 'unmix']

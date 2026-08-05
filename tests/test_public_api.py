@@ -276,7 +276,6 @@ def test_spectrum_aliases_exist(alias, canonical):
     ('groupby', 'group_by'),
     ('filter', 'select'),
     ('normalise', 'normalize'),
-    ('to_numpy', 'to_matrix'),
 ])
 def test_collection_aliases_exist(alias, canonical):
     assert (hasattr(spc.SpectrumCollection, alias)
@@ -296,7 +295,6 @@ def test_aliases_return_what_the_canonical_names_do():
     assert set(collection.groupby('sample')) == set(
         collection.group_by('sample'))
     assert len(collection.filter(lambda s: True)) == len(collection)
-    assert np.array_equal(collection.to_numpy()[1], collection.to_matrix()[1])
     assert spectra[0].describe() == spectra[0].get_info()
 
 
@@ -308,3 +306,57 @@ def test_the_mutating_and_copying_prefixes_are_kept_apart():
     assert hasattr(spc.SpectrumCollection, 'with_parameters')
     assert not hasattr(spc.SpectrumCollection, 'set_parameters')
     assert spc.Spectrum().set_sample('x') is None
+
+
+def test_dropped_aliases_stay_dropped():
+    """
+    Both borrowed a pandas name and then broke its contract, which is worse
+    than not having the alias: pandas' to_numpy returns an ndarray and ours
+    returned a 2-tuple; pandas' nlargest ranks by value and ours returned
+    position order. A guess that works and returns the wrong shape or order
+    is the failure this whole audit is about. Added and removed 2026-08-05.
+    """
+    assert not hasattr(spc.SpectrumCollection, 'to_numpy')
+    assert not hasattr(spc.PeakTable, 'nlargest')
+
+
+def test_strongest_returns_them_strongest_first():
+    """It returned position order until 2026-08-05, despite the name."""
+    import numpy as np
+
+    table = spc.PeakTable(position=np.array([100.0, 200.0, 300.0]),
+                          height=np.array([0.5, 0.9, 0.7]),
+                          index=np.arange(3))
+    assert list(table.strongest(3).height) == [0.9, 0.7, 0.5]
+    assert list(table.strongest(2).position) == [200.0, 300.0]
+    # and the tutorials' explicit re-sort is meaningful again
+    assert list(table.strongest(3).sorted_by_position().position) == [
+        100.0, 200.0, 300.0]
+
+
+def test_a_dpt_file_knows_it_is_infrared():
+    """
+    899-3998 cm^-1 labelled 'Wavelength (nm)' plots as a mislabelled mirror
+    image, and near-infrared nanometres are plausible enough that nothing
+    looks wrong.
+    """
+    import pathlib as _pathlib
+
+    root = _pathlib.Path(__file__).resolve().parent.parent
+    spectrum = spc.Spectrum.read(
+        root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    assert spectrum.technique == 'FTIR'
+    assert spectrum.x_unit == 'cm^-1'
+    assert spectrum.x_quantity == 'Wavenumber'
+    assert spectrum.reversed_x
+    # and it stays refinable to the sampling accessory the file cannot know
+    spectrum.set_type('ATR-FTIR')
+    assert spectrum.x_unit == 'cm^-1'
+
+
+def test_a_coefficient_says_which_way_round_it_is():
+    """.value is the reciprocal of the number people quote."""
+    dsdna = spc.library.coefficient('dsDNA', 260)
+    assert dsdna.value == pytest.approx(0.02)
+    assert dsdna.quoted_as == pytest.approx(50.0)
+    assert '50 ug/mL' in str(dsdna)

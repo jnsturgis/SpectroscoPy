@@ -43,7 +43,22 @@ __all__ = ['Reference', 'Library', 'COEFFICIENTS', 'coefficient',
 
 @dataclass
 class Coefficient:
-    """A published extinction coefficient at one wavelength."""
+    """
+    A published extinction coefficient at one wavelength.
+
+    .. warning::
+
+       :attr:`value` is an **extinction coefficient**, so for the nucleic acid
+       rules it is the *reciprocal* of the number people quote. "An A260 of
+       1.0 is 50 ug/mL" is stored as ``0.02 (ug/mL)^-1 cm^-1``. Concentration
+       is ``A / (value * l)`` -- use :meth:`concentration` or
+       :func:`concentration_from_absorbance` and let them do it. Multiplying
+       instead of dividing gives an answer wrong by the square of the
+       coefficient, and for dsDNA that is a factor of 2500.
+
+       :attr:`quoted_as` gives the familiar form, for reading and for
+       checking against a textbook.
+    """
 
     #: Wavelength, nm.
     wavelength: float
@@ -56,9 +71,24 @@ class Coefficient:
     #: What it applies to, in words -- assumptions matter more than the number.
     note: str = ''
 
+    @property
+    def quoted_as(self):
+        """
+        ``1 / value`` -- the concentration giving an absorbance of 1.0 in
+        1 cm, which is how these are stated in the literature and on the
+        side of a kit box. 50.0 for dsDNA, where :attr:`value` is 0.02.
+        """
+        return 1.0 / self.value
+
     def concentration(self, absorbance, path_length=1.0):
         """Beer-Lambert, solved for concentration: ``c = A / (eps * l)``."""
         return np.asarray(absorbance, dtype=float) / (self.value * path_length)
+
+    def __str__(self):
+        concentration_unit = self.unit.split('^-1')[0].strip('()')
+        return (f"{self.value:g} {self.unit} at {self.wavelength:g} nm "
+                f"(an absorbance of 1.0 in 1 cm is "
+                f"{self.quoted_as:g} {concentration_unit})")
 
 
 #: Published scalar coefficients, keyed by ``(species, wavelength)``.

@@ -121,10 +121,27 @@ class PeakTable:
         return selected
 
     def strongest(self, count) -> PeakTable:
-        """The ``count`` most prominent peaks (falling back to height)."""
+        """
+        The ``count`` strongest peaks, **strongest first**.
+
+        Ranked by prominence where scipy supplied it, otherwise by height.
+        Call :meth:`sorted_by_position` afterwards for a spectrum-order list;
+        the tutorials do exactly that.
+
+        Until 2026-08-05 this returned them in *position* order despite the
+        name, so ``strongest(3)`` gave the right three peaks in the wrong
+        order and anything reading ``position[0]`` as "the strongest" was
+        quietly wrong.
+
+        .. note::
+
+           With the default ``method='second_derivative'``, prominence is
+           measured on the second derivative, so it ranks by how *sharp* a
+           band is rather than how intense. For intensity, detect with
+           ``method='direct'``.
+        """
         ranking = self.prominence if self.prominence is not None else self.height
-        order = np.argsort(ranking)[::-1][:count]
-        return self._take(np.sort(order))
+        return self._take(np.argsort(ranking)[::-1][:count])
 
     def within(self, low, high) -> PeakTable:
         """Peaks whose position lies in [low, high]; order-insensitive."""
@@ -134,10 +151,6 @@ class PeakTable:
     def sorted_by_position(self) -> PeakTable:
         """Peaks in ascending position order."""
         return self._take(np.argsort(self.position))
-
-    def nlargest(self, count) -> PeakTable:
-        """Alias for :meth:`strongest`."""
-        return self.strongest(count)
 
     # -- interop -----------------------------------------------------------
 

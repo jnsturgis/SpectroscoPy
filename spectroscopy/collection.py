@@ -313,10 +313,6 @@ class SpectrumCollection(Sequence):
         """Alias for :meth:`normalize`, for British spelling."""
         return self.normalize(method, window)
 
-    def to_numpy(self, with_parameter=False):
-        """Alias for :meth:`to_matrix`."""
-        return self.to_matrix(with_parameter=with_parameter)
-
     # -- interop -----------------------------------------------------------
 
     def to_matrix(self, with_parameter=False):

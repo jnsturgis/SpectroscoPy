@@ -251,3 +251,46 @@ September decision. Recorded in C below.
 | `clip()` deprecated alias for `crop` | **Keep.** Already documented as deprecated and correctly behaved |
 | `calc`, `formats`, `tools_spc` promise removal "in 0.2" | **Still open — §14.2 blocker 5.** There is no 0.2; the next release is 1.0. Either they go before the freeze or the promise is rewritten. This is the only C item with a deadline |
 | `library.coefficient` / `Coefficient` | **September.** Rename one; `Coefficient` → `CoefficientRecord` or the function → `lookup_coefficient`. Needs a decision, not an alias |
+
+
+---
+
+## Empirical run, 2026-08-05 — what the audit missed
+
+The audit above was a thought experiment: *what would a model guess?* The
+empirical version gave the same four tasks to eight cold agents, four with no
+mention of the library and four told to use it. Full design and pre-registered
+scoring in the session record.
+
+**Give-up rate: 3 of 4.** With the library installed and importable, three of
+four tasks were solved in plain numpy — 299, 232 and 117 lines against 73, 128
+and 65 for the directed runs. All three got the right answer. That is the cost:
+not wrong science, but correct, careful, unreusable code, and not one report of
+anything missing.
+
+**API mistakes: 9, of which 8 are the same one.** Two agents burned five and
+three guesses on *opening a file*:
+
+    spectroscopy.read(path)      spectroscopy.load(path)
+    spectroscopy.io.read(path)   spectroscopy.io.load(path)
+    Spectrum.from_file(path)     -- Spectrum.read(path) is the answer
+
+**This is the audit's blind spot, and it is structural.** Section B asks
+whether the names that *exist* are guessable. It cannot ask which names people
+reach for that are not there at all, because it works from the existing
+surface. Only running it finds those. A top-level `read()` is the single
+highest-value addition available and is a September decision.
+
+Four defects came out of the same run, all since fixed: `.dpt` files loaded
+with no technique (wavenumbers labelled as nanometres, mirror-image plots);
+`Coefficient.value` being the reciprocal of the quoted number with nothing
+saying so; a `processing/__init__` docstring three phases out of date; and
+`strongest()` returning position order despite its name.
+
+**Two aliases added earlier the same day were withdrawn.** `to_numpy()`
+returned a 2-tuple where pandas returns an ndarray, and `nlargest()` returned
+position order where pandas ranks by value. Both borrowed a convention and
+then broke it, which is worse than not having the alias — a guess that works
+and returns the wrong shape or order is precisely the class this audit exists
+to remove. **Lesson: an alias inherits the semantics of the name it borrows.
+If the behaviour cannot match, the alias is a trap, not a courtesy.**
