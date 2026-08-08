@@ -94,6 +94,10 @@ UNIT_LABELS = {
     '%T':            '%',
     'counts':        'counts',
     'a.u.':          'a.u.',
+    'mdeg':          'mdeg',
+    'deg':           'deg',
+    'deg cm^2 dmol^-1': r'deg cm$^2$ dmol$^{-1}$',
+    'delta epsilon': r'M$^{-1}$ cm$^{-1}$',
     '':              '',
 }
 
@@ -112,6 +116,13 @@ KNOWNSPECTYPES = {
                      'y_quantity': 'Signal',       'y_unit': 'a.u.'},
     'Fluorescence': {'x_quantity': 'Wavelength',   'x_unit': 'nm',
                      'y_quantity': 'Fluorescence', 'y_unit': 'a.u.'},
+    # Circular dichroism. The instrument reports millidegrees; mean residue
+    # ellipticity and delta-epsilon are derived quantities needing the
+    # sample's concentration, path length and residue count, so they are not
+    # what a file arrives in. Not in REVERSED_AXIS_TECHNIQUES: CD is plotted
+    # short-to-long wavelength like any other UV spectrum.
+    'CD':           {'x_quantity': 'Wavelength',   'x_unit': 'nm',
+                     'y_quantity': 'Ellipticity',  'y_unit': 'mdeg'},
 }
 
 #: Techniques whose x axis is conventionally plotted high-to-low.

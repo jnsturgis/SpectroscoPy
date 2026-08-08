@@ -25,6 +25,7 @@ import numpy as np
 __all__ = [
     'Category', 'Composition', 'DSSP_STATES', 'AMIDE_I_BANDS',
     'from_ftir', 'FTIR_METHODS',
+    'from_cd', 'CD_METHODS',
 ]
 
 #: The eight DSSP states, and what they mean. The vocabulary everything else
@@ -533,4 +534,194 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
     }
     return Composition(fractions=result, method=method,
                        technique=spectrum.technique or 'FTIR',
+                       quality=quality, source=spectrum.name)
+
+
+# ---------------------------------------------------------------------------
+# Circular dichroism -- structure from the shape of the spectrum
+# ---------------------------------------------------------------------------
+
+#: The two kinds of CD standard, which have to be told apart because they
+#: answer with different things (ADR-0002 section 7.2).
+#:
+#: ``'basis-spectra'``
+#:     The basis is one spectrum per **structural category** -- pure helix,
+#:     pure sheet, coil. The fitted coefficients *are* the composition. Simple,
+#:     and only ever as good as the basis.
+#: ``'reference-proteins'``
+#:     The basis is whole **proteins of known structure**, each carrying its
+#:     own composition. The unknown is fitted as a combination of proteins and
+#:     the same combination is taken of their compositions. This is where the
+#:     field is -- SELCON, CDSSTR, CONTIN -- and those methods differ mainly in
+#:     how they select and weight the reference set.
+CD_METHODS = ('basis-spectra', 'reference-proteins')
+
+def _cd_design(spectrum, basis, region):
+    """Resample the basis onto the sample's axis and crop both to ``region``."""
+    x = np.asarray(spectrum.x, dtype=float)
+    if region is not None:
+        low, high = sorted(region)
+        inside = (x >= low) & (x <= high)
+        if inside.sum() < len(basis) + 1:
+            raise ValueError(
+                f"the region {low:g}-{high:g} nm holds {int(inside.sum())} "
+                f"points, which cannot determine {len(basis)} components. "
+                f"Widen it, or use fewer references."
+            )
+        x = x[inside]
+    measured = np.asarray(spectrum.resample(x).y, dtype=float)
+    design = np.column_stack([np.asarray(reference.resample(x).y, dtype=float)
+                              for reference in basis])
+    return x, measured, design
+
+
+def _fit_fractions(design, measured):
+    """
+    Non-negative coefficients. The fractions are these, normalised.
+
+    Non-negativity is physics: a negative fraction of helix is not a small
+    number, it is a wrong model.
+
+    Summing to one is **not** imposed as a constraint, and that is deliberate.
+    The measured spectrum has an unknown overall amplitude -- it may be in
+    millidegrees at any concentration -- so a constraint forcing the
+    coefficients to sum to one fights that amplitude instead of describing the
+    shape, and makes the answer depend on how loud the spectrum happens to be.
+    Fitting freely and normalising afterwards imposes the same constraint for
+    nothing and leaves the fit scale-free, which is what lets an unknown
+    concentration still give a composition.
+
+    The recovered sum is kept as ``weight_sum``: with a basis in absolute
+    units it is the amplitude, and worth a look.
+    """
+    from scipy.optimize import nnls  # noqa: PLC0415
+
+    scale = float(np.max(np.abs(measured))) or 1.0
+    coefficients, _ = nnls(design / scale, measured / scale)
+    return coefficients
+
+
+def from_cd(spectrum, method=None, *, basis=None, compositions=None,
+            region=(190.0, 250.0)) -> Composition:
+    """
+    Estimate secondary structure from the **shape** of a CD spectrum.
+
+    Shape, not size: the fit is scale-free, so the spectrum does not have to
+    be in mean residue ellipticity and an unknown concentration does not
+    prevent an answer. That is deliberate -- getting to MRE needs a
+    concentration, a path length and a residue count, and requiring all three
+    before any structure could be estimated would block the common case for a
+    reason that does not apply to it.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        The measured CD spectrum. Any ellipticity unit.
+    method : str
+        Required, one of :data:`CD_METHODS`. Named rather than defaulted
+        because which kind of standard was used is most of what the answer
+        means, and the two are not interchangeable.
+    basis : sequence of Spectrum
+        The standards. For ``'basis-spectra'`` each must carry the
+        :class:`Category` it represents in ``metadata['category']``. For
+        ``'reference-proteins'`` they are whole proteins and ``compositions``
+        supplies their structures.
+    compositions : sequence of Composition
+        One per reference protein, required for ``'reference-proteins'``.
+    region : tuple, default (190, 250)
+        Wavelength range to fit, nm. The default is the far-UV amide region.
+        Below about 190 nm most instruments run out of light and the noise
+        rises steeply, which is why the default stops there rather than at
+        whatever the file happens to contain.
+
+    Returns
+    -------
+    Composition
+
+    Notes
+    -----
+    **No reference data ships with this package**, by decision (ADR-0002
+    section 9): the published sets have redistribution terms that have not been
+    checked, and inventing a basis would make a decorative answer look like a
+    measurement. You supply the basis; the package supplies the arithmetic.
+
+    The arithmetic is tested against synthetic mixtures of a known basis, which
+    proves it recovers what it is given. It does not prove that any particular
+    basis describes your protein -- that depends entirely on the standards, and
+    the ``rmsd`` in :attr:`Composition.quality` is what tells you whether the
+    fit was able to reproduce your spectrum at all.
+    """
+    if method not in CD_METHODS:
+        raise ValueError(
+            f"method must be one of {CD_METHODS}, got {method!r}. It is "
+            f"required because a basis of pure structures and a set of "
+            f"reference proteins give different answers from the same "
+            f"spectrum, and the result has to say which was used."
+        )
+    if not basis:
+        raise ValueError(
+            "from_cd needs a basis: no reference spectra ship with this "
+            "package (ADR-0002 section 9). Pass basis=[...] -- pure-structure "
+            "spectra for 'basis-spectra', reference proteins plus their "
+            "compositions for 'reference-proteins'."
+        )
+
+    basis = list(basis)
+    x, measured, design = _cd_design(spectrum, basis, region)
+    coefficients = _fit_fractions(design, measured)
+
+    total = float(np.sum(coefficients))
+    if total <= 0:
+        raise ValueError(
+            "the fit put no weight on any reference, which means the basis "
+            "cannot describe this spectrum at all -- check that both are in "
+            "the same wavelength range and the same sign convention."
+        )
+
+    if method == 'basis-spectra':
+        fractions = {}
+        for reference, weight in zip(basis, coefficients):
+            category = reference.metadata.get('category')
+            if category is None:
+                raise ValueError(
+                    f"basis spectrum {reference.name!r} has no "
+                    f"metadata['category']; with method='basis-spectra' each "
+                    f"basis spectrum must say which structural category it "
+                    f"represents, as a structure.Category."
+                )
+            fractions[category] = fractions.get(category, 0.0) + weight / total
+    else:
+        if compositions is None or len(compositions) != len(basis):
+            raise ValueError(
+                f"method='reference-proteins' needs one Composition per "
+                f"reference protein; got {len(basis)} references and "
+                f"{0 if compositions is None else len(compositions)} "
+                f"compositions."
+            )
+        fractions = {}
+        for composition, weight in zip(compositions, coefficients):
+            for category, value in composition.fractions.items():
+                if value is None:
+                    continue
+                fractions[category] = (fractions.get(category, 0.0)
+                                       + (weight / total) * value)
+
+    residual = measured - design @ coefficients
+    span = float(np.max(measured) - np.min(measured)) or 1.0
+    quality = {
+        'rmsd': float(np.sqrt(np.mean(residual ** 2))),
+        'rmsd_relative': float(np.sqrt(np.mean(residual ** 2)) / span),
+        'n_references': len(basis),
+        'fitted_points': int(len(x)),
+        'region': (float(x.min()), float(x.max())),
+        # What the coefficients summed to before being normalised. With a
+        # basis in absolute units this is the spectrum's amplitude; with an
+        # arbitrary one it is arbitrary too. Either way the fractions below
+        # are a projection onto whatever the basis spans, so 'rmsd_relative'
+        # is the number to read before believing any of them.
+        'weight_sum': total,
+        'condition_number': float(np.linalg.cond(design)),
+    }
+    return Composition(fractions=fractions, method=method,
+                       technique=spectrum.technique or 'CD',
                        quality=quality, source=spectrum.name)

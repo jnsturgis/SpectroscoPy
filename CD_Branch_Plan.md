@@ -76,7 +76,7 @@ either a second set of names or a format migration.
 
 ## Work packages
 
-### WP1 — CD as a technique (small, additive, do first)
+### WP1 — CD as a technique ✅ done 2026-08-08
 
 - `KNOWNSPECTYPES['CD']`: x Wavelength/nm, y Ellipticity/mdeg. **Not** in
   `REVERSED_AXIS_TECHNIQUES`.
@@ -126,7 +126,7 @@ stands — no writer for a format that cannot be verified.
 Blocked on knowing which instrument produced the AqpZ scan (§18.3). Finding
 that notebook is the cheapest unblocking action available.
 
-### WP4 — deconvolution
+### WP4 — deconvolution 🔨 machinery done 2026-08-08
 
 Per ADR-0002 §7.2, two kinds of standard, and the method name must say which:
 
@@ -178,7 +178,7 @@ Three checks, in increasing strength:
 
 **Publish the spread beside any composition, always.** Same rule as `main`.
 
-### WP6 — the AqpZ temperature melt (§18.3)
+### WP6 — the AqpZ temperature melt (§18.3) 🔨 the fit is built
 
 A CD temperature scan on AqpZ, notebook 2025-07-24, analysis already done by
 James; the notebook has not been found.
@@ -238,3 +238,84 @@ Not "it works" — this branch merges when:
 - Change `Composition`, the DSSP vocabulary, or any frozen signature.
 - Ship reference spectra of unchecked provenance.
 - Become a reason 1.0 slips. If it starts to look like one, it stops.
+
+
+---
+
+## Progress, 2026-08-08
+
+**WP1 done.** `KNOWNSPECTYPES['CD']` — Wavelength/nm, Ellipticity/mdeg, not
+reversed. Mean residue ellipticity and delta-epsilon are registered as units
+and as bipolar, though nothing converts to them yet (that is WP2). D1 does its
+job unprompted: a helix CD spectrum peak-picks both ways and finds +193
+alongside −208/−222.
+
+**WP4, the machinery.** `structure.from_cd(spectrum, method, basis=...)`,
+returning the same `Composition` as `from_ftir` per ADR-0002. Both kinds of
+standard are supported and the method must be named, because they answer
+differently: `'basis-spectra'` (coefficients *are* the composition) and
+`'reference-proteins'` (fit proteins, then mix their known structures).
+
+**The fit is scale-free**, and that turned out to matter more than expected.
+The first version imposed "fractions sum to one" as a weighted constraint row;
+it made the answer depend on how loud the spectrum was, because the constraint
+fought the unknown amplitude instead of describing the shape. Fitting freely
+and normalising afterwards imposes the same constraint for nothing and leaves
+the result independent of concentration — which is what lets a protein of
+unknown concentration still give a composition, and removes WP2 from the
+critical path for the commonest question.
+
+Still no reference data ships, by ADR-0002 §9. The arithmetic is tested against
+synthetic mixtures of a known basis and recovers 0.550/0.200/0.250 from
+0.55/0.20/0.25. That proves the arithmetic and nothing about any real basis;
+`quality['rmsd_relative']` is what says whether a basis could describe your
+spectrum at all.
+
+**WP6, the fit.** `processing.melting` — deliberately technique-agnostic, since
+a melt is the same analysis whether it is CD at 222 nm, tryptophan
+fluorescence, or absorbance. Two-state van 't Hoff with **sloping baselines on
+both states**, six parameters. Recovers Tm 51.99 ± 0.01 against a true 52.0 and
+dH 250.3 ± 0.4 against 250.
+
+### The part worth keeping: the fit is not the evidence
+
+§19's lesson applied before it could bite. A two-state curve fits three-state
+data at one wavelength with a residual of 1.4% of range and reports a single
+Tm of 61.7 °C — against true transitions at **42 and 62 °C**. It finds the
+second; the first leaves no trace in Tm at all.
+
+So two checks that use information the fit does not, both across the whole
+spectrum:
+
+| | two-state | three-state |
+|---|---|---|
+| fit residual / range | 0.002 | **0.014** — unremarkable |
+| isodichroic tightness | 0.022 ✓ | 0.050 ✗ |
+| third singular value / noise | 1.6 ✓ | **20** ✗ |
+
+`isodichroic_point` — if a sample really passes between two states, every
+spectrum is a mixture of the same two and they all cross at one wavelength.
+`two_state_rank` — a two-state series is a rank-2 matrix, so the third singular
+value should sit at the noise floor.
+
+Getting the second right needed a correction: the first version mean-centred
+the matrix, which removes one rank, so it was testing for a *fourth* species
+and reported "two-state" on the three-state series. Uncentred, and compared
+against the noise floor estimated from the trailing singular values, it
+separates 1.6 from 20.
+
+The fitted dH also carries a signature — 39 kJ/mol against the 220 that built
+each step, the classical sign of a non-two-state transition. It is worth
+checking, but it needs an expectation to compare against, which an unknown
+protein does not come with. The two structural checks need none.
+
+### Next
+
+- **WP2**, the units conversion, is now needed only for absolute quantities:
+  `theta-222` helicity and anything comparing amplitudes between samples. Write
+  the conversion down and check it against a published worked example before
+  coding it — both MRE conventions and the mdeg/deg and molar/per-residue
+  factors are exactly where a plausible wrong number comes from.
+- **WP3**, a reader, still blocked on knowing which instrument wrote the AqpZ
+  scan.
+- **WP5** unchanged: none of this is validated on a real protein.

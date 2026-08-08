@@ -95,6 +95,8 @@ BAND_DIRECTION = {
     'polarization':  'both',
     'dA':            'both',
     'delta absorbance': 'both',
+    'deg cm^2 dmol^-1': 'both',
+    'delta epsilon':    'both',
 }
 
 #: The signed y quantities, listed together because they are a class rather
@@ -135,7 +137,8 @@ BAND_DIRECTION = {
 #: :meth:`~spectroscopy.spectra.Spectrum.subtract_reference` leaving the unit
 #: alone rather than guessing.
 BIPOLAR_UNITS = ('mdeg', 'deg', 'anisotropy', 'polarization',
-                 'dA', 'delta absorbance')
+                 'dA', 'delta absorbance',
+                 'deg cm^2 dmol^-1', 'delta epsilon')
 
 
 #: Extinction-coefficient units, matched exactly. Anything of the form

@@ -95,6 +95,10 @@ IDENTIFICATION = (
     ('parameter_name', 'name', "What that number is: 'potential', "
                                "'temperature', 'concentration'."),
     ('parameter_unit', 'name', "What it is in: 'mV', 'C', 'uM'."),
+    ('category', 'Category',
+     "For a reference spectrum in a structural basis: which "
+     "processing.structure.Category it represents. Read by "
+     "structure.from_cd(method='basis-spectra')."),
 )
 
 #: Instrument settings that are generic rather than vendor-specific, so they

@@ -9,6 +9,9 @@ Processing and analysis algorithms.
     Every one is also a :class:`~spectroscopy.spectra.Spectrum` method.
 ``ftir``
     Amide I side-chain contributions and residual spectra.
+``melting``
+    Two-state thermal unfolding: Tm, van 't Hoff enthalpy, and two checks
+    that the transition really is two-state.
 ``multivariate``
     PCA / NMF / ICA across a collection, with bootstrap stability.
 ``scattering``
@@ -19,4 +22,5 @@ Processing and analysis algorithms.
     Supervised separation against known reference spectra.
 """
 
-__all__ = ['common', 'ftir', 'multivariate', 'scattering', 'structure', 'unmix']
+__all__ = ['common', 'ftir', 'melting', 'multivariate', 'scattering',
+           'structure', 'unmix']

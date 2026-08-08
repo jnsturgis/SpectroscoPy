@@ -166,7 +166,7 @@ def test_the_metadata_keys_the_library_reads_are_pinned():
         'reference_electrode',
         # identification
         'sample', 'reference', 'spec_type',
-        'parameter', 'parameter_name', 'parameter_unit',
+        'parameter', 'parameter_name', 'parameter_unit', 'category',
         # acquisition
         'excitation_nm', 'z_value', 'z_quantity', 'scans',
     }
