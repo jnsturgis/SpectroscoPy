@@ -393,13 +393,22 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=None,
 
     Parameters
     ----------
-    troughs : bool, optional
+    troughs : bool or ``'both'``, optional
         Look for minima instead of maxima. **Left unset, the direction is
         taken from** ``y_unit``: bands in transmittance, ``%T`` and reflectance
         are minima, so those are searched downward, and absorbance-like units
         upward. Pass it explicitly to override -- which is what a difference
         spectrum needs, where both directions are meaningful and the unit
         cannot tell you which one you meant.
+
+        ``troughs='both'`` searches **both ways and returns both**, with a
+        ``sign`` array in the properties saying which each one is. That is the
+        right answer for a signed quantity -- circular or linear dichroism,
+        fluorescence anisotropy, a difference spectrum -- where a band pointing
+        down is not a failure to point up. Units known to be signed
+        (:data:`~spectroscopy.units.BIPOLAR_UNITS`) select it on their own; a
+        difference spectrum in plain ``absorbance`` cannot be recognised and
+        has to say so here.
 
         This defaulting exists because getting it wrong is silent. On a
         transmission spectrum, searching upward returns the two inflection
@@ -441,17 +450,22 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=None,
 
     # Direction: an explicit troughs= always wins, because a difference
     # spectrum has bands both ways and only the caller knows which is meant.
-    direction = units.band_direction(y_unit)
+    unit_direction = units.band_direction(y_unit)
     if troughs is None:
-        troughs = direction == 'down'
-        chosen_by = 'y_unit' if direction != 'unknown' else 'assumed'
+        direction = unit_direction if unit_direction != 'unknown' else 'up'
+        chosen_by = 'y_unit' if unit_direction != 'unknown' else 'assumed'
+    elif isinstance(troughs, str):
+        if troughs != 'both':
+            raise ValueError(
+                f"troughs must be True, False or 'both', got {troughs!r}"
+            )
+        direction, chosen_by = 'both', 'caller'
     else:
-        troughs = bool(troughs)
+        direction = 'down' if troughs else 'up'
         chosen_by = 'caller'
 
-    if troughs:
-        signal = -signal
-
+    # Scale relative thresholds against the un-flipped signal, so that the two
+    # halves of a both-ways search are judged on the same scale.
     if relative:
         span = float(np.nanmax(signal) - np.nanmin(signal))
         kwargs = {key: (np.asarray(value) * span
@@ -459,10 +473,47 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=None,
                         else value)
                   for key, value in kwargs.items()}
 
-    indices, properties = _find_peaks(signal, **kwargs)
+    if direction == 'both':
+        indices, properties, sign = _find_both_ways(signal, **kwargs)
+    else:
+        search = -signal if direction == 'down' else signal
+        indices, properties = _find_peaks(search, **kwargs)
+        sign = np.full(len(indices), -1 if direction == 'down' else 1, dtype=int)
+
     # Recorded, not just acted on: which way the search ran and why is part of
     # reading the result, and it is the first thing to check when a peak list
     # looks wrong.
-    properties = {**properties, 'troughs': troughs,
+    properties = {**properties,
+                  'troughs': None if direction == 'both' else direction == 'down',
+                  'direction': direction, 'sign': sign,
                   'direction_from': chosen_by, 'y_unit': y_unit}
     return indices, properties
+
+
+def _find_both_ways(signal, **kwargs):
+    """
+    Maxima and minima together, merged into one position-ordered list.
+
+    Used for the signed quantities, where searching one way finds half the
+    spectrum: an alpha-helix in CD has its 222 nm band pointing down and its
+    193 nm band pointing up, and a peak list holding either one alone is
+    describing a different molecule from the one measured.
+    """
+    up_index, up_props = _find_peaks(signal, **kwargs)
+    down_index, down_props = _find_peaks(-signal, **kwargs)
+
+    indices = np.concatenate([up_index, down_index]).astype(int)
+    sign = np.concatenate([np.ones(len(up_index), dtype=int),
+                           -np.ones(len(down_index), dtype=int)])
+    order = np.argsort(indices, kind='stable')
+
+    # scipy returns the same property keys for the same arguments, so the two
+    # halves line up; anything present on only one side would not be alignable
+    # and is dropped rather than half-filled.
+    merged = {}
+    for key in set(up_props) & set(down_props):
+        try:
+            merged[key] = np.concatenate([up_props[key], down_props[key]])[order]
+        except ValueError:                                   # noqa: PERF203
+            continue
+    return indices[order], merged, sign[order]

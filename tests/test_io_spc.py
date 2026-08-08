@@ -276,7 +276,7 @@ def test_raman_is_recognised_from_the_axis_not_the_experiment_code(spc_sample):
     """
     spectrum = read_spectrum(spc_sample('raman.spc'))
     assert spectrum.metadata['spc_experiment'] == 'General'
-    assert spectrum.metadata['technique_hint'] == 'Raman'
+    assert spectrum.metadata['spc_technique_hint'] == 'Raman'
     assert spectrum.x_quantity == 'Raman shift'
 
 

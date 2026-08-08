@@ -138,6 +138,18 @@ def read(filehandle, my_spectrum, **kwargs):
     if header:
         my_spectrum.metadata['file_header'] = header
 
+    # .dpt is a Bruker OPUS export and OPUS is an infrared instrument, so the
+    # x axis is wavenumber. Saying nothing left the Spectrum default of
+    # 'Wavelength (nm)' in place: an axis running 899-3998 cm^-1 was labelled
+    # in nanometres and plotted left-to-right instead of the infrared
+    # convention -- a mislabelled mirror image, with nothing to notice,
+    # because 899-3998 nm is a perfectly plausible near-infrared range.
+    #
+    # 'FTIR' rather than 'ATR-FTIR': the sampling accessory is not in the
+    # file, and only the axes can be inferred. set_type('ATR-FTIR') refines
+    # it and keeps the same axes.
+    my_spectrum.set_type('FTIR')
+
 
 @register_writer('dpt')
 def write(filehandle, my_spectrum, **kwargs):

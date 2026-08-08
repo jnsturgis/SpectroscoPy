@@ -445,7 +445,7 @@ def read_spc(source):
                             y_quantity=y_quantity, y_unit=y_unit)
         spectrum.metadata.update(common)
         if technique:
-            spectrum.metadata['technique_hint'] = technique
+            spectrum.metadata['spc_technique_hint'] = technique
         if len(blocks) > 1:
             spectrum.name = f"subfile {sub['subindx']}"
             # The Z value is what distinguishes subfiles -- a time, a

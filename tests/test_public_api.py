@@ -22,6 +22,7 @@ import spectroscopy as spc
 
 #: Exactly what ``from spectroscopy import *`` should bind.
 EXPECTED_ALL = {
+    'read',
     'Spectrum',
     'SpectrumCollection',
     'PeakTable',
@@ -30,6 +31,7 @@ EXPECTED_ALL = {
     'datasets',
     'io',
     'library',
+    'metadata',
     'processing',
     'units',
     'lineshapes',
@@ -116,8 +118,10 @@ def test_the_surface_is_no_larger_than_it_looks():
     """A blunt count, so a slow drift upward is visible in a diff.
 
     It was 40 names, 17 of them modules, before roadmap section 14.2.
+    Raised to 18 on 2026-08-05 for ``metadata``, which documents the keys that
+    freeze with the ``.spy`` format (roadmap D2), and to 19 for ``read``.
     """
-    assert len(_fresh_public_names()) <= 17
+    assert len(_fresh_public_names()) <= 19
 
 
 def test_viz_is_not_imported_eagerly():
@@ -140,3 +144,250 @@ def test_viz_is_not_imported_eagerly():
 
 def test_viz_is_still_reachable_without_a_separate_import():
     assert spc.viz.plot is not None
+
+
+# ---------------------------------------------------------------------------
+# metadata keys freeze with the .spy format, whether or not anyone says so:
+# the writer serialises the dictionary verbatim. Roadmap D2.
+# ---------------------------------------------------------------------------
+
+def test_the_metadata_keys_the_library_reads_are_pinned():
+    """
+    These names are in every .spy file ever written. Renaming one silently
+    orphans the data in existing files -- the key is still there, and nothing
+    reads it any more.
+    """
+    from spectroscopy import metadata
+
+    assert set(metadata.KNOWN_KEYS) == {
+        # sample conditions
+        'path_length', 'concentration', 'mass_concentration',
+        'n_residues', 'mean_residue_weight', 'temperature', 'pH',
+        'reference_electrode',
+        # identification
+        'sample', 'reference', 'spec_type',
+        'parameter', 'parameter_name', 'parameter_unit',
+        # acquisition
+        'excitation_nm', 'z_value', 'z_quantity', 'scans',
+    }
+
+
+def test_the_keys_the_code_actually_reads_are_in_the_schema():
+    """
+    The schema is only worth having if it describes the real thing. This
+    catches a module that starts reading a key nobody wrote down -- which is
+    how path_length arrived in the first place.
+    """
+    import pathlib
+    import re
+
+    root = pathlib.Path(__file__).resolve().parent.parent / 'spectroscopy'
+    from spectroscopy import metadata
+
+    pattern = re.compile(r"metadata(?:\[|\.get\()'([a-zA-Z_]+)'")
+    found = set()
+    for source in root.rglob('*.py'):
+        if source.name in ('metadata.py', 'jcamp.py'):
+            continue                       # the schema itself; vendored parser
+        found |= set(pattern.findall(source.read_text(encoding='utf-8')))
+
+    undocumented = {key for key in found
+                    if key not in metadata.KNOWN_KEYS
+                    and not key.startswith(metadata.PROVENANCE_PREFIXES)}
+    assert not undocumented, (
+        f"these metadata keys are read by the code but are not in the "
+        f"schema: {sorted(undocumented)}. Add them to spectroscopy/metadata.py "
+        f"or give them a provenance prefix."
+    )
+
+
+def test_unknown_keys_finds_the_near_miss():
+    """'pathlength' is ignored by every consumer and looks exactly like
+    having forgotten to set it."""
+    from spectroscopy import metadata
+
+    assert metadata.unknown_keys({'path_length': 1.0}) == []
+    assert metadata.unknown_keys({'pathlength': 1.0}) == ['pathlength']
+    assert metadata.unknown_keys({'opus_history': '...'}) == []
+
+
+# ---------------------------------------------------------------------------
+# Guessability: the wrong guess should work, or fail loudly -- never work and
+# be wrong. SpectroscoPy_API_Guessability.md, applied 2026-08-05.
+# ---------------------------------------------------------------------------
+
+def test_assigning_technique_does_what_set_type_does():
+    """
+    A1, the one that was silently wrong: `.technique` was a plain attribute,
+    so the guessable line left an infrared spectrum labelled in nm and reading
+    it back reported exactly what had been asked for.
+    """
+    import numpy as np
+
+    def fresh():
+        return spc.Spectrum(np.linspace(900, 1800, 50), np.ones(50))
+
+    assigned, called = fresh(), fresh()
+    assigned.technique = 'ATR-FTIR'
+    called.set_type('ATR-FTIR')
+
+    for attribute in ('technique', 'x_unit', 'x_quantity', 'y_unit'):
+        assert getattr(assigned, attribute) == getattr(called, attribute)
+    assert assigned.metadata['spec_type'] == 'ATR-FTIR'
+    assert assigned.x_unit == 'cm^-1'
+
+
+def test_assigning_an_unknown_technique_is_refused():
+    with pytest.raises(TypeError, match='Unknown spectrum type'):
+        spc.Spectrum().technique = 'NMR'
+
+
+def test_technique_can_still_be_cleared():
+    spectrum = spc.Spectrum()
+    spectrum.set_type('UV-Vis')
+    spectrum.technique = None
+    assert spectrum.technique is None
+    assert 'spec_type' not in spectrum.metadata
+
+
+def test_copying_keeps_the_axes_the_original_had():
+    """
+    The property setter applies the technique's default axes, so the copy
+    constructor must not go through it -- a UV-Vis spectrum deliberately held
+    in cm^-1 would come back in nm.
+    """
+    import numpy as np
+
+    original = spc.Spectrum(np.linspace(400, 700, 10), np.ones(10),
+                            technique='UV-Vis')
+    original.x_unit = 'cm^-1'
+    assert spc.Spectrum(original).x_unit == 'cm^-1'
+
+
+@pytest.mark.parametrize('alias, canonical', [
+    ('get_info', 'describe'),
+    ('normalise', 'normalize'),
+    ('write', 'save_as'),
+])
+def test_spectrum_aliases_exist(alias, canonical):
+    assert hasattr(spc.Spectrum, alias) and hasattr(spc.Spectrum, canonical)
+
+
+@pytest.mark.parametrize('alias, canonical', [
+    ('groupby', 'group_by'),
+    ('filter', 'select'),
+    ('normalise', 'normalize'),
+])
+def test_collection_aliases_exist(alias, canonical):
+    assert (hasattr(spc.SpectrumCollection, alias)
+            and hasattr(spc.SpectrumCollection, canonical))
+
+
+def test_aliases_return_what_the_canonical_names_do():
+    import numpy as np
+
+    x = np.linspace(900, 1800, 50)
+    spectra = [spc.Spectrum(x, np.full_like(x, level), technique='ATR-FTIR')
+               for level in (1.0, 2.0)]
+    for index, spectrum in enumerate(spectra):
+        spectrum.set_sample(f"s{index}")
+    collection = spc.SpectrumCollection(spectra)
+
+    assert set(collection.groupby('sample')) == set(
+        collection.group_by('sample'))
+    assert len(collection.filter(lambda s: True)) == len(collection)
+    assert spectra[0].describe() == spectra[0].get_info()
+
+
+def test_the_mutating_and_copying_prefixes_are_kept_apart():
+    """
+    A2: `set_` mutates and returns None on a Spectrum; the collection method
+    returns a new collection, so it is `with_parameters` and not `set_`.
+    """
+    assert hasattr(spc.SpectrumCollection, 'with_parameters')
+    assert not hasattr(spc.SpectrumCollection, 'set_parameters')
+    assert spc.Spectrum().set_sample('x') is None
+
+
+def test_dropped_aliases_stay_dropped():
+    """
+    Both borrowed a pandas name and then broke its contract, which is worse
+    than not having the alias: pandas' to_numpy returns an ndarray and ours
+    returned a 2-tuple; pandas' nlargest ranks by value and ours returned
+    position order. A guess that works and returns the wrong shape or order
+    is the failure this whole audit is about. Added and removed 2026-08-05.
+    """
+    assert not hasattr(spc.SpectrumCollection, 'to_numpy')
+    assert not hasattr(spc.PeakTable, 'nlargest')
+
+
+def test_strongest_returns_them_strongest_first():
+    """It returned position order until 2026-08-05, despite the name."""
+    import numpy as np
+
+    table = spc.PeakTable(position=np.array([100.0, 200.0, 300.0]),
+                          height=np.array([0.5, 0.9, 0.7]),
+                          index=np.arange(3))
+    assert list(table.strongest(3).height) == [0.9, 0.7, 0.5]
+    assert list(table.strongest(2).position) == [200.0, 300.0]
+    # and the tutorials' explicit re-sort is meaningful again
+    assert list(table.strongest(3).sorted_by_position().position) == [
+        100.0, 200.0, 300.0]
+
+
+def test_a_dpt_file_knows_it_is_infrared():
+    """
+    899-3998 cm^-1 labelled 'Wavelength (nm)' plots as a mislabelled mirror
+    image, and near-infrared nanometres are plausible enough that nothing
+    looks wrong.
+    """
+    import pathlib as _pathlib
+
+    root = _pathlib.Path(__file__).resolve().parent.parent
+    spectrum = spc.Spectrum.read(
+        root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    assert spectrum.technique == 'FTIR'
+    assert spectrum.x_unit == 'cm^-1'
+    assert spectrum.x_quantity == 'Wavenumber'
+    assert spectrum.reversed_x
+    # and it stays refinable to the sampling accessory the file cannot know
+    spectrum.set_type('ATR-FTIR')
+    assert spectrum.x_unit == 'cm^-1'
+
+
+def test_a_coefficient_says_which_way_round_it_is():
+    """.value is the reciprocal of the number people quote."""
+    dsdna = spc.library.coefficient('dsDNA', 260)
+    assert dsdna.value == pytest.approx(0.02)
+    assert dsdna.quoted_as == pytest.approx(50.0)
+    assert '50 ug/mL' in str(dsdna)
+
+
+def test_the_front_door_is_where_people_knock():
+    """
+    Eight of the nine wrong API calls in the 2026-08-05 cold-agent run were
+    guesses at a top-level reader. This is that reader.
+    """
+    import pathlib as _pathlib
+
+    root = _pathlib.Path(__file__).resolve().parent.parent
+    spectrum = spc.read(root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    assert isinstance(spectrum, spc.Spectrum)
+    assert spectrum.technique == 'FTIR'
+    # the format comes from the file, not the extension
+    assert spc.read(root / 'spectroscopy/data/infrared_spectra/ethanol.jdx'
+                    ).y_unit == 'transmittance'
+
+
+def test_reading_a_multi_spectrum_file_says_where_to_go(tmp_path):
+    """Returning the first of several silently would be worse than failing."""
+    wide = tmp_path / 'wide.csv'
+    wide.write_text('wavelength,a,b\n400,0.1,0.2\n401,0.3,0.4\n402,0.5,0.6\n')
+    with pytest.raises(ValueError, match='read_spectra'):
+        spc.read(wide, 'table', x_col=0)
+
+
+def test_there_is_deliberately_no_top_level_load():
+    """`load` already means "fetch a bundled example" -- datasets.load(name)."""
+    assert not hasattr(spc, 'load')
+    assert callable(spc.datasets.load)

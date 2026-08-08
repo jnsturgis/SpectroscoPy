@@ -1,5 +1,11 @@
 # API guessability audit (2026-08-05)
 
+:::{note}
+**Applied 2026-08-05.** A1, A2 and every alias in B are done. A3 was
+**rejected** by James, on a rule the API already follows — see below. The C
+items are recorded with decisions. See "What was done" at the foot.
+:::
+
 **One question, asked of every public name: what would somebody who knows
 numpy, scipy and pandas — or a language model that half-remembers this
 library — *guess* it was called?**
@@ -85,8 +91,32 @@ looking closely at the figure would notice.
 
 **Recommended:** keep both, and make the pairing self-describing —
 `estimate_baseline()` and `subtract_baseline()`, with the current names kept as
-aliases. If only one change is made, renaming `baseline()` is the one that
-pays, because it is the name that reads like a verb but is not.
+aliases.
+
+:::{admonition} Rejected (James, 2026-08-05) — and the audit was wrong here
+:class: important
+
+**"`baseline` is an object, `baseline_correct` is an action."**
+
+That is not a defence of the existing names; it is a naming rule, and the API
+already obeys it. A bare noun returns that thing; a verb performs an action.
+Checked against the whole public surface: the *only* two bare-noun methods on
+`Spectrum` and `SpectrumCollection` are `baseline` and `derivative`, and both
+return exactly the noun they are named for.
+
+So `baseline()` does not "read like a verb", as this section claimed. It reads
+like a noun, because it is one, and renaming it to `estimate_baseline` would
+have made it the exception rather than fixing one.
+
+**The rule is worth applying to new names**, and it settles cases the audit
+handled ad hoc: `parameters` and `samples` are nouns and are properties;
+`with_parameters` returns a copy while `set_parameter` mutates; `describe`
+and `find_peaks` are verbs that do something.
+
+The residual risk — that someone calls `baseline()` expecting a corrected
+spectrum, as happened once in the guide — is a *documentation* problem, not a
+naming one, and the fix is the two being documented together.
+:::
 
 ---
 
@@ -165,3 +195,156 @@ For each public name, in order: (1) write down the guess before looking at the
 code; (2) run the guess; (3) grade by what happened — silently wrong, raised,
 or worked. Step 2 is the one that cannot be skipped. A1 was found by running
 the guess and reading the resulting units, not by thinking about the name.
+
+
+---
+
+## What was done, 2026-08-05
+
+**A1 — fixed.** `technique` is now a property whose setter calls `set_type`,
+so the guessable line and the correct line are the same line. The copy
+constructor assigns `_technique` directly, because going through the setter
+would apply the technique's default axes over the ones just copied — a UV-Vis
+spectrum deliberately held in cm⁻¹ would have come back in nm. Four tests,
+including that one.
+
+**A2 — fixed.** `set_parameters` → `with_parameters`. No alias and no
+deprecation: it was added on 2026-08-04, after the 0.1.0 tag, so nothing has
+ever been released under the old name. The `set_` prefix now means "mutates,
+returns None" without exception.
+
+**A3 — rejected, and the finding itself was wrong.** James: "`baseline` is an
+object, `baseline_correct` is an action." The API already follows that rule —
+the only two bare-noun methods across `Spectrum` and `SpectrumCollection` are
+`baseline` and `derivative`, and both return the noun they name. Renaming
+`baseline()` would have created the exception, not removed one. **Closed, not
+deferred**; nothing to revisit in September. The naming rule is now recorded
+above and applies to new names.
+
+**B — all applied**, as forwarding methods with one-line docstrings rather
+than bare assignments, so they read correctly in the API documentation:
+
+| Alias | Forwards to |
+|---|---|
+| `Spectrum.get_info` | `describe` *(renamed; `get_info` kept)* |
+| `Spectrum.normalise` | `normalize` |
+| `Spectrum.write` | `save_as` |
+| `SpectrumCollection.groupby` | `group_by` |
+| `SpectrumCollection.filter` | `select` |
+| `SpectrumCollection.normalise` | `normalize` |
+| `SpectrumCollection.to_numpy` | `to_matrix` |
+| `PeakTable.nlargest` | `strongest` |
+
+**`library.coefficient` vs `library.Coefficient` — no alias is possible**, and
+that is worth stating rather than leaving as an omission. The problem is a
+function and a class differing only in case, so there is no third name that
+helps; `library.Coefficient('dsDNA')` still raises a `TypeError` from the
+dataclass constructor. Fixing it means renaming one of them, which is a
+September decision. Recorded in C below.
+
+## C items — decisions
+
+| Item | Decision |
+|---|---|
+| `processing.common` is undiscoverable | **Keep.** Renaming a module is a bigger break than the problem. The guide is the discovery route, and `Spectrum` methods cover the same ground for most users |
+| `set_sample(info)` parameter named `info` | **Rename to `name` in September**, with the positional call unaffected. Cosmetic, zero risk, but it is still a breaking change for anyone using the keyword |
+| `clip()` deprecated alias for `crop` | **Keep.** Already documented as deprecated and correctly behaved |
+| `calc`, `formats`, `tools_spc` promise removal "in 0.2" | **Still open — §14.2 blocker 5.** There is no 0.2; the next release is 1.0. Either they go before the freeze or the promise is rewritten. This is the only C item with a deadline |
+| `library.coefficient` / `Coefficient` | **September.** Rename one; `Coefficient` → `CoefficientRecord` or the function → `lookup_coefficient`. Needs a decision, not an alias |
+
+
+---
+
+## Empirical run, 2026-08-05 — what the audit missed
+
+The audit above was a thought experiment: *what would a model guess?* The
+empirical version gave the same four tasks to eight cold agents, four with no
+mention of the library and four told to use it. Full design and pre-registered
+scoring in the session record.
+
+**Give-up rate: 3 of 4.** With the library installed and importable, three of
+four tasks were solved in plain numpy — 299, 232 and 117 lines against 73, 128
+and 65 for the directed runs. All three got the right answer. That is the cost:
+not wrong science, but correct, careful, unreusable code, and not one report of
+anything missing.
+
+**API mistakes: 9, of which 8 are the same one.** Two agents burned five and
+three guesses on *opening a file*:
+
+    spectroscopy.read(path)      spectroscopy.load(path)
+    spectroscopy.io.read(path)   spectroscopy.io.load(path)
+    Spectrum.from_file(path)     -- Spectrum.read(path) is the answer
+
+**This is the audit's blind spot, and it is structural.** Section B asks
+whether the names that *exist* are guessable. It cannot ask which names people
+reach for that are not there at all, because it works from the existing
+surface. Only running it finds those. A top-level `read()` is the single
+highest-value addition available and is a September decision.
+
+Four defects came out of the same run, all since fixed: `.dpt` files loaded
+with no technique (wavenumbers labelled as nanometres, mirror-image plots);
+`Coefficient.value` being the reciprocal of the quoted number with nothing
+saying so; a `processing/__init__` docstring three phases out of date; and
+`strongest()` returning position order despite its name.
+
+**Two aliases added earlier the same day were withdrawn.** `to_numpy()`
+returned a 2-tuple where pandas returns an ndarray, and `nlargest()` returned
+position order where pandas ranks by value. Both borrowed a convention and
+then broke it, which is worse than not having the alias — a guess that works
+and returns the wrong shape or order is precisely the class this audit exists
+to remove. **Lesson: an alias inherits the semantics of the name it borrows.
+If the behaviour cannot match, the alias is a trap, not a courtesy.**
+
+
+## Re-run protocol (James, 2026-08-05): more real data, and a before/after
+
+The first run is a baseline, and its main weakness is that only two of the four
+tasks used real measurements. Repeating it is worth doing, but **only if the
+second run is comparable with the first**, so the protocol is fixed here rather
+than reinvented later.
+
+**What must stay identical**, or the two runs cannot be compared: two
+conditions (cold and directed), cold agents told nothing about any library,
+one agent per cell, agents working outside the repository, the same closing
+question in both conditions, and scoring written down before any agent runs.
+
+**What should change:**
+
+1. **Real data throughout.** The first run used real files for T1 (FTIR
+   replicates) and T2 (ethanol JCAMP) and synthetic ones for T3 and T4. The
+   measurements in `Reference_Spectra_Wanted.md` would supply real versions of
+   both — a dilution series with known concentrations for T3, and a titration
+   or melt for T4. Until then the AqpZ temperature scan of roadmap §18.3 is
+   the nearest real series.
+2. **More tasks, and at least one with no right answer**, to see what an
+   assistant does when the analysis is genuinely open — "is there anything
+   odd about these spectra?" rather than "compute X".
+3. **A task requiring two techniques**, which is where the library's actual
+   claim lies and where hand-rolling costs most.
+4. **n > 1 per cell.** The first run cannot distinguish a 75% give-up rate
+   from a 50% one; three agents per cell would.
+
+**What to measure, beyond the two headline numbers.** The first run found that
+the give-up rate is the interesting quantity but not the whole story: every
+cold run got the *right answer*, so the cost was reusability, not correctness.
+Worth recording explicitly next time:
+
+- Give-up rate, and API mistakes, as before.
+- **Whether the library route reached a better answer than the hand-rolled
+  one.** On T3 it did not: the cold agent's joint fit of background and bands
+  gave 32.0 µg/mL against the truth of 32.0, while `correct_scattering`'s
+  fit-a-window-and-extrapolate gave 30. That is a finding about the method,
+  not about findability, and it would have been missed by counting API errors
+  alone.
+- **Whether using the library made the analyst look less carefully.** On T1 it
+  did: the cold agent found a diamond/CO₂ artefact at 1900–2400 cm⁻¹ that
+  tilts the rubberband hull and leaves a pedestal 51 % of the weakest sample's
+  peak height. The directed agent called `baseline_correct('rubberband')`,
+  got a clean-looking result, and never saw it. **A convenience that hides a
+  decision is a cost, and this is the way to detect it.**
+
+**The point of the re-run is the before/after.** The first run's numbers were
+taken against a library with no `spc.read`, a `.dpt` reader that did not know
+it was infrared, and a `strongest()` that lied about its order. If findability
+has improved, the API-mistake count should fall; if it has not, that is worth
+knowing before November rather than after.

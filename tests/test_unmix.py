@@ -260,7 +260,7 @@ def test_a_series_carries_its_own_concentrations():
     concentrations = [5.0, 10.0, 20.0]
     series = SpectrumCollection(
         [_spectrum(c * DNA_EPS) for c in concentrations],
-        name='dsDNA').set_parameters(concentrations,
+        name='dsDNA').with_parameters(concentrations,
                                      name='concentration', unit='ug/mL')
 
     reference = from_series(series, unit='(ug/mL)^-1 cm^-1')
@@ -273,7 +273,7 @@ def test_an_explicit_list_still_wins_over_the_carried_one():
     concentrations = [5.0, 10.0, 20.0]
     series = SpectrumCollection(
         [_spectrum(c * DNA_EPS) for c in concentrations],
-        name='dsDNA').set_parameters([1.0, 2.0, 4.0])
+        name='dsDNA').with_parameters([1.0, 2.0, 4.0])
 
     reference = from_series(series, concentrations)
     assert np.allclose(reference.spectrum.y, DNA_EPS, atol=1e-6)

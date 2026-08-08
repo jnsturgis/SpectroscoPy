@@ -248,7 +248,8 @@ def test_core_modules_do_not_import_matplotlib_at_module_scope():
     root = pathlib.Path(spectroscopy.spectra.__file__).parent
     for name in ("spectra.py", "collection.py", "peaks.py", "history.py",
                  "units.py", "processing/common.py"):
-        tree = ast.parse((root / name).read_text(), filename=name)
+        tree = ast.parse((root / name).read_text(encoding='utf-8'),
+                         filename=name)
         for node in tree.body:
             modules = []
             if isinstance(node, ast.Import):

@@ -537,9 +537,107 @@ def test_band_direction_vocabulary():
     assert units.band_direction('absorbance') == 'up'
     assert units.band_direction('%T') == 'down'
     assert units.band_direction('counts') == 'unknown'
+    assert units.band_direction('mdeg') == 'both'
     assert units.is_valley_pointing('transmittance')
     assert not units.is_valley_pointing('absorbance')
     assert not units.is_valley_pointing('a.u.')
+
+
+# ---------------------------------------------------------------------------
+# signed quantities: dichroism, anisotropy, difference spectra. Bands go both
+# ways and both signs are signal, so 'unknown' would be the wrong answer --
+# the quantity fixes the direction precisely, and the answer is both.
+# Roadmap D1, ADR-0003.
+# ---------------------------------------------------------------------------
+
+def _helix_cd():
+    """A helix-shaped CD spectrum: +193, -208, -222, as the textbooks draw."""
+    x = np.linspace(185.0, 260.0, 400)
+
+    def band(centre, width, height):
+        return height * np.exp(-((x - centre) ** 2) / (2 * width ** 2))
+
+    y = band(193, 6, 60) + band(208, 6, -38) + band(222, 8, -36)
+    return Spectrum(x, y, x_unit='nm', y_unit='mdeg', name='helix')
+
+
+@pytest.mark.parametrize('unit', ['mdeg', 'deg', 'anisotropy', 'polarization',
+                                  'dA'])
+def test_signed_units_are_bipolar(unit):
+    assert units.band_direction(unit) == 'both'
+    assert units.is_bipolar(unit)
+    # Not valley-pointing: the bands are not exclusively minima, and the
+    # signal is linear in concentration in the way %T is not.
+    assert not units.is_valley_pointing(unit)
+
+
+def test_a_cd_spectrum_is_searched_both_ways_without_being_asked():
+    found = _helix_cd().find_peaks(method='direct', prominence=5)
+
+    assert found.kind == 'both'
+    assert found.properties['direction'] == 'both'
+    assert found.properties['direction_from'] == 'y_unit'
+    assert len(found.maxima()) and len(found.minima())
+    assert np.any(np.isclose(found.maxima().position, 193.0, atol=3.0))
+
+
+def test_searching_a_cd_spectrum_one_way_loses_half_of_it():
+    """The reason 'both' has to exist rather than being a caller's problem."""
+    spectrum = _helix_cd()
+    upward = spectrum.find_peaks(method='direct', prominence=5, troughs=False)
+    assert not np.any(upward.position > 200.0)          # the 208/222 bands gone
+
+
+def test_sign_distinguishes_the_two_when_height_cannot():
+    """
+    A positive band on a negative offset still has a negative height, so the
+    sign array is the only way to tell which is which.
+    """
+    x = np.linspace(185.0, 260.0, 400)
+    y = 30 * np.exp(-((x - 200) ** 2) / 50) - 100        # a maximum, still < 0
+    found = Spectrum(x, y, x_unit='nm', y_unit='mdeg').find_peaks(
+        method='direct', prominence=5)
+
+    assert len(found.maxima()) == 1
+    assert found.maxima().height[0] < 0                 # negative, and a peak
+
+
+def test_a_difference_spectrum_must_ask_because_the_unit_cannot_tell():
+    """
+    Subtracting two absorbance spectra leaves the unit saying 'absorbance'.
+    Nothing can infer bipolarity from that, which is why troughs='both' exists.
+    """
+    x = np.linspace(1000, 1200, 801)
+    y = (0.4 * np.exp(-0.5 * ((x - 1100) / 8.0) ** 2)
+         - 0.3 * np.exp(-0.5 * ((x - 1050) / 8.0) ** 2))
+    spectrum = Spectrum(x, y, x_unit='cm^-1', y_unit='absorbance')
+
+    assert units.band_direction('absorbance') == 'up'    # cannot know
+
+    both = spectrum.find_peaks(method='direct', prominence=0.05, troughs='both')
+    assert np.any(np.isclose(both.maxima().position, 1100.0, atol=1.0))
+    assert np.any(np.isclose(both.minima().position, 1050.0, atol=1.0))
+    assert both.properties['direction_from'] == 'caller'
+
+
+def test_both_is_the_only_string_accepted():
+    with pytest.raises(ValueError, match="True, False or 'both'"):
+        _helix_cd().find_peaks(troughs='maybe')
+
+
+def test_selection_keeps_the_signs_aligned():
+    found = _helix_cd().find_peaks(method='direct', prominence=5)
+    narrowed = found.within(180.0, 200.0)
+    assert len(narrowed) == len(narrowed.sign)
+    assert all(narrowed.sign > 0)
+
+
+def test_a_one_way_table_still_reports_a_sign():
+    """Uniform, so that callers never have to special-case kind."""
+    found = _one_band('Absorbance', 'absorbance', up=True).find_peaks(
+        prominence=0.05, relative=True)
+    assert found.kind == 'peak'
+    assert set(np.unique(found.sign)) == {1}
 
 
 def test_a_polynomial_baseline_can_be_given_x_y_pairs():
