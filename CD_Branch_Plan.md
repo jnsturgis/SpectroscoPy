@@ -368,8 +368,13 @@ expected CD helix fraction is diluted:
 | extension | chain | expected helix |
 |---|---|---|
 | none | 231 | 0.771 |
-| 12 aa | 243 | **0.733** |
-| 23 aa | 254 | 0.701 |
+| 12 aa | 243 | 0.733 |
+| **23 aa (confirmed)** | **254** | **0.701** |
+
+**Confirmed 2026-08-09: 23 residues** — the full `MGHHHHHHHHHHSSGHIEGRHEF`
+tag, uncut. (The 12 was a different construct. The tag is removed with TEV,
+not Factor Xa; the IEGR in this sequence is not the site they use.) So the
+expectation the CD must be checked against is **70.1 % helix, no sheet**.
 
 ### theta-222, and a path length recovered rather than recorded
 
@@ -408,3 +413,46 @@ The shape deconvolution needs a **reference basis**, and none ships
 196 nm — so the only remaining blocker on WP4 is choosing a basis and checking
 its terms. AqpZ is a good first test case precisely because the answer is
 known: 73 % helix, no sheet.
+
+
+## Shape, not amplitude (James, 2026-08-09)
+
+**No concentration supplied, deliberately.** The instruction is an estimate
+from shape alone, on the grounds that over-reliance on amplitude is a standing
+weakness of UV-CD analysis — and it is right, which retires the path-length
+argument above. That argument assumed the crystal structure in order to infer
+a cuvette, then reported agreement with the crystal structure. As evidence
+about the protein it is circular; it is worth keeping only as a way of
+recovering a lost instrument setting, and it is now labelled as that.
+
+Everything below is a wavelength or a ratio, so multiplying the spectrum by
+any constant leaves it unchanged.
+
+| | 20 µM | 4 µM |
+|---|---|---|
+| usable range (HT < 600 V) | 209.7–250 nm | 196.2–250 nm |
+| zero crossing | not reached | **203.0 nm** |
+| minimum | 209.7 nm — **the crop itself** | 209.4 nm |
+| theta222/theta208 | 0.947 (208 nm at the edge) | **1.007** |
+
+Two dilutions, five-fold apart, agree on normalised shape to within about 5 %
+across 210–250 nm. That is an internal reliability check with no amplitude in
+it at all, and it is worth more than either spectrum alone.
+
+**What the shape supports.** A zero crossing at 203 nm and a minimum near
+209 nm are what a strongly helical protein looks like; there is no hint of the
+~215 nm single minimum a sheet-rich protein would show, consistent with 1RC2's
+zero sheet. theta222/theta208 slightly above 1 indicates helices packed
+against each other rather than isolated — which is what a transmembrane
+bundle is. That reading is weakened by the sample being a detergent-solubilised
+membrane protein, where absorption flattening raises the same ratio.
+
+**What the shape does not support: a number.** Turning these into percentages
+needs reference shapes, and the package ships none. That is the WP4 blocker
+and it has not moved; what has changed is that the data reaches far enough
+(196 nm) for a fit to be possible once a basis exists.
+
+`structure.cd_shape_descriptors` computes the above, and refuses to let the
+edge artefact pass silently: on the 20 µM spectrum the most negative point is
+the crop, and reading it as a band position would be reading the detector's
+limit as a property of the protein.

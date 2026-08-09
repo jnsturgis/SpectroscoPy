@@ -27,6 +27,7 @@ __all__ = [
     'Category', 'Composition', 'DSSP_STATES', 'AMIDE_I_BANDS',
     'from_ftir', 'FTIR_METHODS',
     'from_cd', 'CD_METHODS', 'helix_from_theta222',
+    'cd_shape_descriptors',
 ]
 
 #: The eight DSSP states, and what they mean. The vocabulary everything else
@@ -818,3 +819,103 @@ def helix_from_theta222(spectrum, residues=None) -> Composition:
         fractions={helix: fraction},
         method='theta-222', technique=spectrum.technique or 'CD',
         quality=quality, source=spectrum.name)
+
+
+def cd_shape_descriptors(spectrum, region=None, edge_tolerance=1.0):
+    """
+    Amplitude-free descriptors of a far-UV CD spectrum.
+
+    Every quantity here is a **wavelength or a ratio**, so none of them
+    changes if the spectrum is multiplied by a constant. That makes them
+    independent of concentration, path length, residue count and any pipetting
+    error -- the four things that decide an absolute ellipticity and are the
+    usual reason two labs disagree about the same protein.
+
+    Over-reliance on amplitude is a standing weakness of UV-CD analysis:
+    :func:`helix_from_theta222` is entirely an amplitude measurement, and it
+    inherits every error in the three numbers its conversion needs. These
+    descriptors, and :func:`from_cd`, which is scale-free by construction, say
+    what the *shape* supports on its own.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        Far-UV CD, any ellipticity unit. **Crop it to the range the
+        photomultiplier could actually see** before calling this: on a JASCO
+        the HT channel above about 600 V means the detector is starved and the
+        signal there is not a measurement. Nothing here can detect that for
+        you -- saturated noise has a shape too.
+    region : tuple, optional
+        Restrict the analysis, in nm.
+    edge_tolerance : float
+        How close to the end of the range a minimum may sit before it is
+        called an edge artefact rather than a band.
+
+    Returns
+    -------
+    dict
+        ``zero_crossing`` -- where the spectrum crosses zero on the blue side,
+        which moves from about 200 nm for helix towards 210 nm and beyond as
+        helix is lost. A position, so nothing about amplitude enters it.
+
+        ``minimum`` -- position of the most negative point, and
+        ``minimum_at_edge``, which is ``True`` when that point is the end of
+        the range rather than a turning point. Then it is not a band position
+        at all, and any interpretation of it is an interpretation of where the
+        data stopped.
+
+        ``ratio_222_208`` -- around 0.8-0.9 for isolated helices, at or above
+        1.0 for interacting ones in a bundle or coiled coil. Raised also by
+        absorption flattening in a scattering or membrane sample, so it is
+        evidence about helix packing, not proof.
+
+        ``ratio_222_minimum``, and the ``region`` actually used.
+    """
+    x = np.asarray(spectrum.x, dtype=float)
+    y = np.asarray(spectrum.y, dtype=float)
+    order = np.argsort(x)
+    x, y = x[order], y[order]
+    if region is not None:
+        low, high = sorted(region)
+        inside = (x >= low) & (x <= high)
+        x, y = x[inside], y[inside]
+    if len(x) < 3:
+        raise ValueError("not enough points in the region to describe a shape")
+
+    def at(wavelength):
+        index = int(np.argmin(np.abs(x - wavelength)))
+        return (y[index] if abs(x[index] - wavelength) <= 2.0 else np.nan)
+
+    changes = np.flatnonzero(np.diff(np.sign(y)) != 0)
+    crossing = np.nan
+    if len(changes):
+        first = changes[0]
+        crossing = float(np.interp(0.0, [y[first], y[first + 1]],
+                                   [x[first], x[first + 1]])
+                         if y[first] < y[first + 1] else
+                         np.interp(0.0, [y[first + 1], y[first]],
+                                   [x[first + 1], x[first]]))
+
+    lowest = int(np.argmin(y))
+    at_edge = bool(x[lowest] <= x[0] + edge_tolerance
+                   or x[lowest] >= x[-1] - edge_tolerance)
+    if at_edge:
+        warnings.warn(
+            f"the most negative point is at {x[lowest]:g} nm, the end of the "
+            f"range {x[0]:g}-{x[-1]:g} nm, so it is where the data stops "
+            f"rather than a band. The real minimum is outside what was "
+            f"measured -- or outside what the detector could see.",
+            UserWarning, stacklevel=2)
+
+    theta222, theta208 = at(222.0), at(208.0)
+    return {
+        'zero_crossing': crossing,
+        'minimum': float(x[lowest]),
+        'minimum_at_edge': at_edge,
+        'ratio_222_208': float(theta222 / theta208)
+                         if np.isfinite(theta222 * theta208) and theta208
+                         else np.nan,
+        'ratio_222_minimum': float(theta222 / y[lowest])
+                             if np.isfinite(theta222) and y[lowest] else np.nan,
+        'region': (float(x[0]), float(x[-1])),
+    }

@@ -405,3 +405,93 @@ def test_an_impossible_helix_fraction_warns():
     spectrum.y_unit = 'deg cm^2 dmol^-1'
     with pytest.warns(UserWarning, match='outside 0-1'):
         structure.helix_from_theta222(spectrum, residues=243)
+
+
+# ---------------------------------------------------------------------------
+# shape without amplitude
+# ---------------------------------------------------------------------------
+
+def _helical_shape(x):
+    return (_band(x, 208, 7, -37) + _band(x, 222, 9, -37)
+            + _band(x, 193, 7, 75))
+
+
+def test_every_descriptor_is_blind_to_amplitude():
+    """
+    The point of the module. Concentration, path length, residue count and a
+    pipetting slip all multiply a spectrum by a constant; none of them should
+    move a single number here.
+    """
+    x = np.linspace(190.0, 250.0, 241)
+    quiet = spc.Spectrum(x, _helical_shape(x), technique='CD')
+    loud = spc.Spectrum(x, 17.3 * _helical_shape(x), technique='CD')
+
+    first = structure.cd_shape_descriptors(quiet)
+    second = structure.cd_shape_descriptors(loud)
+    for key, value in first.items():
+        if isinstance(value, float) and np.isfinite(value):
+            assert second[key] == pytest.approx(value, rel=1e-9), key
+
+
+def test_the_zero_crossing_separates_helix_from_coil():
+    """
+    A position rather than a size, so it carries structural information with
+    no amplitude in it. Helix crosses near 200 nm on the way up from its
+    positive 193 band; a coil, which has no positive band there, crosses much
+    further red on the way up to its weak positive near 218.
+    """
+    x = np.linspace(190.0, 250.0, 241)
+    helix = structure.cd_shape_descriptors(
+        spc.Spectrum(x, _helical_shape(x), technique='CD'))['zero_crossing']
+    coil = structure.cd_shape_descriptors(spc.Spectrum(
+        x, _band(x, 198, 7, -40) + _band(x, 218, 11, 4),
+        technique='CD'))['zero_crossing']
+
+    assert helix == pytest.approx(202.0, abs=2.0)
+    assert coil > helix + 5.0
+
+
+def test_a_minimum_at_the_edge_is_called_out():
+    """
+    The real AqpZ case: cropped at the detector's limit, the most negative
+    point was the crop itself. Reading it as a band position reads the
+    instrument's failure as a property of the protein.
+    """
+    x = np.linspace(210.0, 250.0, 161)          # cut off above the band
+    spectrum = spc.Spectrum(x, _band(x, 205, 8, -40), technique='CD')
+    with pytest.warns(UserWarning, match='where the data stops'):
+        result = structure.cd_shape_descriptors(spectrum)
+    assert result['minimum_at_edge']
+    assert result['minimum'] == pytest.approx(210.0, abs=0.5)
+
+
+def test_a_real_minimum_is_not_called_an_edge():
+    x = np.linspace(190.0, 250.0, 241)
+    result = structure.cd_shape_descriptors(
+        spc.Spectrum(x, _helical_shape(x), technique='CD'))
+    assert not result['minimum_at_edge']
+
+
+def test_from_cd_needs_no_amplitude_either():
+    """
+    Stated as a test because it is the reason a composition can be had from a
+    sample of unknown concentration: the fit is on shape alone.
+    """
+    x = np.linspace(190.0, 250.0, 241)
+    basis = []
+    for name, y in (('helix', _helical_shape(x)),
+                    ('other', _band(x, 198, 7, -40) + _band(x, 220, 10, 3))):
+        reference = spc.Spectrum(x, y, technique='CD', name=name)
+        reference.metadata['category'] = Category(
+            name, frozenset({'H'} if name == 'helix' else {'-'}))
+        basis.append(reference)
+
+    truth = 0.7 * basis[0].y + 0.3 * basis[1].y
+    quiet = from_cd(spc.Spectrum(x, truth, technique='CD'),
+                    'basis-spectra', basis=basis)
+    loud = from_cd(spc.Spectrum(x, 250.0 * truth, technique='CD'),
+                   'basis-spectra', basis=basis)
+
+    for category in quiet.fractions:
+        assert loud.fractions[category] == pytest.approx(
+            quiet.fractions[category], abs=1e-6)
