@@ -319,3 +319,89 @@ def test_free_energy_and_entropy_are_consistent():
     assert result.free_energy(result.tm) == pytest.approx(0.0, abs=1e-9)
     assert result.entropy == pytest.approx(
         result.enthalpy * 1000.0 / (result.tm + 273.15))
+
+
+# ---------------------------------------------------------------------------
+# mean residue ellipticity, and the single-wavelength helix estimate
+# ---------------------------------------------------------------------------
+
+def test_mre_conversion_matches_the_worked_example():
+    """
+    AqpZ-W14A: -65.21 mdeg at 222 nm, 20 uM, 0.5 mm cell, 243 residues
+    (231 + a 12-residue N-terminal extension). Checked by hand so the factors
+    of ten in the formula are pinned rather than trusted.
+    """
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-65.21]),
+                            technique='CD')
+    mre = spectrum.to_mean_residue_ellipticity(
+        concentration=20e-6, path_length=0.05, residues=243)
+
+    assert mre.y_unit == 'deg cm^2 dmol^-1'
+    assert mre.y[0] == pytest.approx(-65.21 / (10 * 0.05 * 20e-6 * 243))
+    assert mre.y[0] == pytest.approx(-26836, abs=1)
+
+
+def test_the_three_sample_facts_are_never_defaulted():
+    """Each scales the answer linearly and leaves it looking like a protein."""
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-65.21]),
+                            technique='CD')
+    with pytest.raises(ValueError, match='path_length'):
+        spectrum.to_mean_residue_ellipticity(concentration=20e-6, residues=243)
+    with pytest.raises(ValueError, match='concentration'):
+        spectrum.to_mean_residue_ellipticity(path_length=0.05, residues=243)
+
+
+def test_the_conversion_reads_the_agreed_metadata_keys():
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-65.21]),
+                            technique='CD')
+    spectrum.metadata.update({'concentration': 20e-6, 'path_length': 0.05,
+                              'n_residues': 243})
+    assert spectrum.to_mean_residue_ellipticity().y[0] == pytest.approx(
+        -26836, abs=1)
+
+
+def test_theta222_refuses_millidegrees():
+    """A guessed path length rescales helix without changing how it looks."""
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-65.21]),
+                            technique='CD')
+    with pytest.raises(ValueError, match='mean residue ellipticity'):
+        structure.helix_from_theta222(spectrum)
+
+
+def test_theta222_fills_one_category_and_leaves_the_rest_none():
+    """
+    ADR-0002: it is not a decomposition. Every other category must be absent
+    rather than zero -- zero would be a claim about sheet that one wavelength
+    cannot support.
+    """
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-26836.0]),
+                            technique='CD')
+    spectrum.y_unit = 'deg cm^2 dmol^-1'
+    result = structure.helix_from_theta222(spectrum, residues=243)
+
+    assert result.method == 'theta-222'
+    assert list(result.fractions) == [Category('helix', frozenset({'G', 'H', 'I'}))]
+    assert next(iter(result.fractions.values())) == pytest.approx(0.687, abs=0.005)
+    assert result.quality['single_wavelength'] is True
+
+
+def test_the_chain_length_correction_is_applied_and_recorded():
+    """A helix has two ends that make no hydrogen bonds; short chains signal
+    less per residue, and ignoring it overestimates helix."""
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-26836.0]),
+                            technique='CD')
+    spectrum.y_unit = 'deg cm^2 dmol^-1'
+    short = structure.helix_from_theta222(spectrum, residues=20)
+    long = structure.helix_from_theta222(spectrum, residues=1000)
+
+    assert next(iter(short.fractions.values())) > next(iter(long.fractions.values()))
+    assert short.quality['chain_length_corrected']
+
+
+def test_an_impossible_helix_fraction_warns():
+    """Out of 0-1 means the conversion inputs were wrong, not the protein."""
+    spectrum = spc.Spectrum(np.array([222.0]), np.array([-67090.0]),
+                            technique='CD')
+    spectrum.y_unit = 'deg cm^2 dmol^-1'
+    with pytest.warns(UserWarning, match='outside 0-1'):
+        structure.helix_from_theta222(spectrum, residues=243)

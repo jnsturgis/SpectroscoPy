@@ -18,6 +18,7 @@ set partitions rather than a table of judgement calls. See
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -25,7 +26,7 @@ import numpy as np
 __all__ = [
     'Category', 'Composition', 'DSSP_STATES', 'AMIDE_I_BANDS',
     'from_ftir', 'FTIR_METHODS',
-    'from_cd', 'CD_METHODS',
+    'from_cd', 'CD_METHODS', 'helix_from_theta222',
 ]
 
 #: The eight DSSP states, and what they mean. The vocabulary everything else
@@ -725,3 +726,95 @@ def from_cd(spectrum, method=None, *, basis=None, compositions=None,
     return Composition(fractions=fractions, method=method,
                        technique=spectrum.technique or 'CD',
                        quality=quality, source=spectrum.name)
+
+
+#: Chen, Yang & Chau (1974) reference ellipticity for a fully helical chain at
+#: 222 nm, deg cm^2 dmol^-1. The chain-length term matters: a helix has two
+#: ends that contribute no hydrogen bonds, so a short chain gives a weaker
+#: signal per residue than a long one, and ignoring it overestimates helix in
+#: small proteins and peptides.
+HELIX_REFERENCE_222 = -39500.0
+HELIX_CHAIN_CORRECTION = 2.57
+
+
+def helix_from_theta222(spectrum, residues=None) -> Composition:
+    """
+    Helix fraction from the mean residue ellipticity at 222 nm.
+
+    **This is not a decomposition and must not be read as one.** It estimates
+    one number from one wavelength. The returned :class:`Composition` fills
+    ``helix`` and leaves every other category ``None`` -- which means *this
+    method cannot estimate this*, and is deliberately not zero, because zero
+    would be a claim about sheet content that a single wavelength at 222 nm is
+    in no position to make (ADR-0002 section 7.2).
+
+    Use it when the far-UV data does not reach low enough for a shape fit --
+    below about 200 nm a detergent-containing or high-salt buffer often
+    saturates the detector, and 222 nm survives that when 195 nm does not. It
+    is a real answer from a compromised spectrum, not a second-best version of
+    :func:`from_cd`.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        **In mean residue ellipticity.** Millidegrees are refused: the
+        conversion needs a concentration, a path length and a residue count,
+        and guessing any of them scales the answer silently. See
+        :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`.
+    residues : int, optional
+        Residues per chain, for the chain-length correction. Taken from
+        ``metadata['n_residues']`` when omitted; without either, the
+        correction is skipped and that is recorded in ``quality``.
+
+    Returns
+    -------
+    Composition
+    """
+    if spectrum.y_unit != 'deg cm^2 dmol^-1':
+        raise ValueError(
+            f"helix_from_theta222 needs mean residue ellipticity, and this "
+            f"spectrum is in {spectrum.y_unit!r}. The conversion needs the "
+            f"sample's concentration, path length and residue count -- see "
+            f"Spectrum.to_mean_residue_ellipticity(). It is not applied "
+            f"automatically because a guessed path length rescales the helix "
+            f"content without changing how the spectrum looks."
+        )
+
+    x = np.asarray(spectrum.x, dtype=float)
+    index = int(np.argmin(np.abs(x - 222.0)))
+    if abs(x[index] - 222.0) > 2.0:
+        raise ValueError(
+            f"no point within 2 nm of 222 nm; the nearest is {x[index]:g} nm"
+        )
+    measured = float(np.asarray(spectrum.y, dtype=float)[index])
+
+    residues = residues or spectrum.metadata.get('n_residues')
+    if residues:
+        reference = HELIX_REFERENCE_222 * (
+            1.0 - HELIX_CHAIN_CORRECTION / float(residues))
+    else:
+        reference = HELIX_REFERENCE_222
+
+    fraction = measured / reference
+    helix = Category('helix', frozenset({'G', 'H', 'I'}))
+    quality = {
+        'theta222': measured,
+        'reference_222': reference,
+        'chain_length_corrected': bool(residues),
+        'n_residues': residues,
+        'single_wavelength': True,
+    }
+    if not 0.0 <= fraction <= 1.0:
+        quality['out_of_range'] = True
+        warnings.warn(
+            f"theta222 gives a helix fraction of {fraction:.2f}, which is "
+            f"outside 0-1 and so cannot be right. The usual cause is a wrong "
+            f"path length, concentration or residue count in the conversion "
+            f"to mean residue ellipticity -- each of them scales this "
+            f"linearly.",
+            UserWarning, stacklevel=2)
+
+    return Composition(
+        fractions={helix: fraction},
+        method='theta-222', technique=spectrum.technique or 'CD',
+        quality=quality, source=spectrum.name)

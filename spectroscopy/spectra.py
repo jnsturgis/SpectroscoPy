@@ -677,6 +677,92 @@ class Spectrum:
 #
 ##=============================================================================
 
+    def to_mean_residue_ellipticity(self, concentration=None,
+                                    path_length=None, residues=None,
+                                    ) -> "Spectrum":
+        """
+        Convert an ellipticity spectrum from millidegrees to **mean residue
+        ellipticity**, ``deg cm^2 dmol^-1``.
+
+        This is the conversion :mod:`spectroscopy.units` cannot express, and
+        the reason it is a named method rather than a spelling of :meth:`to`:
+        every other y conversion is a function of ``y`` alone, and this one
+        needs three facts about the sample that no spectrum carries in its
+        numbers (roadmap section 15.4)::
+
+            [theta] = theta_obs / (10 * l * C * n)
+
+        with ``theta_obs`` in millidegrees, ``l`` the path length in cm, ``C``
+        the molar concentration and ``n`` the number of residues **per chain
+        of the construct you measured** -- including any tag or expression
+        scar, because the spectrophotometer sees those residues too.
+
+        Parameters
+        ----------
+        concentration : float
+            Molar concentration of chains. Taken from
+            ``metadata['concentration']`` when omitted.
+        path_length : float
+            Cell path length in **cm**. Far-UV CD is usually run in 1 mm or
+            0.5 mm cells, so this is the number most often mis-entered by a
+            factor of ten. From ``metadata['path_length']`` when omitted.
+        residues : int
+            Residues per chain. From ``metadata['n_residues']`` when omitted.
+
+        Raises
+        ------
+        ValueError
+            If any of the three is missing. **They are not defaulted**, and
+            that is the whole point: a path length silently assumed to be
+            1 cm turns a correct spectrum into one ten or twenty times too
+            small, and the result looks entirely reasonable -- it is simply a
+            different protein's worth of helix.
+
+        Notes
+        -----
+        A worked example, so the factors can be checked rather than trusted.
+        AqpZ measured at 20 uM in a 0.5 mm cell, 243 residues including a
+        12-residue N-terminal extension, reading -65.2 mdeg at 222 nm::
+
+            [theta]222 = -65.2 / (10 * 0.05 * 20e-6 * 243) = -26 800
+
+        against -39 082 for a fully helical chain of that length, so 69%
+        helix -- where the crystal structure, diluted by the same extension,
+        gives 73%.
+        """
+        from spectroscopy.history import ProcessingStep  # noqa: PLC0415
+
+        settings = {
+            'concentration': concentration if concentration is not None
+                             else self.metadata.get('concentration'),
+            'path_length': path_length if path_length is not None
+                           else self.metadata.get('path_length'),
+            'n_residues': residues if residues is not None
+                          else self.metadata.get('n_residues'),
+        }
+        missing = [name for name, value in settings.items() if value is None]
+        if missing:
+            raise ValueError(
+                f"mean residue ellipticity needs {', '.join(missing)}, which "
+                f"is not in the metadata and was not given. These are not "
+                f"defaulted on purpose: a wrong path length or residue count "
+                f"scales the answer and leaves a spectrum that still looks "
+                f"like a protein. Pass them, or set them in metadata."
+            )
+        for name, value in settings.items():
+            if float(value) <= 0:
+                raise ValueError(f"{name} must be positive, got {value!r}")
+
+        divisor = (10.0 * float(settings['path_length'])
+                   * float(settings['concentration'])
+                   * float(settings['n_residues']))
+        result = self._derive(
+            y=np.asarray(self.y, dtype=float) / divisor,
+            step=ProcessingStep('to_mean_residue_ellipticity', dict(settings)))
+        result.y_quantity = 'Mean residue ellipticity'
+        result.y_unit = 'deg cm^2 dmol^-1'
+        return result
+
     def to(self, x_unit=None, y_unit=None) -> "Spectrum":
         """
         Convert to different axis units, returning a new Spectrum.

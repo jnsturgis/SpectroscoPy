@@ -319,3 +319,92 @@ protein does not come with. The two structural checks need none.
 - **WP3**, a reader, still blocked on knowing which instrument wrote the AqpZ
   scan.
 - **WP5** unchanged: none of this is validated on a real protein.
+
+
+---
+
+## The AqpZ data, found and looked at (2026-08-09)
+
+The notebook §18.3 was waiting for is
+`Documents/Research/Notebook/2025/AqpZ_Lipid.ipynb`, and the data is in
+`2025/07/24/`: **JASCO J-815**, 280→180 nm, 1001 points, CD in mdeg with the
+**HT voltage recorded as a second channel**. Two temperature series, 30–90 °C:
+`3D_scan1.csv` at 0.5 mg/mL (20 µM) and `3D_scan2.csv` at 0.1 mg/mL (4 µM).
+Sample is **AqpZ-W14A**, not wild type. WP3 is answered: the instrument is a
+JASCO J-815 and the export is text, so no binary reader is needed to proceed.
+
+### The HT channel decides what analysis is possible
+
+The J-815 records the photomultiplier voltage alongside the signal, and above
+about 600 V the detector is starved and the CD is not measurement any more.
+Applying that:
+
+| | usable to (HT < 600 V) | HT at 222 nm |
+|---|---|---|
+| 0.5 mg/mL | **209.7 nm** | 404 V |
+| 0.1 mg/mL | **196.2 nm** | 342 V |
+
+**The concentrated sample is the unusable one.** Below 210 nm it is absorbing
+its own measurement; by 195 nm the HT is pinned at 1023.7 V, the instrument
+ceiling, and the apparent +19 mdeg "band" at 193 nm is the detector flailing,
+not protein.
+
+That settles which spectrum a shape analysis can use, and it is not the
+obvious one. A basis-spectra fit needs roughly 190–240 nm, because what
+separates helix from sheet from coil lives below 210 — which is why the
+published reference sets go to 175 nm. At 210 nm there is one negative band
+and no shape left to fit. **The dilute scan, at 196 nm, is the only candidate.**
+
+### What the structure says, so there is something to check against
+
+1RC2 chain A: 231 residues, all resolved, **178 in helices** by the
+crystallographer's HELIX records (no sheet at all — AqpZ is an all-helical
+channel) = **77.1 %**.
+
+The construct is longer than the crystal. A 12-residue N-terminal extension is
+12 more residues the spectrophotometer sees and the crystal does not, so the
+expected CD helix fraction is diluted:
+
+| extension | chain | expected helix |
+|---|---|---|
+| none | 231 | 0.771 |
+| 12 aa | 243 | **0.733** |
+| 23 aa | 254 | 0.701 |
+
+### theta-222, and a path length recovered rather than recorded
+
+The path length was not written down, which normally sinks any absolute
+quantity. Here there are only a few plausible cuvettes, and the answer is
+extremely sensitive to which:
+
+| path | 20 µM | 4 µM |
+|---|---|---|
+| 0.2 mm | 172 % helix | 188 % |
+| **0.5 mm** | **68.7 %** | **75.3 %** |
+| 1.0 mm | 34.3 % | 37.7 % |
+
+0.2 mm is impossible and 1.0 mm gives half the helix the crystal has.
+**At 0.5 mm the two independent dilutions give 68.7 % and 75.3 %, bracketing
+the crystal's 73.3 %.** That is a consistency argument rather than a
+measurement — it assumes the structure to infer the cuvette — but the
+agreement across a five-fold dilution is not something a wrong path length
+would produce. **Worth confirming against the lab notebook.**
+
+### Built for this
+
+- `Spectrum.to_mean_residue_ellipticity(concentration, path_length, residues)`
+  — WP2's conversion, and the plan's condition was met: the formula was
+  written down and checked against a worked example *before* being coded. None
+  of the three inputs is defaulted, because each scales the answer linearly
+  and leaves a spectrum that still looks like a protein.
+- `structure.helix_from_theta222` — fills `helix` and leaves every other
+  category `None`, per ADR-0002 §7.2. Not a second-best decomposition: it is
+  the right tool for a spectrum that dies at 210 nm.
+
+### Still blocked, and now for one reason instead of two
+
+The shape deconvolution needs a **reference basis**, and none ships
+(ADR-0002 §9). The data limitation is resolved — the 4 µM scan reaches
+196 nm — so the only remaining blocker on WP4 is choosing a basis and checking
+its terms. AqpZ is a good first test case precisely because the answer is
+known: 73 % helix, no sheet.
