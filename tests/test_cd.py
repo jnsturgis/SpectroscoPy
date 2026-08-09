@@ -15,6 +15,7 @@ import numpy as np
 import pytest
 
 import spectroscopy as spc
+from spectroscopy import library as lib
 from spectroscopy import units
 from spectroscopy.processing import melting, structure
 from spectroscopy.processing.structure import Category, from_cd
@@ -495,3 +496,145 @@ def test_from_cd_needs_no_amplitude_either():
     for category in quiet.fractions:
         assert loud.fractions[category] == pytest.approx(
             quiet.fractions[category], abs=1e-6)
+
+
+# ---------------------------------------------------------------------------
+# loading a basis somebody else measured
+# ---------------------------------------------------------------------------
+
+def _write_basis_files(tmp_path, shapes):
+    for name, y in shapes.items():
+        (tmp_path / f'{name}.csv').write_text(
+            'wavelength,cd\n' + '\n'.join(f'{a},{b}' for a, b in zip(X, y)))
+
+
+def test_a_structural_basis_loads_from_a_manifest(tmp_path):
+    _write_basis_files(tmp_path, {c.name: y for c, y in SHAPES.items()})
+    (tmp_path / 'basis.csv').write_text(
+        'file,category,source,citation\n'
+        'helix.csv,helix,measured here,doi:10.0/x\n'
+        'sheet.csv,sheet,measured here,doi:10.0/x\n'
+        'other.csv,other,measured here,doi:10.0/x\n')
+
+    basis, compositions = lib.load_basis(tmp_path / 'basis.csv')
+
+    assert compositions is None
+    assert len(basis) == 3
+    assert {s.metadata['category'].name for s in basis} == {
+        'helix', 'sheet', 'other'}
+    assert basis[0].metadata['reference_citation'] == 'doi:10.0/x'
+
+
+def test_a_loaded_basis_goes_straight_into_from_cd(tmp_path):
+    """The whole point: obtain a basis, load it, get a composition."""
+    _write_basis_files(tmp_path, {c.name: y for c, y in SHAPES.items()})
+    (tmp_path / 'basis.csv').write_text(
+        'file,category\nhelix.csv,helix\nsheet.csv,sheet\nother.csv,other\n')
+    basis, _ = lib.load_basis(tmp_path / 'basis.csv')
+
+    truth = {'helix': 0.55, 'sheet': 0.20, 'other': 0.25}
+    result = from_cd(_mixture(truth), 'basis-spectra', basis=basis)
+    for category, fraction in result.fractions.items():
+        assert fraction == pytest.approx(truth[category.name], abs=2e-3)
+
+
+def test_reference_proteins_load_with_their_compositions(tmp_path):
+    first = {'helix': 0.80, 'sheet': 0.05, 'other': 0.15}
+    second = {'helix': 0.10, 'sheet': 0.60, 'other': 0.30}
+    _write_basis_files(tmp_path, {
+        'p1': sum(first[c.name] * y for c, y in SHAPES.items()),
+        'p2': sum(second[c.name] * y for c, y in SHAPES.items())})
+    (tmp_path / 'refs.csv').write_text(
+        'file,name,helix,sheet,other\n'
+        'p1.csv,protein one,0.80,0.05,0.15\n'
+        'p2.csv,protein two,0.10,0.60,0.30\n')
+
+    basis, compositions = lib.load_basis(tmp_path / 'refs.csv')
+    assert len(compositions) == 2
+    assert basis[0].name == 'protein one'
+
+    unknown = spc.Spectrum(X, 0.25 * basis[0].y + 0.75 * basis[1].y,
+                           technique='CD')
+    result = from_cd(unknown, 'reference-proteins', basis=basis,
+                     compositions=compositions)
+    for category in result.fractions:
+        expected = (0.25 * first[category.name] + 0.75 * second[category.name])
+        assert result.fractions[category] == pytest.approx(expected, abs=3e-3)
+
+
+def test_a_manifest_must_choose_one_kind_of_basis(tmp_path):
+    _write_basis_files(tmp_path, {'helix': SHAPES[HELIX]})
+    (tmp_path / 'both.csv').write_text(
+        'file,category,helix\nhelix.csv,helix,1.0\n')
+    with pytest.raises(ValueError, match='not both and not neither'):
+        lib.load_basis(tmp_path / 'both.csv')
+
+
+def test_percentages_instead_of_fractions_are_caught(tmp_path):
+    """80/5/15 sums to 100, not 1 -- a composition it is not."""
+    _write_basis_files(tmp_path, {'p1': SHAPES[HELIX]})
+    (tmp_path / 'refs.csv').write_text(
+        'file,helix,sheet,other\np1.csv,80,5,15\n')
+    with pytest.raises(ValueError, match='not a composition'):
+        lib.load_basis(tmp_path / 'refs.csv')
+
+
+def test_a_missing_reference_file_says_why_it_is_missing(tmp_path):
+    (tmp_path / 'basis.csv').write_text('file,category\nabsent.csv,helix\n')
+    with pytest.raises(FileNotFoundError, match='not shipped with this package'):
+        lib.load_basis(tmp_path / 'basis.csv')
+
+
+def test_convergence_at_a_dead_end_is_not_an_isodichroic_point():
+    """
+    Found on the real AqpZ melt, which reported a "tight crossing" at 238.8 nm
+    -- the red end, where every spectrum has decayed towards zero and so they
+    trivially agree. Spectra agreeing because there is no signal is the
+    absence of information, not evidence of two states.
+    """
+    x = np.linspace(200.0, 260.0, 121)
+    decay = np.exp(-((x - 205.0) ** 2) / (2 * 12.0 ** 2))
+    spectra = [spc.Spectrum(x, -(40.0 - 3.0 * step) * decay, technique='CD',
+                            name=f'{step}')
+               for step in range(8)]
+    series = spc.SpectrumCollection(spectra).with_parameters(
+        np.arange(30.0, 30.0 + 8 * 5, 5.0), name='temperature', unit='C')
+
+    result = melting.isodichroic_point(series)
+    # The spectra converge towards zero at the red end but never cross: every
+    # one stays the same side of the others, so there is no inversion.
+    assert not result['is_tight']
+    assert not result['inverts_here'] or result['wavelength'] < 240.0
+
+
+def test_a_real_crossing_is_still_found():
+    x = np.linspace(200.0, 260.0, 121)
+    folded = _band(x, 208, 9, -40) + _band(x, 235, 9, 12)
+    unfolded = _band(x, 202, 8, -30) + _band(x, 235, 9, -6)
+    fractions = np.linspace(0.0, 1.0, 9)
+    spectra = [spc.Spectrum(x, (1 - f) * folded + f * unfolded,
+                            technique='CD', name=f'{f}') for f in fractions]
+    series = spc.SpectrumCollection(spectra).with_parameters(
+        np.linspace(30.0, 90.0, 9), name='temperature', unit='C')
+
+    result = melting.isodichroic_point(series)
+    assert result['is_tight']
+    assert result['inverts_here']
+
+
+def test_seven_points_cannot_determine_six_parameters():
+    """
+    The real 4 uM AqpZ series has seven temperatures. It fitted, and returned
+    a Tm with a standard error of 1e17 -- the fit saying it has no idea while
+    still printing a number.
+    """
+    with pytest.raises(ValueError, match='Below ten'):
+        melting.two_state(np.linspace(30.0, 90.0, 7), np.linspace(1.0, 0.0, 7))
+
+
+def test_a_degenerate_fit_says_so_rather_than_quoting_a_number():
+    generator = np.random.default_rng(3)
+    temperature = np.linspace(30.0, 90.0, 12)
+    noise = 1.0 + 0.01 * generator.normal(size=temperature.size)
+    with pytest.warns(UserWarning):
+        melting.two_state(temperature, noise)

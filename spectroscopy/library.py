@@ -37,8 +37,11 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
-__all__ = ['Reference', 'Library', 'COEFFICIENTS', 'coefficient',
-           'concentration_from_absorbance']
+__all__ = [
+    'Reference', 'Library', 'COEFFICIENTS', 'coefficient',
+    'concentration_from_absorbance', 'from_series',
+    'load_basis', 'MANIFEST_COLUMNS',
+]
 
 
 @dataclass
@@ -408,3 +411,159 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
                      uncertainty=uncertainty,
                      metadata={'path_length': path_length,
                                'concentrations': concentrations.tolist()})
+
+
+# ---------------------------------------------------------------------------
+# Loading a basis somebody else measured
+# ---------------------------------------------------------------------------
+
+#: Columns a basis manifest may carry. ``file`` and one of ``category`` or the
+#: fraction columns are required; the rest are provenance and are optional but
+#: strongly wanted -- a reference whose origin is not recorded cannot be cited,
+#: and most published sets require citation as a condition of use.
+MANIFEST_COLUMNS = ('file', 'name', 'category', 'source', 'citation',
+                    'accession')
+
+
+def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
+    """
+    Build a CD basis from files you have, described by a small manifest.
+
+    **No reference set ships with this package and none can**: the published
+    sets are distributed through the PCDDB, whose terms grant access but never
+    grant redistribution, and the SSCalcPy packaging of them is
+    NonCommercial. So the arrangement is the one already used for the Galactic
+    ``.spc`` samples -- you obtain the data, under whatever terms its provider
+    sets, and this loads it. Nothing is redistributed by SpectroscoPy.
+
+    That also makes this deliberately **not PCDDB-specific**. It reads whatever
+    :func:`spectroscopy.read` reads, so a basis measured in your own lab, one
+    exported from a supplier, and one downloaded from a public bank all load
+    the same way.
+
+    Parameters
+    ----------
+    manifest : str or Path
+        A CSV with a header row. One line per reference spectrum:
+
+        ``file``
+            Path to the spectrum, relative to ``directory``.
+        ``category``
+            For a **structural basis**: which category this spectrum is of --
+            ``helix``, ``sheet``, ``turn``, ``other``. Matched by name against
+            :data:`~spectroscopy.processing.structure.DSSP_STATES`-backed
+            categories.
+        ``helix``, ``sheet``, ``turn``, ``other`` (any subset)
+            For a **reference-protein set**: this protein's known composition,
+            as fractions. Use these *instead of* ``category``.
+        ``name``, ``source``, ``citation``, ``accession``
+            Provenance. Carried into each reference and into the returned
+            library, so a result can say where its basis came from.
+
+    directory : str or Path, optional
+        Where the files are. Defaults to the manifest's own directory, which
+        is the usual arrangement.
+
+    Returns
+    -------
+    tuple
+        ``(spectra, compositions)``. ``compositions`` is ``None`` for a
+        structural basis, in which case each spectrum carries its
+        ``metadata['category']`` and the pair goes straight into
+        ``from_cd(method='basis-spectra', basis=spectra)``. Otherwise both are
+        passed to ``method='reference-proteins'``.
+
+    Notes
+    -----
+    Nothing here checks that a basis is any *good*. That is what
+    ``Composition.quality['rmsd_relative']`` is for, and what a protein of
+    known structure is for.
+    """
+    import csv  # noqa: PLC0415
+    from pathlib import Path  # noqa: PLC0415
+
+    from spectroscopy import read as _read  # noqa: PLC0415
+    from spectroscopy.processing.structure import (  # noqa: PLC0415
+        DSSP_STATES,
+        Category,
+        Composition,
+    )
+
+    #: name -> the DSSP states it claims. Kept here rather than imported so a
+    #: manifest may spell a category without importing anything.
+    known = {
+        'helix': frozenset({'G', 'H', 'I'}),
+        'sheet': frozenset({'E', 'B'}),
+        'turn': frozenset({'T'}),
+        'other': frozenset({'S', '-'}),
+    }
+    assert set().union(*known.values()) <= set(DSSP_STATES)
+
+    manifest = Path(manifest)
+    directory = Path(directory) if directory is not None else manifest.parent
+    with manifest.open(newline='', encoding='utf-8') as handle:
+        rows = list(csv.DictReader(handle))
+    if not rows:
+        raise ValueError(f"{manifest} has a header but no reference rows")
+
+    fields = {name.strip().lower() for name in rows[0]}
+    if 'file' not in fields:
+        raise ValueError(
+            f"{manifest} needs a 'file' column; it has {sorted(fields)}"
+        )
+    fraction_columns = sorted(fields & set(known))
+    structural = 'category' in fields
+    if structural == bool(fraction_columns):
+        raise ValueError(
+            f"{manifest} must have either a 'category' column (a structural "
+            f"basis: each spectrum is one kind of structure) or fraction "
+            f"columns {sorted(known)} (reference proteins: each spectrum is a "
+            f"whole protein of known composition) -- not both and not "
+            f"neither. It has "
+            f"{'both' if structural else 'neither'}."
+        )
+
+    spectra, compositions = [], []
+    for number, row in enumerate(rows, start=2):
+        row = {key.strip().lower(): (value or '').strip()
+               for key, value in row.items() if key}
+        path = directory / row['file']
+        if not path.is_file():
+            raise FileNotFoundError(
+                f"{manifest} line {number} refers to {path}, which is not "
+                f"there. Reference data is not shipped with this package -- "
+                f"see the docstring for why -- so the files have to be "
+                f"fetched before the manifest can be used."
+            )
+        spectrum = _read(path, file_type, **read_kwargs)
+        spectrum.name = row.get('name') or path.stem
+        for key in ('source', 'citation', 'accession'):
+            if row.get(key):
+                spectrum.metadata[f'reference_{key}'] = row[key]
+
+        if structural:
+            label = row['category']
+            if label not in known:
+                raise ValueError(
+                    f"{manifest} line {number}: category {label!r} is not one "
+                    f"of {sorted(known)}"
+                )
+            spectrum.metadata['category'] = Category(label, known[label])
+        else:
+            fractions = {}
+            for label in fraction_columns:
+                if row.get(label):
+                    fractions[Category(label, known[label])] = float(row[label])
+            total = sum(fractions.values())
+            if not 0.9 <= total <= 1.1:
+                raise ValueError(
+                    f"{manifest} line {number}: the fractions sum to "
+                    f"{total:.3f}, which is not a composition. They should be "
+                    f"fractions of 1, not percentages."
+                )
+            compositions.append(Composition(
+                fractions=fractions, method='supplied with the reference set',
+                technique='reference', source=spectrum.name))
+        spectra.append(spectrum)
+
+    return spectra, (None if structural else compositions)

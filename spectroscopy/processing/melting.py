@@ -206,11 +206,14 @@ def two_state(temperature, signal, *, source=None) -> MeltResult:
             f"{temperature.size} temperatures for {signal.size} signal "
             f"values; they are matched by position"
         )
-    if temperature.size < 6:
+    if temperature.size < 10:
         raise ValueError(
             f"a two-state fit has six parameters and there are "
-            f"{temperature.size} points. Fitting is possible only from six, "
-            f"and means nothing much below about fifteen."
+            f"{temperature.size} points. Below ten the baselines and the "
+            f"transition cannot be told apart: on a real seven-point melt "
+            f"this returned a Tm with a standard error of 1e17, which is the "
+            f"fit saying it has no idea while still printing a number. "
+            f"Fifteen or more is where the answer starts to mean something."
         )
     if np.nanmin(temperature) > _IMPLAUSIBLE_CELSIUS:
         raise ValueError(
@@ -250,7 +253,16 @@ def two_state(temperature, signal, *, source=None) -> MeltResult:
     # anywhere, inside the range included.
     traversed = float(result.fraction_unfolded(temperature.max())
                       - result.fraction_unfolded(temperature.min()))
-    if abs(traversed) < 0.5:
+    span_measured = float(temperature.max() - temperature.min())
+    if not np.isfinite(result.tm_stderr) or result.tm_stderr > span_measured:
+        warnings.warn(
+            f"the fit is degenerate: Tm came back as {result.tm:.1f} +/- "
+            f"{result.tm_stderr:.3g} C, an uncertainty larger than the "
+            f"{span_measured:g} C that was measured. The six parameters are "
+            f"not determined by this data, and the value above should not be "
+            f"quoted.",
+            UserWarning, stacklevel=2)
+    elif abs(traversed) < 0.5:
         warnings.warn(
             f"only {100 * abs(traversed):.0f}% of the transition happened "
             f"inside the measured range {temperature.min():g}-"
@@ -321,6 +333,7 @@ def isodichroic_point(collection, region=None):
         which is the rule of thumb, not a law.
     """
     x, matrix = collection.to_matrix()
+    temperature = collection.parameters
     if region is not None:
         low, high = sorted(region)
         inside = (x >= low) & (x <= high)
@@ -331,22 +344,54 @@ def isodichroic_point(collection, region=None):
             f"meaningful; got {matrix.shape[0]}"
         )
 
-    spread = matrix.max(axis=0) - matrix.min(axis=0)
-    # A crossing must be somewhere the spectra actually differ; the flat ends
-    # of the range have a small spread for the boring reason that there is no
-    # signal there at all.
-    span = float(matrix.max() - matrix.min()) or 1.0
-    amplitude = np.abs(matrix).max(axis=0)
-    eligible = amplitude > 0.05 * float(amplitude.max())
-    if not eligible.any():
-        eligible = np.ones_like(spread, dtype=bool)
+    # A crossing is where the series *inverts*, not merely where the spectra
+    # happen to be close together. Correlating signal against the parameter
+    # wavelength by wavelength finds that: strongly one sign on one side,
+    # strongly the other on the other, passing through zero at the crossing.
+    #
+    # Spread alone is not enough, and real data showed why. On an AqpZ melt it
+    # picked 238.8 nm -- the red end, where every spectrum has decayed towards
+    # zero and so they trivially agree. Spectra agreeing because there is no
+    # signal is the absence of information, not evidence of two states.
+    finite = np.isfinite(temperature)
+    ordering = np.zeros(matrix.shape[1])
+    if finite.sum() >= 3:
+        centred_t = temperature[finite] - temperature[finite].mean()
+        centred_y = matrix[finite] - matrix[finite].mean(axis=0)
+        denominator = (np.sqrt(np.sum(centred_t ** 2))
+                       * np.sqrt(np.sum(centred_y ** 2, axis=0)))
+        with np.errstate(invalid='ignore', divide='ignore'):
+            ordering = np.where(denominator > 0,
+                                (centred_t @ centred_y) / denominator, 0.0)
 
-    index = int(np.flatnonzero(eligible)[np.argmin(spread[eligible])])
+    spread = matrix.max(axis=0) - matrix.min(axis=0)
+    span = float(matrix.max() - matrix.min()) or 1.0
+
+    # Only where there is signal to cross: the mean spectrum must carry a
+    # decent fraction of its own maximum.
+    mean_amplitude = np.abs(matrix.mean(axis=0))
+    eligible = mean_amplitude > 0.25 * float(mean_amplitude.max())
+    # ... and where the ordering actually inverts nearby, which is what makes
+    # it a crossing rather than a convergence.
+    inverts = np.zeros_like(eligible)
+    signs = np.sign(ordering)
+    changes = np.flatnonzero(np.diff(signs) != 0)
+    for index in changes:
+        inverts[max(index - 2, 0):index + 3] = True
+    candidates = eligible & inverts
+    if not candidates.any():
+        candidates = eligible if eligible.any() else np.ones_like(eligible)
+
+    index = int(np.flatnonzero(candidates)[np.argmin(spread[candidates])])
     return {
         'wavelength': float(x[index]),
         'spread': float(spread[index]),
         'relative': float(spread[index] / span),
-        'is_tight': bool(spread[index] / span < 0.05),
+        'is_tight': bool(spread[index] / span < 0.05 and candidates[index]
+                         and inverts[index]),
+        'inverts_here': bool(inverts[index]),
+        'signal_here': float(mean_amplitude[index]
+                             / (float(mean_amplitude.max()) or 1.0)),
     }
 
 

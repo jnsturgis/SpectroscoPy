@@ -44,3 +44,7 @@ tests/data/spc/
 *Recovery-Codes*
 .pypirc
 *.token
+
+# CD reference sets fetched from the PCDDB. Access is free; redistribution is
+# not granted, so they stay on the machine that fetched them.
+data/cd_reference/

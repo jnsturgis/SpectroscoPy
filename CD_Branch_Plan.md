@@ -536,3 +536,78 @@ WP4's blocker does not lift, but it changes shape. It is no longer "find a
 redistributable set" — there isn't one — it is **build the fetch-and-load path,
 and separately ask for permission**. The first is unblocked work; the second is
 an email and a wait.
+
+
+---
+
+## Fetch-load built, and the first real-data analysis (2026-08-10)
+
+### Built
+
+`library.load_basis(manifest, directory)` — deliberately **not**
+PCDDB-specific. It reads whatever `spc.read` reads, so a basis measured in
+your own lab, one from a supplier and one downloaded from a public bank all
+load identically. A small CSV declares what each file is: a `category` column
+for a structural basis, or `helix`/`sheet`/`turn`/`other` fraction columns for
+reference proteins, plus `source`/`citation`/`accession` carried into the
+result so a composition can say where its basis came from. It catches
+percentages given where fractions were meant, and a manifest that declares
+both kinds or neither.
+
+`scripts/fetch_pcddb_basis.py` downloads a named set into gitignored
+`data/cd_reference/`, verifying each entry looks like a spectrum before
+keeping it, and writes a manifest with accessions so the citation condition
+can be met.
+
+**The fetcher has never run against a live PCDDB.** The site has been
+unreachable for two days — DNS resolves, both ports time out — so the URL
+pattern and file layout are inferred from the site's own metadata. Under the
+working agreement that makes it provisional, and it is marked as such in its
+own docstring: the `.dpt` precedent is a reader written against a
+specification where the format turned out not to be what it looked like. It
+fails loudly per entry rather than writing rubbish quietly.
+
+So **the deconvolution still cannot run**, and now for a purely practical
+reason rather than a licensing one.
+
+### What the real data does support, and two defects it found
+
+Running the melt tools on the actual AqpZ series, the first time any of them
+has seen real measurements:
+
+| | 20 µM, 31 spectra | 4 µM, 7 spectra |
+|---|---|---|
+| usable at every temperature | 213–280 nm | 199–280 nm |
+| Tm | **82.4 ± 0.2 °C** | fit refused |
+| dH | 842 ± 58 kJ/mol | — |
+| third singular value / noise | **8.2 — not two-state** | 2.0 |
+
+**Two defects, both found by real data and both fixed.**
+
+`isodichroic_point` reported a tight crossing at 238.8 nm. It is not one. That
+is the red end, where every spectrum has decayed towards zero and so they
+trivially agree — spectra agreeing because there is no signal is the absence
+of information, not evidence of two states. A crossing is where the series
+*inverts*, so the criterion is now the sign change of the correlation between
+signal and temperature, restricted to wavelengths carrying real amplitude. On
+this data it now returns *not tight*, correctly.
+
+`two_state` accepted the 4 µM series — seven temperatures for six parameters
+— and returned a Tm with a standard error of **10¹⁷ °C**: the fit saying it
+has no idea while still printing a number. The minimum is now ten points with
+an explanation, and a degenerate covariance is reported rather than dressed
+up.
+
+### On the melt disagreement
+
+**Tm = 82.4 ± 0.2 °C on the 20 µM series.** The notebook fits at 222 nm and
+on the 208/222 ratio with a two-component model, masked to T ≥ 60 °C and
+seeded at 85. Those are not obviously far apart, and my earlier numbers were
+against synthetic curves where I chose the answer — so there may be no
+disagreement to resolve. What is worth comparing is the fitted values, on this
+data.
+
+**The rank test says this unfolding is not two-state** (third component at 8.2
+times the noise floor), which agrees with the notebook already using a
+two-component model rather than a single transition. Whatever Tm either of us
+quotes describes one part of a process with more than two states in it.
