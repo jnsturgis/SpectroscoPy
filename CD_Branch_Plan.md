@@ -456,3 +456,83 @@ and it has not moved; what has changed is that the data reaches far enough
 edge artefact pass silently: on the 20 µM spectrum the most negative point is
 the crop, and reading it as a band position would be reading the detector's
 limit as a property of the protein.
+
+
+---
+
+## Reference sets: what is actually redistributable (checked 2026-08-09)
+
+**Nothing, today.** Not "probably fine" — checked, and the answer is that no CD
+reference set was found that SpectroscoPy may ship.
+
+### Everything traces to one source
+
+SP175 and SMP180 are distributed through the **PCDDB** (accessions
+CD0000001000–CD0000071000 and CD00000099000–CD00000128000). BeStSel's basis was
+optimised against SP175 plus further β-rich spectra *also* deposited in PCDDB.
+SSCalcPy bundles SP175 and SMP180 "obtained from the PCDDB". So PCDDB's terms
+govern nearly the whole field.
+
+### PCDDB grants access, not reuse
+
+Its terms and conditions are five clauses. They cover purpose, an as-is
+disclaimer, the right to change content, browser compatibility, and this:
+
+> *(4) It is intended that retrieval of information from the PCDDB will be
+> freely accessible to all, without subscription.*
+
+That is a statement about **access**, not about what may be done with the data
+afterwards. There is no licence grant, no permission to copy, modify or
+redistribute. Copyright is asserted over "the design and implementation of this
+site" — which does not address the data either way. re3data records both the
+database licence and the data licence as **"other"**.
+
+There is also a citation condition, which is easy and right to honour:
+
+> *A condition of use of the data in this website is that any publication or
+> presentation using any data from the PCDDB must cite both the original
+> reference for the data and the PCDDB.*
+
+**Silence is not permission.** MPL-2.0 lets anyone redistribute this package,
+including commercially; shipping data whose terms never grant that would be
+assuming a licence nobody wrote.
+
+*Caveat: the live site was unreachable and this is read from an archived copy
+of the terms page. Confirm against the current text before relying on it.*
+
+### SSCalcPy is doubly unusable
+
+| | licence | why it fails |
+|---|---|---|
+| `AU-SRCD/SSCalcPy` | CC-BY-**NC**-SA 4.0 | NonCommercial bars a class of user MPL-2.0 must allow; ShareAlike would force its own terms on the package |
+| `AU-SRCD/SSCalcPy-mAb` | CC-BY-NC-**ND** 4.0 | NoDerivatives forbids adapting it at all |
+
+This is the same shape as the GPL-3.0 `.spc` reference implementation: useful to
+**read and compare against**, impossible to incorporate. The comparison against
+their SELCON3 in WP5 stands; vendoring their code or data does not.
+
+### The way through, and it is one this project has already used
+
+**Fetch, do not ship.** `scripts/fetch_spc_fixtures.py` downloads the Galactic
+sample files into a gitignored directory, and `tests/conftest.py` skips when
+they are absent. The same arrangement works here and is strictly better than
+bundling:
+
+- the user obtains the data from PCDDB themselves and accepts PCDDB's terms
+  directly, so SpectroscoPy redistributes nothing;
+- the data stays current, and citation metadata comes with it;
+- **no API change is needed** — `from_cd(basis=...)` already takes a
+  caller-supplied basis, which is why it was built that way.
+
+**And ask.** A direct request to Wallace's group at Birkbeck for permission to
+redistribute SP175 under a stated licence is likely to succeed for an academic
+open-source tool, and costs an email. It worked for the PyPI name: ask rather
+than assume, and take the answer. Until an answer arrives, the fetch route is
+what ships.
+
+### Consequence for the plan
+
+WP4's blocker does not lift, but it changes shape. It is no longer "find a
+redistributable set" — there isn't one — it is **build the fetch-and-load path,
+and separately ask for permission**. The first is unblocked work; the second is
+an email and a wait.
