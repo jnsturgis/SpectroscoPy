@@ -773,3 +773,97 @@ A faithful SELCON3 or CDSSTR, with the selection and self-consistency rules
 that make subset fitting work. `subset-average` is the idea, not the
 published algorithm, and its measured bias is the argument for not letting it
 wear either name.
+
+
+---
+
+## SELCON, the membrane class signature, and measured noise (2026-08-12)
+
+### SELCON
+
+Built from the published description: the self-consistent step of Sreerama &
+Woody (1993) -- the unknown's spectrum joins the basis carrying a guess at its
+structure, the system is solved by SVD, the guess is replaced by the solution,
+repeat -- with SELCON3's variable selection (references ordered by closeness,
+increasing numbers of the closest tried) and its documented rules (fractions
+summing to 0.95-1.05, none below -0.025).
+
+What is *not* from the literature is named as such in the docstring: how many
+singular values to retain, the residual threshold, and the convergence test.
+The primary papers are paywalled and the open re-implementations are
+NonCommercial, so this is the published description rather than the published
+code.
+
+**It is the best method by held-out validation, by a clear margin:**
+
+| SMP180, 10-fold | answered | helix rmse | helix bias |
+|---|---|---|---|
+| `selcon` | 95/128 | **0.107** | **+0.001** |
+| `ridge` | 128 | 0.143 | -0.013 |
+| `nearest-shapes` | 128 | 0.147 | +0.041 |
+
+It declines 26 % of the set. The fair comparison, on the **same 95** it
+answered: `ridge` 0.137 against SELCON's 0.107. So it is genuinely better and
+not merely selective, though the 33 it refused are somewhat harder for `ridge`
+too (0.161).
+
+### The thing I got wrong twice
+
+I first shipped a `scale_free=True` option claiming it made SELCON
+amplitude-blind. **It does not, and the tests caught it.** The self-consistent
+step puts the query into the basis *as a column beside the references*, so its
+magnitude relative to them is part of the model. On a synthetic set with
+references peaking near 30, the same shape at 0.1, 1, 10 and 800 gave helix
+0.350, 0.562, 0.558, 0.550 -- and the unflagged run refused at 0.1 and 10
+while answering at 1 and 800.
+
+Renormalising the fractions hides the refusal without removing the dependence.
+The flag is now `ignore_sum_rule`, it warns, and the docstring quotes the drift
+rather than promising scale-freedom. **SELCON belongs in the
+amplitude-required column**, permanently.
+
+### James's membrane observation, tested
+
+The suspicion was that AqpZ's nearest neighbours came back membrane-heavy
+because membrane spectra share a distortion, not because the method recognised
+the fold. **It is the former, and it is a large effect.**
+
+Membrane proteins are 30 of SMP180's 128 (23 %). Fraction of each protein's
+five nearest shapes that are membrane proteins: **0.45 for membrane queries,
+0.20 for soluble ones.** Controlling for helix content, within bands where
+both classes are present: 0.43 vs 0.19 at 0-20 % helix, 0.44 vs 0.20 at
+40-60 %.
+
+At matched secondary structure, a membrane protein's spectrum resembles other
+membrane proteins about twice as often. There is a **class signature beyond
+structure** -- absorption flattening, differential scattering, and the longer
+straighter helices of a transmembrane bundle all pull the same way. So part of
+what looked like structural agreement on AqpZ is agreement about being a
+membrane protein.
+
+### Measured noise
+
+CD is recorded as accumulations, so the per-wavelength error is a
+*measurement*, and a strongly wavelength-dependent one: over four near-native
+AqpZ scans the standard error is 0.45 mdeg at 215 nm against 0.16 at 240,
+because the detector is working hardest at the blue end.
+
+`cd.uncertainty_from_replicates(collection)` returns it, `estimate(sigma=...)`
+weights each wavelength by `1/sigma`, and `resamples=` refits on the spectrum
+perturbed by its own noise and reports the spread. That last is the honest
+error bar -- how far the answer moves for the noise actually present, which no
+goodness-of-fit statistic can supply.
+
+### AqpZ, current best answer
+
+| method | helix | sheet |
+|---|---|---|
+| `selcon`, `ignore_sum_rule=True` | **0.657 +/- 0.030** | 0.041 |
+| `nearest-shapes` | 0.633 | 0.043 |
+| `ridge` | 0.449 | 0.180 |
+| **crystal 1RC2 + 23 aa** | **0.701** | **0.000** |
+
+The best-validated method, chosen before AqpZ was looked at, lands 0.045 from
+the crystal with sheet correctly near zero. With the caveat attached to it: no
+concentration was supplied, so this is the amplitude-dependent method run
+without its amplitude.

@@ -818,3 +818,112 @@ def test_the_design_matrix_uses_the_coarser_grid():
                                                region=(200.0, 240.0))
     assert len(grid) == pytest.approx(41, abs=1)
     assert design.shape == (len(grid), 1)
+
+
+# ---------------------------------------------------------------------------
+# SELCON, the class signature, and measured noise
+# ---------------------------------------------------------------------------
+
+def test_selcon_is_in_the_registry_and_runs():
+    basis, compositions = _synthetic_set(count=20, seed=2, noise=0.2)
+    x = basis[0].x
+    pure = {HELIX: _band(x, 208, 7, -37) + _band(x, 222, 9, -37)
+                   + _band(x, 193, 7, 60),
+            SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
+            COIL: _band(x, 198, 7, -40) + _band(x, 220, 10, 3)}
+    truth = {HELIX: 0.55, SHEET: 0.25, COIL: 0.20}
+    sample = spc.Spectrum(x, sum(truth[c] * pure[c] for c in pure),
+                          technique='CD', name='unknown')
+
+    result = cdm.estimate(sample, 'selcon', basis, compositions,
+                          ignore_sum_rule=True, max_references=12)
+    assert result.method == 'selcon'
+    assert result.quality['n_solutions'] > 0
+    assert sum(result.fractions.values()) == pytest.approx(1.0, abs=1e-6)
+
+
+def test_selcon_needs_the_amplitude_and_says_so():
+    """
+    The self-consistent step puts the query into the basis beside the
+    references, so its magnitude is part of the model. A wrong-scale spectrum
+    is refused at some amplitudes -- and, worse, quietly answered at others,
+    which is why the docstring quotes the measured drift instead of promising
+    scale-freedom.
+    """
+    basis, compositions = _synthetic_set(count=16, seed=3, noise=0.1)
+    x = basis[0].x
+    y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
+
+    with pytest.raises(ValueError, match='amplitude'):
+        cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'), 'selcon',
+                     basis, compositions, max_references=10)
+
+    with pytest.warns(UserWarning, match='not scale-free'):
+        relaxed = cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'),
+                               'selcon', basis, compositions,
+                               ignore_sum_rule=True, max_references=10)
+    assert relaxed.quality['ignore_sum_rule'] is True
+
+
+def test_ignore_sum_rule_does_not_make_selcon_scale_free():
+    """
+    The flag was originally called scale_free. It is not: renormalising the
+    fractions does not remove the query's amplitude from the model.
+    """
+    basis, compositions = _synthetic_set(count=16, seed=3, noise=0.1)
+    x = basis[0].x
+    y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
+    with pytest.warns(UserWarning):
+        quiet = cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'),
+                             'selcon', basis, compositions,
+                             ignore_sum_rule=True, max_references=10)
+        loud = cdm.estimate(spc.Spectrum(x, y, technique='CD'), 'selcon',
+                            basis, compositions, ignore_sum_rule=True,
+                            max_references=10)
+    assert quiet.fractions[HELIX] != pytest.approx(loud.fractions[HELIX],
+                                                   abs=0.01)
+
+
+def test_measured_noise_weights_the_fit():
+    """
+    Real CD noise is strongly wavelength-dependent -- on the AqpZ scans the
+    standard error at 215 nm is three times that at 240. An unweighted fit
+    treats both alike.
+    """
+    basis, compositions = _synthetic_set(count=16, seed=4, noise=0.1)
+    x = basis[0].x
+    y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
+    sample = spc.Spectrum(x, y, technique='CD')
+
+    # Noise huge at the blue end, tiny at the red.
+    sigma = np.linspace(20.0, 0.05, x.size)
+    plain = cdm.estimate(sample, 'ridge', basis, compositions)
+    weighted = cdm.estimate(sample, 'ridge', basis, compositions, sigma=sigma)
+
+    assert plain.quality['weighted'] is False
+    assert weighted.quality['weighted'] is True
+    assert any(weighted.fractions[c] != plain.fractions[c]
+               for c in plain.fractions)
+
+
+def test_resampling_reports_how_far_the_answer_moves_under_its_own_noise():
+    basis, compositions = _synthetic_set(count=16, seed=5, noise=0.1)
+    x = basis[0].x
+    sample = spc.Spectrum(x, _band(x, 208, 7, -30) + _band(x, 222, 9, -30),
+                          technique='CD')
+    result = cdm.estimate(sample, 'ridge', basis, compositions,
+                          sigma=np.full(x.size, 1.5), resamples=25)
+    assert result.quality['n_resamples'] > 0
+    assert set(result.quality['uncertainty']) == {'helix', 'sheet', 'other'}
+    assert all(v >= 0.0 for v in result.quality['uncertainty'].values())
+
+
+def test_uncertainty_from_replicates_is_the_standard_error():
+    x = np.linspace(200.0, 240.0, 41)
+    generator = np.random.default_rng(0)
+    scans = [spc.Spectrum(x, _band(x, 222, 9, -30)
+                          + 0.5 * generator.normal(size=x.size), technique='CD')
+             for _ in range(5)]
+    sem = cdm.uncertainty_from_replicates(spc.SpectrumCollection(scans))
+    assert len(sem) == len(x)
+    assert 0.05 < float(np.median(sem.y)) < 1.0

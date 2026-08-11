@@ -48,6 +48,14 @@ fit many small random subsets, keep those that pass a self-consistency test,
 average the survivors. Eight references *are* determined by fifty numbers even
 when a hundred and thirty are not.
 
+**`selcon`** — the self-consistent method of Sreerama & Woody, with SELCON3's
+variable selection and rules. Three ideas together: the unknown's own spectrum
+joins the basis carrying a *guess* at its structure, the system is solved by
+SVD and the guess replaced by the solution until it stops moving; references
+are ordered by closeness to the query and increasing numbers of the closest
+are tried; and a candidate is kept only if its fractions sum to within 5 % of
+one and none falls below −0.025. Surviving solutions are averaged.
+
 **`ridge`** — Tikhonov-regularised non-negative least squares over the whole
 set, the standard statistical treatment of an underdetermined system and the
 same idea as CONTIN ([Provencher & Glöckner 1981](../references.md)). Penalising the size of the
@@ -65,7 +73,17 @@ difference is not cosmetic:
 | `all-references` | no | conditioning |
 | `nearest-shapes` | no | how well the set covers the fold |
 | `subset-average` | **only with `sum_to_one=True`** | the acceptance threshold |
+| `selcon` | **always** | the amplitude, unavoidably |
 | `ridge` | no | the penalty |
+
+**`selcon` cannot be made scale-free, and this is worth being clear about.**
+Its self-consistent step puts the query into the basis *as a column beside the
+references*, so the query's magnitude relative to them is part of the model.
+Measured on a synthetic set whose references peak near 30, the same shape
+scaled by 0.1, 1, 10 and 800 gave helix **0.350, 0.562, 0.558, 0.550** — and
+the run without `ignore_sum_rule` refused outright at 0.1 and 10 while
+answering at 1 and 800. Renormalising the fractions does not remove the
+dependence; it only hides the refusal.
 
 The classical self-consistency test — accept a subset if its weights sum to
 about one — is **comparing an amplitude**. It is meaningful only when your
@@ -152,12 +170,24 @@ fourteen percentage points.
 
 **SMP180** (128 soluble and membrane proteins):
 
-| method | helix rmse | helix bias | sheet rmse | sheet bias |
-|---|---|---|---|---|
-| `all-references` | — | — | — | — refused, all 128 |
-| `nearest-shapes` | 0.160 | +0.048 | 0.137 | −0.036 |
-| `subset-average` | 0.155 | −0.076 | 0.119 | +0.052 |
-| **`ridge`** | **0.143** | **−0.013** | 0.121 | +0.010 |
+| method | n answered | helix rmse | helix bias | sheet rmse | sheet bias |
+|---|---|---|---|---|---|
+| `all-references` | 0 | — | — | — | — refused, all 128 |
+| `nearest-shapes` | 128 | 0.160 | +0.048 | 0.137 | −0.036 |
+| `subset-average` | 108 | 0.155 | −0.076 | 0.119 | +0.052 |
+| `ridge` | 128 | 0.143 | −0.013 | 0.121 | +0.010 |
+| **`selcon`** | **95** | **0.107** | **+0.001** | **0.103** | **−0.002** |
+
+**`selcon` is the most accurate and the least biased** — and it declines to
+answer for 26 % of the set, which is the trade. That refusal rate is a feature
+rather than a shortfall: the alternative is a confident number from a fit that
+failed its own consistency tests.
+
+Its rmse is conditional on succeeding, so it needs the fair comparison. On the
+**same 95 proteins** SELCON answered, `ridge` scores 0.137 against SELCON's
+0.107 — so SELCON is genuinely better, not merely selective. The 33 it refused
+are somewhat harder for `ridge` too (0.161), so there is a mild selection
+effect on top.
 
 Three things worth reading off these.
 
@@ -227,10 +257,17 @@ diluted by a 23-residue N-terminal tag the construct carries, that is
 
 | method (SMP180) | helix | sheet |
 |---|---|---|
-| `ridge` | 0.449 | 0.180 |
+| `selcon` (`ignore_sum_rule=True`) | **0.657 ± 0.030** | 0.041 |
 | `nearest-shapes` | 0.633 | 0.043 |
+| `ridge` | 0.449 | 0.180 |
 | `subset-average` | 0.406 | 0.206 |
 | **crystal structure** | **0.701** | **0.000** |
+
+`selcon` — the best method by held-out validation, chosen before AqpZ was
+looked at — lands within 0.045 of the crystal structure, and its sheet content
+is correctly near zero. But note `ignore_sum_rule=True`: no concentration was
+supplied, so this is the amplitude-dependent method run without its amplitude,
+and the number should be read with that in mind.
 
 The methods disagree by 0.25 in helix — nearly twice the 0.14 rmse the
 benchmark says to expect — and the best of them is 0.07 from the truth while
@@ -244,3 +281,63 @@ residual, would have been a confident wrong number.
 
 Run more than one method. When they agree, the answer is probably safe. When
 they disagree by more than the benchmark's rmse, believe the disagreement.
+
+## Membrane proteins look like each other
+
+Asked which reference proteins AqpZ most resembles, the answer came back
+dominated by membrane proteins — lactose permease, a mechanosensitive channel,
+sensory rhodopsin II, a leucine transporter. That could be the method
+recognising the fold, or it could be membrane spectra sharing a distortion.
+It is testable, and it is the second.
+
+In SMP180, 30 of 128 proteins are membrane proteins — 23 %. Taking each
+protein in turn and asking what fraction of its five nearest shapes are
+membrane proteins:
+
+| query | membrane among its 5 nearest |
+|---|---|
+| membrane proteins | **0.45** |
+| soluble proteins | 0.20 |
+| chance | 0.23 |
+
+**And it survives controlling for structure.** Within a single helix-content
+band, where both classes are present:
+
+| helix content | membrane query | soluble query |
+|---|---|---|
+| 0.0–0.2 | 0.43 | 0.19 |
+| 0.4–0.6 | 0.44 | 0.20 |
+| 0.6–1.0 | 0.56 | 0.48 |
+
+At the same helix content, a membrane protein's spectrum resembles other
+membrane proteins about twice as often as a soluble protein's does. So there
+is a **class signature in membrane CD beyond secondary structure** —
+absorption flattening, differential scattering, and the longer straighter
+helices of a transmembrane bundle all point the same way.
+
+Two consequences. Using SMP180 rather than SP175 for a membrane protein is
+right, and not only because it contains more of them. And a shape-similarity
+result on a membrane protein is partly recognising the *class*, so some of
+what looks like structural agreement is agreement about being a membrane
+protein — which is worth knowing before quoting it.
+
+## Noise you measured, rather than noise you assumed
+
+CD is almost always recorded as several accumulations, so the error at each
+wavelength is a measurement. It is also strongly wavelength-dependent: on four
+near-native AqpZ scans the standard error is **0.45 mdeg at 215 nm and 0.16 at
+240**, because the photomultiplier is working far harder at the blue end.
+
+```python
+sigma = cd.uncertainty_from_replicates(my_repeat_scans)   # a SpectrumCollection
+result = cd.estimate(spectrum, 'ridge', basis, compositions,
+                     sigma=sigma, resamples=200)
+print(result.quality['uncertainty'])
+```
+
+`sigma` weights each wavelength by `1/sigma`, so a point known ten times as
+well counts ten times as much — which an unweighted fit does not do.
+`resamples` refits on the spectrum perturbed by its own measured noise and
+reports the spread. **That is the honest error bar**: how far the answer moves
+for noise the size you actually have, which no goodness-of-fit statistic can
+tell you.

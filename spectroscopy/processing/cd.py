@@ -82,6 +82,7 @@ from __future__ import annotations
 import numpy as np
 
 __all__ = ['METHODS', 'estimate', 'benchmark', 'design_matrix',
+           'uncertainty_from_replicates', 'NEEDS_AMPLITUDE',
            'DEFAULT_REGION', 'DEFAULT_NEIGHBOURS', 'DEFAULT_SUBSET_SIZE']
 
 #: Far-UV range used unless told otherwise. The lower limit is where most
@@ -279,10 +280,43 @@ def _table(compositions, categories):
                      for composition in compositions], dtype=float)
 
 
+def uncertainty_from_replicates(collection):
+    """
+    Per-wavelength standard error from repeat scans.
+
+    CD is nearly always measured as several accumulations, so the noise is
+    **measured, not assumed** -- and it is strongly wavelength-dependent, since
+    it grows wherever the photomultiplier is working hardest. Feeding that to
+    :func:`estimate` weights each wavelength by how well it is known, and lets
+    the uncertainty on the composition be propagated rather than guessed.
+
+    Returns a :class:`~spectroscopy.spectra.Spectrum` of standard errors,
+    which is just ``collection.sem()``; this exists to say so in one place.
+    """
+    return collection.sem()
+
+
 def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
-             **options):
+             sigma=None, resamples=0, seed=0, **options):
     """
     Estimate a composition by one named method. See :data:`METHODS`.
+
+    Parameters
+    ----------
+    sigma : Spectrum or array_like, optional
+        Per-wavelength standard error, as
+        :func:`uncertainty_from_replicates` returns from a set of repeat
+        scans. Given, the fit is **weighted** by ``1/sigma``: a wavelength
+        known to ten times the precision of another counts for ten times as
+        much, which is the right thing to do and not what an unweighted fit
+        does. Far-UV CD noise rises steeply towards the blue as the detector
+        starves, so the weighting is far from uniform in practice.
+    resamples : int
+        With ``sigma``, refit this many times on the spectrum perturbed by its
+        own measured noise, and report the spread as
+        ``quality['uncertainty']``. **This is the honest error bar**: it says
+        how much the answer moves for noise the size you actually measured,
+        which no goodness-of-fit statistic can tell you.
 
     Returns a :class:`~spectroscopy.processing.structure.Composition`; the
     method's own diagnostics are in its ``quality``.
@@ -295,11 +329,50 @@ def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
             f"{sorted(METHODS)}"
         )
     categories = list(compositions[0].fractions)
-    _, measured, design = design_matrix(spectrum, basis, region)
-    fractions, quality = METHODS[method](measured, design,
-                                         _table(compositions, categories),
-                                         **options)
-    quality = {**quality, 'method': method, 'n_references': len(basis)}
+    table = _table(compositions, categories)
+    grid, measured, design = design_matrix(spectrum, basis, region)
+
+    errors = None
+    if sigma is not None:
+        errors = np.asarray(
+            sigma.resample(grid).y if hasattr(sigma, 'resample')
+            else np.interp(grid, grid, np.asarray(sigma, dtype=float)),
+            dtype=float)
+        if errors.shape != measured.shape:
+            raise ValueError(
+                f"sigma has {errors.shape} values for {measured.shape} "
+                f"wavelengths"
+            )
+        floor = float(np.median(errors[errors > 0])) if np.any(errors > 0) else 1.0
+        errors = np.where(errors > 0, errors, floor)
+
+    def solve(values):
+        if errors is None:
+            return METHODS[method](values, design, table, **options)
+        weight = 1.0 / errors
+        return METHODS[method](values * weight, design * weight[:, None],
+                               table, **options)
+
+    fractions, quality = solve(measured)
+    quality = {**quality, 'method': method, 'n_references': len(basis),
+               'weighted': errors is not None}
+
+    if errors is not None and int(resamples) > 0:
+        generator = np.random.default_rng(seed)
+        spread = []
+        for _ in range(int(resamples)):
+            perturbed = measured + errors * generator.normal(size=measured.size)
+            try:
+                candidate, _ = solve(perturbed)
+            except (ValueError, RuntimeError):
+                continue
+            spread.append(candidate)
+        if spread:
+            spread = np.array(spread)
+            quality['uncertainty'] = dict(zip(
+                [c.name for c in categories], spread.std(axis=0).tolist()))
+            quality['n_resamples'] = len(spread)
+
     return Composition(fractions=dict(zip(categories, map(float, fractions))),
                        method=method, technique=spectrum.technique or 'CD',
                        quality=quality, source=spectrum.name)
@@ -380,3 +453,189 @@ def benchmark(basis, compositions, methods=None, *, folds=10,
             }
         summary[method] = entry
     return summary
+
+
+# -- SELCON ------------------------------------------------------------------
+#
+# The self-consistent method of Sreerama & Woody (1993), with the variable
+# selection and solution rules of SELCON3 (Sreerama & Woody 2000). See
+# docs/references.md.
+#
+# What is taken from the literature, and what is not, is set out in the
+# docstring of _selcon below -- the primary papers are paywalled and the open
+# re-implementations are NonCommercial, so parts of this are the published
+# description rather than the published code, and the parts that are choices
+# are named as choices.
+
+#: SELCON3's rule on individual fractions: a solution may go slightly negative
+#: but not far. Quoted in the literature as -0.025.
+SELCON_MIN_FRACTION = -0.025
+
+#: SELCON3's sum rule: fractions must sum to within 5% of one. **This compares
+#: an amplitude**, so it only means anything when the spectrum is in the
+#: reference set's units.
+SELCON_SUM_BOUNDS = (0.95, 1.05)
+
+#: Fit residual a solution must beat, relative to the spectrum's range.
+SELCON_MAX_RMSD = 0.25
+
+
+def _pseudo_inverse_solution(design, table, measured, keep):
+    """``f = F A+ a`` with the pseudo-inverse truncated to ``keep`` values."""
+    left, values, right = np.linalg.svd(design, full_matrices=False)
+    keep = max(1, min(int(keep), len(values)))
+    inverse = np.zeros_like(values)
+    nonzero = values[:keep] > values[0] * 1e-12
+    inverse[:keep][nonzero] = 1.0 / values[:keep][nonzero]
+    weights = right.T @ (inverse * (left.T @ measured))
+    return table.T @ weights, weights
+
+
+def _selcon(measured, design, table, *, min_references=5, max_references=None,
+            iterations=10, convergence=1e-4, sum_bounds=SELCON_SUM_BOUNDS,
+            min_fraction=SELCON_MIN_FRACTION, max_rmsd=SELCON_MAX_RMSD,
+            ignore_sum_rule=False, **options):
+    """
+    SELCON: the self-consistent method with variable selection.
+
+    From the published description of Sreerama & Woody:
+
+    1. **Self-consistency.** The unknown's own spectrum is added to the basis
+       set carrying a *guess* at its structure. The augmented system is solved
+       by singular value decomposition, the guess is replaced by the solution,
+       and the process repeats until it stops moving. Including the unknown is
+       what makes the method self-consistent, and it is the step that
+       distinguishes SELCON from a plain fit.
+    2. **Variable selection.** References are ordered by how close they are to
+       the query, and solutions are sought using increasing numbers of the
+       closest ones, rather than the whole set at once.
+    3. **Selection rules.** A candidate is kept only if its fractions sum to
+       within 5% of one and none is below -0.025. Surviving solutions are
+       averaged.
+
+    Deliberately named choices, because the primary papers are paywalled and
+    the open re-implementations are NonCommercial, so these could not be read
+    off either:
+
+    * how many singular values to retain -- solutions are collected across
+      every truncation from one to the subset size, which is the behaviour the
+      description implies rather than a number anyone stated;
+    * the residual threshold, ``max_rmsd``;
+    * the convergence test on the self-consistent loop.
+
+    .. warning::
+
+       **SELCON needs the spectrum in the reference set's units, and there is
+       no honest way round it.** The self-consistent step puts the query into
+       the basis *as a column beside the references*, so its magnitude
+       relative to them is part of the model. Measured on a synthetic set
+       whose references peak near 30: the same shape scaled by 0.1, 1, 10 and
+       800 gave helix 0.350, 0.562, 0.558 and 0.550, and the unscaled run
+       refused outright at 0.1 and 10 while succeeding at 1 and 800.
+
+       ``ignore_sum_rule=True`` drops the sum rule and renormalises, which
+       lets a spectrum in millidegrees produce an answer. It does **not** make
+       the method scale-free -- the drift above was measured with the flag on.
+       Use it to get a number when you have no concentration, understanding
+       that the number moves with an amplitude you have not pinned down. For a
+       genuinely amplitude-blind estimate use ``ridge`` or ``nearest-shapes``,
+       and convert with
+       :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`
+       when you can.
+    """
+    import warnings  # noqa: PLC0415
+
+    if ignore_sum_rule:
+        warnings.warn(
+            "SELCON with ignore_sum_rule=True drops one of its three "
+            "selection rules and still is not scale-free: the query sits in "
+            "the basis beside the references, so the answer moves with an "
+            "amplitude you have not supplied. Prefer ridge or nearest-shapes "
+            "when the concentration is unknown.",
+            UserWarning, stacklevel=3)
+    n_references = design.shape[1]
+    upper = min(int(max_references or n_references), n_references)
+    lower = max(2, min(int(min_references), upper))
+
+    target = measured
+
+    # Variable selection: order the references by closeness to the query, on
+    # shape, so that the ordering does not itself depend on the amplitude.
+    query_direction = _unit(target)
+    closeness = np.array([float(query_direction @ _unit(design[:, j]))
+                          for j in range(n_references)])
+    order = np.argsort(closeness)[::-1]
+
+    accepted, diagnostics = [], []
+    for size in range(lower, upper + 1):
+        pick = order[:size]
+        sub_design, sub_table = design[:, pick], table[pick]
+
+        # The self-consistent loop. The unknown joins the basis carrying a
+        # guess; the guess is whatever the closest references average to.
+        guess = sub_table.mean(axis=0)
+        for _ in range(int(iterations)):
+            augmented = np.column_stack([sub_design, target])
+            augmented_table = np.vstack([sub_table, guess])
+            solutions = []
+            for keep in range(1, min(size + 1, augmented.shape[1]) + 1):
+                fractions, _ = _pseudo_inverse_solution(
+                    augmented, augmented_table, target, keep)
+                solutions.append(fractions)
+            updated = np.mean(solutions, axis=0)
+            if np.max(np.abs(updated - guess)) < convergence:
+                guess = updated
+                break
+            guess = updated
+
+        # Apply the rules to every truncation, not only to the converged mean:
+        # SELCON collects solutions, it does not return one.
+        augmented = np.column_stack([sub_design, target])
+        augmented_table = np.vstack([sub_table, guess])
+        for keep in range(1, min(size + 1, augmented.shape[1]) + 1):
+            fractions, weights = _pseudo_inverse_solution(
+                augmented, augmented_table, target, keep)
+            total = float(np.sum(fractions))
+            if ignore_sum_rule:
+                if abs(total) < 1e-9:
+                    continue
+                fractions = fractions / total
+            elif not sum_bounds[0] <= total <= sum_bounds[1]:
+                continue
+            if float(np.min(fractions)) < min_fraction:
+                continue
+            residual = _relative_rms(target, augmented @ weights)
+            if residual > max_rmsd:
+                continue
+            accepted.append(fractions)
+            diagnostics.append((size, keep, residual))
+
+    if not accepted:
+        raise ValueError(
+            "no SELCON solution passed the selection rules: fractions summing "
+            f"to {sum_bounds[0]}-{sum_bounds[1]} with none below "
+            f"{min_fraction}. The sum rule compares an **amplitude**, so this "
+            "is what happens when the spectrum is in millidegrees and the "
+            "basis in delta epsilon. Convert the spectrum with "
+            "Spectrum.to_mean_residue_ellipticity. Passing "
+            "ignore_sum_rule=True will produce a number, but it will be one "
+            "that depends on the amplitude you have not supplied."
+        )
+
+    accepted = np.array(accepted)
+    fractions = accepted.mean(axis=0)
+    # SELCON reports the fractions renormalised, having required them to sum
+    # to about one already.
+    total = float(fractions.sum()) or 1.0
+    return fractions / total, {
+        'n_solutions': len(accepted),
+        'subset_sizes': sorted({size for size, _, _ in diagnostics}),
+        'spread': accepted.std(axis=0).tolist(),
+        'median_rmsd_relative': float(np.median([r for _, _, r in diagnostics])),
+        'sum_before_renormalising': total,
+        'ignore_sum_rule': bool(ignore_sum_rule),
+    }
+
+
+METHODS['selcon'] = _selcon
+NEEDS_AMPLITUDE['selcon'] = 'always -- the query joins the basis'
