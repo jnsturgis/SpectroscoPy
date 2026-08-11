@@ -17,12 +17,15 @@ vocabulary that survives being compared with a different technique.
 :::{admonition} Status
 :class: warning
 
-FTIR is implemented. Circular dichroism is designed and being built on a
-branch; a structure read from a PDB file is planned. All three return the same
-object, which is the point of
-[ADR-0002](../adr/0002-secondary-structure.md).
+**Two techniques are implemented and they are in very different states.**
 
-**The estimator does not yet produce numbers anyone should use.** It recovers
+**Circular dichroism works** and is the one to reach for. Five methods, chosen
+between by held-out validation on the published reference sets rather than by
+argument; the best of them estimates helix content to about 0.11 rmse with no
+detectable bias. It has its own page: [CD methods](cd-methods.md). What
+follows on *this* page is mostly the FTIR side and the vocabulary both share.
+
+**The FTIR estimator does not yet produce numbers anyone should use.** It recovers
 synthetic bands of known composition correctly. Run on measured spectra it does
 not: BSA and lysozyme, each at several concentrations, give helix fractions
 spread over roughly **±20 percentage points** — 15 %, 34 %, 17 %, 37 % for the
@@ -39,6 +42,26 @@ worked on, with the spread across a concentration series as the thing to
 minimise. Until that spread is small, treat what comes out as arithmetic rather
 than as biology, and read the machinery below for how the pipeline fits
 together rather than for the numbers it prints.
+
+A structure read from a PDB file is still planned. All three return the same
+object, which is the point of
+[ADR-0002](../adr/0002-secondary-structure.md).
+:::
+
+:::{admonition} The two techniques are not interchangeable
+:class: important
+
+It is worth knowing which is which before choosing:
+
+| | FTIR, amide I | CD, far UV |
+|---|---|---|
+| status | **not usable**, ±20 points | **usable**, ~0.11 rmse on helix |
+| needs a reference set | no | **yes**, and none ships |
+| needs a concentration | no | only for some methods — see below |
+| sensitive to | water subtraction | how well the set covers your fold |
+
+They fail on different proteins, which is the entire argument for having both
+— see *Comparing two techniques* at the foot of this page.
 :::
 
 ## The recipe
@@ -133,18 +156,48 @@ For a sample that has aggregated, that band is usually the result you needed to
 see. A vocabulary that could not say "this is not secondary structure" would
 have reported a failed preparation as β-sheet.
 
+## Estimating from CD
+
+In one call, given a reference set you supply:
+
+```python
+from spectroscopy.library import load_dichroweb_basis
+from spectroscopy.processing import cd
+
+basis, compositions = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
+result = cd.estimate(spectrum, 'selcon', basis, compositions,
+                     region=(190.0, 240.0))
+```
+
+Not executed here, because **no reference set ships with this package** — the
+published ones are somebody else's data and you fetch them yourself. Which
+method, why `selcon`, what it costs to have no concentration, and what the
+measured accuracy of each is: all on [the CD methods page](cd-methods.md).
+
+The one thing worth repeating here is that a CD estimate is only as good as
+the reference set's coverage of your protein's fold, and that the set has
+structure of its own — membrane proteins resemble each other beyond what their
+secondary structure explains, by about a factor of two at matched helix
+content. A number from a set that does not contain anything like your protein
+is a projection onto things that are not it.
+
 ## Comparing two techniques
 
 This is the part that justifies the design. Categories are declared as **sets of
 DSSP states**, so two estimates can be compared on what they can both actually
 express rather than by lining up labels.
 
+The example below is hand-written rather than computed, so that the two
+vocabularies can be made to differ in the way real ones do. A real CD estimate
+from `cd.estimate` uses whatever categories its reference set declares — for
+SP175 and SMP180 that is helix, sheet, turn and disorder.
+
 ```{code-cell} python
 from spectroscopy.processing.structure import Category, Composition
 
 # What a CDSSTR-style estimate looks like: positional splits, and an
 # "unordered" category that also claims 3-10 helix, π-helix and β-bridge.
-cd = Composition(
+cd_estimate = Composition(
     fractions={
         Category("regular-helix",   frozenset({"H"}), note="positional"): 0.30,
         Category("distorted-helix", frozenset({"H"}), note="positional"): 0.12,
@@ -155,7 +208,7 @@ cd = Composition(
     },
     method="cdsstr", technique="CD", quality={"nrmsd": 0.03})
 
-print(structure.from_ftir(protein, method="amide-i-curve-fit").compare(cd))
+print(structure.from_ftir(protein, method="amide-i-curve-fit").compare(cd_estimate))
 ```
 
 Two views, deliberately:
@@ -184,4 +237,9 @@ CD on high-sheet ones — and the disagreement is what tells you.
 
 So: agreement is weak evidence that both are right. Disagreement is strong
 evidence that one is wrong.
+
+The same holds *within* CD. Its methods disagree on hard proteins, and on a
+membrane channel whose crystal structure is known they spanned 0.45 to 0.66
+helix against a true 0.70 — the disagreement being the correct reading, not an
+inconvenience. [CD methods](cd-methods.md) works that case through.
 :::
