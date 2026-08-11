@@ -99,6 +99,13 @@ IDENTIFICATION = (
      "For a reference spectrum in a structural basis: which "
      "processing.structure.Category it represents. Read by "
      "structure.from_cd(method='basis-spectra')."),
+    ('reference_source', 'name',
+     "Where a reference spectrum came from, e.g. 'DichroWebGit SP175'."),
+    ('reference_citation', 'name',
+     "What to cite for it. Several published sets make citation a condition "
+     "of use, so this travels with the data."),
+    ('reference_accession', 'name',
+     "Its accession in whatever bank it came from, e.g. a PCDDB CD0000...."),
 )
 
 #: Instrument settings that are generic rather than vendor-specific, so they

@@ -41,6 +41,7 @@ __all__ = [
     'Reference', 'Library', 'COEFFICIENTS', 'coefficient',
     'concentration_from_absorbance', 'from_series',
     'load_basis', 'MANIFEST_COLUMNS',
+    'load_dichroweb_basis', 'DICHROWEB_CATEGORIES',
 ]
 
 
@@ -567,3 +568,123 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
         spectra.append(spectrum)
 
     return spectra, (None if structural else compositions)
+
+
+#: How the DichroWebGit datasets spell their structural categories, mapped
+#: onto the DSSP states this project defines everything against (ADR-0002).
+#: "Disorder" is their name for what the FTIR side calls "other": DSSP's bend
+#: and none-of-the-above.
+DICHROWEB_CATEGORIES = {
+    'helix': frozenset({'G', 'H', 'I'}),
+    'sheet': frozenset({'E', 'B'}),
+    'turn': frozenset({'T'}),
+    'disorder': frozenset({'S', '-'}),
+}
+
+#: The DichroWebGit datasets all start at 240 nm and step down 1 nm per row.
+DICHROWEB_FIRST_NM = 240.0
+DICHROWEB_STEP_NM = 1.0
+
+
+def load_dichroweb_basis(directory, first_nm=DICHROWEB_FIRST_NM,
+                         step_nm=DICHROWEB_STEP_NM):
+    """
+    Load an SP175 / SMP180 / IDP175 reference set in DichroWebGit's layout.
+
+    These are the published CD reference sets, and **they are redistributable**
+    -- unlike the same data taken from the PCDDB website, whose terms grant
+    access but never grant redistribution. The ``pcddb`` organisation
+    publishes them on GitHub as part of DichroWebGit under the **MIT licence**,
+    which does permit copying and redistribution provided the copyright notice
+    travels with them. Keep ``LICENSE`` beside the data.
+
+    Four files per dataset, as the DichroWebGit README describes them:
+
+    ``A.txt``
+        CD data in columns, one column per protein, starting at 240 nm and
+        stepping down. Delta epsilon per residue.
+    ``F.txt``
+        Secondary structure fractions, one row per category, columns in the
+        same protein order.
+    ``lbl1.txt``
+        The category names, one per line, in ``F.txt``'s row order.
+    ``lbl2.txt``
+        One tab-separated row of protein labels, in column order.
+
+    Returns
+    -------
+    tuple
+        ``(spectra, compositions)``, ready for
+        ``from_cd(method='reference-proteins', basis=spectra,
+        compositions=compositions)``.
+
+    Notes
+    -----
+    The wavelength axis is **not in the files** -- it is implied by the first
+    wavelength and the step, which is why both are parameters here rather than
+    assumptions buried in the code. If a future dataset starts somewhere else,
+    a silently wrong axis would shift every band and still fit something.
+    """
+    from pathlib import Path  # noqa: PLC0415
+
+    from spectroscopy.processing.structure import (  # noqa: PLC0415
+        Category,
+        Composition,
+    )
+    from spectroscopy.spectra import Spectrum  # noqa: PLC0415
+
+    directory = Path(directory)
+    missing = [name for name in ('A.txt', 'F.txt', 'lbl1.txt', 'lbl2.txt')
+               if not (directory / name).is_file()]
+    if missing:
+        raise FileNotFoundError(
+            f"{directory} is not a DichroWebGit dataset: {', '.join(missing)} "
+            f"missing. Expected the four-file layout A/F/lbl1/lbl2."
+        )
+
+    absorbance = np.loadtxt(directory / 'A.txt')
+    fractions = np.atleast_2d(np.loadtxt(directory / 'F.txt'))
+    categories = [line.strip() for line in
+                  (directory / 'lbl1.txt').read_text().splitlines()
+                  if line.strip()]
+    names = [label.strip() for label in
+             (directory / 'lbl2.txt').read_text().split('\t') if label.strip()]
+
+    if absorbance.shape[1] != fractions.shape[1] or len(names) != absorbance.shape[1]:
+        raise ValueError(
+            f"{directory}: A.txt has {absorbance.shape[1]} proteins, F.txt "
+            f"has {fractions.shape[1]} and lbl2.txt names {len(names)}. They "
+            f"are matched by position, so all three must agree."
+        )
+    if len(categories) != fractions.shape[0]:
+        raise ValueError(
+            f"{directory}: lbl1.txt names {len(categories)} categories but "
+            f"F.txt has {fractions.shape[0]} rows"
+        )
+
+    unknown = [name for name in categories
+               if name.lower() not in DICHROWEB_CATEGORIES]
+    if unknown:
+        raise ValueError(
+            f"{directory}: unrecognised structural categories {unknown}; "
+            f"known are {sorted(DICHROWEB_CATEGORIES)}"
+        )
+    resolved = [Category(name.lower(), DICHROWEB_CATEGORIES[name.lower()])
+                for name in categories]
+
+    x = first_nm - step_nm * np.arange(absorbance.shape[0])
+    order = np.argsort(x)
+    spectra, compositions = [], []
+    for column, name in enumerate(names):
+        spectrum = Spectrum(x[order], absorbance[order, column],
+                            technique='CD', name=name)
+        spectrum.y_quantity = 'Delta epsilon'
+        spectrum.y_unit = 'delta epsilon'
+        spectrum.metadata['reference_source'] = f'DichroWebGit {directory.name}'
+        spectra.append(spectrum)
+        compositions.append(Composition(
+            fractions={category: float(fractions[row, column])
+                       for row, category in enumerate(resolved)},
+            method='supplied with the reference set',
+            technique='reference', source=name))
+    return spectra, compositions

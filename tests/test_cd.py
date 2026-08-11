@@ -638,3 +638,52 @@ def test_a_degenerate_fit_says_so_rather_than_quoting_a_number():
     noise = 1.0 + 0.01 * generator.normal(size=temperature.size)
     with pytest.warns(UserWarning):
         melting.two_state(temperature, noise)
+
+
+def test_nearest_references_is_amplitude_free(basis):
+    """Shape only: both spectra are unit-normalised before comparison."""
+    compositions = [structure.Composition(
+        fractions={c: (1.0 if c is cat else 0.0) for c in SHAPES},
+        method='known', technique='X-ray')
+        for cat in SHAPES]
+    target = _mixture({'helix': 0.9, 'sheet': 0.05, 'other': 0.05})
+    quiet = structure.nearest_references(target, basis, compositions, count=2,
+                                         region=(190.0, 250.0))
+    louder = spc.Spectrum(X, 31.0 * target.y, technique='CD')
+    loud = structure.nearest_references(louder, basis, compositions, count=2,
+                                        region=(190.0, 250.0))
+    assert ([n[1] for n in quiet['neighbours']]
+            == [n[1] for n in loud['neighbours']])
+    assert quiet['neighbours'][0][0] == pytest.approx(
+        loud['neighbours'][0][0], rel=1e-9)
+
+
+def test_nearest_references_finds_the_right_shape(basis):
+    compositions = [structure.Composition(
+        fractions={c: (1.0 if c is cat else 0.0) for c in SHAPES},
+        method='known', technique='X-ray')
+        for cat in SHAPES]
+    helical = _mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0})
+    result = structure.nearest_references(helical, basis, compositions,
+                                          count=1, region=(190.0, 250.0))
+    assert result['neighbours'][0][1] == 'helix'
+
+
+def test_more_references_than_the_data_can_determine_is_refused():
+    """
+    Rows are not information. Resampling a 1 nm basis onto a 0.1 nm spectrum
+    made 439 equations of rank 46 look like a well-posed fit for 71 unknowns;
+    it returned a composition 34 points from the crystal at an rmsd of 0.6%.
+    """
+    x = np.linspace(200.0, 240.0, 401)                # 0.1 nm sample grid
+    coarse = np.arange(200.0, 240.5, 1.0)             # 1 nm references
+    basis = []
+    for index in range(60):
+        y = _band(coarse, 205 + 0.4 * index, 8, -30)
+        reference = spc.Spectrum(coarse, y, technique='CD', name=f'r{index}')
+        reference.metadata['category'] = Category('helix', frozenset({'H'}))
+        basis.append(reference)
+
+    sample = spc.Spectrum(x, _band(x, 210, 8, -30), technique='CD')
+    with pytest.raises(ValueError, match='cannot be determined|cannot determine'):
+        from_cd(sample, 'basis-spectra', basis=basis, region=(200.0, 240.0))

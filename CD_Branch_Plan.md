@@ -611,3 +611,83 @@ data.
 times the noise floor), which agrees with the notebook already using a
 two-component model rather than a single transition. Whatever Tm either of us
 quotes describes one part of a process with more than two states in it.
+
+
+---
+
+## WP4 unblocked, and the analysis (2026-08-11)
+
+**James found the datasets: <https://github.com/pcddb/DichroWebGit>.** The
+`pcddb` organisation publishes SP175, SMP180 and IDP175 there under the **MIT
+licence** — © 2023 Andy Miles, a co-author of the PCDDB and SP175 papers. MIT
+permits redistribution provided the copyright notice travels with the data, so
+the licensing blocker is gone. The repository README also **documents the file
+format**, which satisfies the working agreement that a reader be written
+against something real.
+
+`library.load_dichroweb_basis` reads the four-file layout: `A.txt` (spectra in
+columns, 240 nm downward), `F.txt` (fractions per category), `lbl1.txt`
+(category names), `lbl2.txt` (protein names). Verified: SP175 is 71 proteins
+over 240–175 nm, SMP180 is 128 over 240–180 nm, compositions summing to
+0.99–1.01, in Δε per residue.
+
+### The analysis, and what it took to get right
+
+Fitting AqpZ against the whole of SP175 gave **helix 0.339, sheet 0.257** at an
+rmsd of 0.6% — against a crystal truth of 0.701 and *no sheet at all*. Three
+things were wrong, in increasing order of interest.
+
+**1. Rows are not information.** Resampling a 1 nm reference set onto the 0.1
+nm measurement made a design matrix of 439 rows whose numerical **rank was
+46**, for 71 unknowns. The fit was one of infinitely many, and its residual
+looked excellent. `_cd_design` now resamples onto the *coarser* of the two
+grids, and `from_cd` refuses when the rank cannot determine the references.
+
+**2. The classical self-consistency test needs the amplitude to be right.**
+A CDSSTR-style subset search accepts solutions whose weights sum to ~1 — which
+only holds if sample and basis are in the same units. Here the sample is mdeg
+and the basis Δε, so the weights summed to 2.9 and **not one subset in 20 000
+was accepted**. James's objection to amplitude-dependence lands on the standard
+method itself, not only on θ222.
+
+**3. Subset averaging regresses to the reference-set mean.** With acceptance on
+shape alone, 28 000 subsets passed and returned helix 0.405 — against SMP180's
+own set mean of **0.326**. Tightening from rmsd < 3% to the best 0.1% moved it
+only to 0.452, where it plateaued. The pull is towards the average protein, and
+it is strongest exactly when a protein is unusual, which is when the answer
+matters.
+
+### What works: ask what it looks like, not what it decomposes into
+
+`structure.nearest_references` normalises both spectra to unit length and ranks
+the reference set by shape. No inversion, so no underdetermined system, and no
+amplitude anywhere.
+
+| similarity | protein | helix | sheet |
+|---|---|---|---|
+| 0.9957 | INS | 0.67 | 0.00 |
+| 0.9952 | FERR | 0.75 | 0.00 |
+| 0.9947 | **LACY** (lactose permease) | 0.69 | 0.00 |
+| 0.9940 | DHQS | 0.53 | 0.18 |
+| 0.9931 | **MSC** (mechanosensitive channel) | 0.53 | 0.03 |
+| 0.9927 | **NPSRII** (sensory rhodopsin II) | 0.77 | 0.02 |
+| 0.9921 | EC1 | 0.65 | 0.00 |
+| 0.9906 | **LEUT** (leucine transporter) | 0.77 | 0.01 |
+
+**Similarity-weighted: helix 0.669 ± 0.092, sheet 0.030 ± 0.058, turn 0.120,
+disorder 0.182.**
+
+**Crystal 1RC2 with the 23-residue tag: helix 0.701, sheet 0.000.**
+
+Agreement to three percentage points on helix, and the sheet content is
+correctly near zero. Four of the eight nearest neighbours are α-helical
+membrane transporters and channels — the method has recognised what kind of
+protein this is, from shape alone, with no concentration supplied.
+
+### What this does not settle
+
+The neighbour list is evidence, not a decomposition: two folds can share a
+far-UV shape, and the ±0.09 spread is the honest uncertainty. A proper
+CDSSTR or SELCON — with the selection and self-consistency rules that make
+subset fitting work — is still unbuilt, and the finding above says plainly why
+a naive version should not be shipped in its place.

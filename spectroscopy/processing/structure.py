@@ -27,7 +27,7 @@ __all__ = [
     'Category', 'Composition', 'DSSP_STATES', 'AMIDE_I_BANDS',
     'from_ftir', 'FTIR_METHODS',
     'from_cd', 'CD_METHODS', 'helix_from_theta222',
-    'cd_shape_descriptors',
+    'cd_shape_descriptors', 'nearest_references',
 ]
 
 #: The eight DSSP states, and what they mean. The vocabulary everything else
@@ -559,8 +559,24 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
 CD_METHODS = ('basis-spectra', 'reference-proteins')
 
 def _cd_design(spectrum, basis, region):
-    """Resample the basis onto the sample's axis and crop both to ``region``."""
+    """
+    Put sample and basis on a common axis, at the **coarser** of the two
+    spacings, and crop to ``region``.
+
+    Coarser, not the sample's, because a spectrum cannot carry more
+    information about a basis than the basis itself has. Resampling a 1 nm
+    reference set onto a 0.1 nm measurement produced a design matrix of 439
+    rows whose numerical rank was 46 -- ten times as many equations as there
+    was information, which made a hopelessly underdetermined fit look
+    well-posed to any check that counts rows.
+    """
     x = np.asarray(spectrum.x, dtype=float)
+    spacings = [float(np.median(np.abs(np.diff(np.asarray(b.x, dtype=float)))))
+                for b in basis]
+    coarsest = max(spacings + [float(np.median(np.abs(np.diff(x))))])
+    if coarsest > 0:
+        low_end, high_end = float(np.min(x)), float(np.max(x))
+        x = np.arange(low_end, high_end + coarsest / 2, coarsest)
     if region is not None:
         low, high = sorted(region)
         inside = (x >= low) & (x <= high)
@@ -670,6 +686,23 @@ def from_cd(spectrum, method=None, *, basis=None, compositions=None,
 
     basis = list(basis)
     x, measured, design = _cd_design(spectrum, basis, region)
+
+    # Rows are not information. With more references than the data can
+    # distinguish, least squares still returns *an* answer -- one of infinitely
+    # many that fit equally well -- and its residual looks excellent. On a real
+    # AqpZ spectrum against all 71 of SP175 this gave a condition number of
+    # 2.6e17 and a composition 34 points from the crystal structure, at an rmsd
+    # of 0.6%.
+    rank = int(np.linalg.matrix_rank(design))
+    if rank < design.shape[1]:
+        raise ValueError(
+            f"{design.shape[1]} references cannot be determined from data of "
+            f"rank {rank}: the fit would be one of infinitely many that "
+            f"describe the spectrum equally well, and its residual would look "
+            f"excellent. Use fewer references -- see "
+            f"structure.nearest_references for choosing them by shape -- or "
+            f"measure further into the far UV."
+        )
     coefficients = _fit_fractions(design, measured)
 
     total = float(np.sum(coefficients))
@@ -919,3 +952,106 @@ def cd_shape_descriptors(spectrum, region=None, edge_tolerance=1.0):
                              if np.isfinite(theta222) and y[lowest] else np.nan,
         'region': (float(x[0]), float(x[-1])),
     }
+
+
+def nearest_references(spectrum, basis, compositions=None, count=8,
+                       region=(190.0, 240.0)):
+    """
+    Which reference proteins does this spectrum most *look* like, and what
+    are their structures?
+
+    Amplitude-free: both spectra are normalised to unit length before the
+    comparison, so this asks only about shape. Nothing is fitted and nothing
+    is inverted, which is the point -- there is no underdetermined system to
+    have infinitely many answers to.
+
+    **Prefer this over a whole-set fit when the two disagree.** Fitting a
+    spectrum as a combination of many references is underdetermined whenever
+    the reference set is larger than the data's rank, and averaging over the
+    solutions that fit **regresses towards the mean composition of the
+    reference set**. Measured on an AqpZ spectrum against SMP180, whose set
+    mean is 33% helix: the averaged fit returned 40% helix and 21% sheet, and
+    tightening the acceptance from 3% to the best 0.1% of subsets moved it
+    only to 45%, where it plateaued. The eight nearest shapes gave a mean of
+    **67% helix and no sheet**, against 70% and none from the crystal
+    structure. The pull towards the set mean grows with how far the protein
+    is from it, which is exactly when an answer matters.
+
+    Parameters
+    ----------
+    spectrum : Spectrum
+        The measured CD spectrum, any ellipticity unit.
+    basis : sequence of Spectrum
+        Reference proteins.
+    compositions : sequence of Composition, optional
+        Their known structures. Supplied, the result carries a composition
+        averaged over the neighbours, weighted by similarity.
+    count : int
+        How many neighbours to report.
+    region : tuple
+        Wavelength range to compare over, nm.
+
+    Returns
+    -------
+    dict
+        ``neighbours`` -- ``(similarity, name, composition)``, most similar
+        first. ``composition`` -- the similarity-weighted mean over them, if
+        ``compositions`` was given; and ``spread``, the standard deviation
+        across the neighbours, which is the honest uncertainty. ``region``.
+
+    Notes
+    -----
+    A high similarity to a protein of known structure is evidence; it is not
+    a measurement, and two different folds can share a far-UV shape. Read the
+    neighbour list, not just the average -- if the eight nearest disagree
+    wildly about sheet content, so does the answer.
+    """
+    x = np.asarray(spectrum.x, dtype=float)
+    low, high = sorted(region)
+    grid = np.arange(max(low, x.min()), min(high, x.max()) + 0.5, 1.0)
+    if len(grid) < 10:
+        raise ValueError(
+            f"only {len(grid)} nm of overlap between the spectrum and "
+            f"{low:g}-{high:g} nm; there is no shape to compare"
+        )
+
+    def unit(values):
+        norm = float(np.linalg.norm(values))
+        return np.asarray(values, dtype=float) / (norm or 1.0)
+
+    measured = unit(spectrum.resample(grid).y)
+    scored = []
+    for index, reference in enumerate(basis):
+        similarity = float(measured @ unit(reference.resample(grid).y))
+        scored.append((similarity, reference.name,
+                       compositions[index] if compositions is not None else None))
+    scored.sort(key=lambda row: -row[0])
+    neighbours = scored[:count]
+
+    result = {'neighbours': neighbours, 'region': (float(grid[0]),
+                                                   float(grid[-1]))}
+    if compositions is not None:
+        weights = np.array([max(similarity, 0.0)
+                            for similarity, _, _ in neighbours])
+        weights = weights / (weights.sum() or 1.0)
+        categories = list(neighbours[0][2].fractions)
+        table = np.array([[composition.fractions.get(category, 0.0)
+                           for category in categories]
+                          for _, _, composition in neighbours], dtype=float)
+        mean = weights @ table
+        result['composition'] = Composition(
+            fractions=dict(zip(categories, mean)),
+            method='nearest-reference-shapes',
+            technique=spectrum.technique or 'CD',
+            quality={
+                'n_neighbours': len(neighbours),
+                'best_similarity': float(neighbours[0][0]),
+                'worst_similarity': float(neighbours[-1][0]),
+                'spread': dict(zip([c.name for c in categories],
+                                   table.std(axis=0).tolist())),
+                'single_wavelength': False,
+            },
+            source=spectrum.name)
+        result['spread'] = dict(zip([c.name for c in categories],
+                                    table.std(axis=0).tolist()))
+    return result

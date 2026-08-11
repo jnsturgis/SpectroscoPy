@@ -167,6 +167,7 @@ def test_the_metadata_keys_the_library_reads_are_pinned():
         # identification
         'sample', 'reference', 'spec_type',
         'parameter', 'parameter_name', 'parameter_unit', 'category',
+        'reference_source', 'reference_citation', 'reference_accession',
         # acquisition
         'excitation_nm', 'z_value', 'z_quantity', 'scans',
     }
