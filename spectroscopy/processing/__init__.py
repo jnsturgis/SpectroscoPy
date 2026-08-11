@@ -4,6 +4,9 @@
 """
 Processing and analysis algorithms.
 
+``cd``
+    Secondary structure from circular dichroism: four published or
+    principled methods, and held-out validation to choose between them.
 ``common``
     Technique-agnostic: baseline, smoothing, normalisation, peak detection.
     Every one is also a :class:`~spectroscopy.spectra.Spectrum` method.
@@ -22,5 +25,5 @@ Processing and analysis algorithms.
     Supervised separation against known reference spectra.
 """
 
-__all__ = ['common', 'ftir', 'melting', 'multivariate', 'scattering',
-           'structure', 'unmix']
+__all__ = ['cd', 'common', 'ftir', 'melting', 'multivariate',
+           'scattering', 'structure', 'unmix']

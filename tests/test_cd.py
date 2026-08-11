@@ -687,3 +687,134 @@ def test_more_references_than_the_data_can_determine_is_refused():
     sample = spc.Spectrum(x, _band(x, 210, 8, -30), technique='CD')
     with pytest.raises(ValueError, match='cannot be determined|cannot determine'):
         from_cd(sample, 'basis-spectra', basis=basis, region=(200.0, 240.0))
+
+
+# ---------------------------------------------------------------------------
+# the method registry and held-out validation
+# ---------------------------------------------------------------------------
+
+from spectroscopy.processing import cd as cdm  # noqa: E402
+
+
+def _synthetic_set(count=24, seed=0, noise=0.3):
+    x = np.linspace(190.0, 240.0, 51)
+    pure = {HELIX: _band(x, 208, 7, -37) + _band(x, 222, 9, -37)
+                   + _band(x, 193, 7, 60),
+            SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
+            COIL: _band(x, 198, 7, -40) + _band(x, 220, 10, 3)}
+    generator = np.random.default_rng(seed)
+    basis, compositions = [], []
+    for index in range(count):
+        weights = generator.dirichlet([1.4, 1.0, 1.0])
+        y = sum(w * pure[c] for w, c in zip(weights, pure))
+        basis.append(spc.Spectrum(x, y + noise * generator.normal(size=x.size),
+                                  technique='CD', name=f'ref{index}'))
+        compositions.append(structure.Composition(
+            fractions=dict(zip(pure, weights)), method='known',
+            technique='X-ray'))
+    return basis, compositions
+
+
+@pytest.mark.parametrize('method', sorted(cdm.METHODS))
+def test_every_method_recovers_a_known_mixture(method):
+    # Three references for all-references, which correctly refuses anything
+    # the data cannot determine -- these spectra span a three-dimensional
+    # space, so three is exactly what it can take.
+    count = 3 if method == 'all-references' else 12
+    basis, compositions = _synthetic_set(count=count, noise=0.0)
+    truth = {HELIX: 0.6, SHEET: 0.25, COIL: 0.15}
+    x = basis[0].x
+    pure = {HELIX: _band(x, 208, 7, -37) + _band(x, 222, 9, -37)
+                   + _band(x, 193, 7, 60),
+            SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
+            COIL: _band(x, 198, 7, -40) + _band(x, 220, 10, 3)}
+    sample = spc.Spectrum(x, sum(truth[c] * pure[c] for c in pure),
+                          technique='CD', name='unknown')
+
+    result = cdm.estimate(sample, method, basis, compositions,
+                          region=(190.0, 240.0),
+                          **({'draws': 300} if method == 'subset-average' else {}))
+    assert result.method == method
+    # Loose: this is asking that each method is in the right area, not that it
+    # is accurate. Accuracy is what benchmark() measures.
+    assert result.fractions[HELIX] > result.fractions[SHEET]
+
+
+@pytest.mark.parametrize('method', ['nearest-shapes', 'ridge'])
+def test_the_shape_only_methods_ignore_amplitude(method):
+    """
+    The constraint that decides which methods can be used at all: a reference
+    set is in delta epsilon and a measurement is in millidegrees until three
+    sample facts are supplied.
+    """
+    basis, compositions = _synthetic_set(count=12, noise=0.0)
+    x = basis[0].x
+    y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
+    quiet = cdm.estimate(spc.Spectrum(x, y, technique='CD'), method,
+                         basis, compositions)
+    loud = cdm.estimate(spc.Spectrum(x, 47.0 * y, technique='CD'), method,
+                        basis, compositions)
+    for category in quiet.fractions:
+        assert loud.fractions[category] == pytest.approx(
+            quiet.fractions[category], abs=1e-6)
+
+
+def test_sum_to_one_needs_matched_units_and_says_so():
+    """
+    The classical self-consistency test compares an amplitude. On a spectrum
+    in millidegrees against a basis in delta epsilon, nothing is accepted.
+    """
+    basis, compositions = _synthetic_set(count=12, noise=0.0)
+    x = basis[0].x
+    mismatched = spc.Spectrum(x, 900.0 * (_band(x, 208, 7, -30)
+                                          + _band(x, 222, 9, -30)),
+                              technique='CD')
+    with pytest.raises(ValueError, match='sum to about 1'):
+        cdm.estimate(mismatched, 'subset-average', basis, compositions,
+                     draws=300, sum_to_one=True)
+
+
+def test_all_references_refuses_when_it_cannot_determine_them():
+    basis, compositions = _synthetic_set(count=80, noise=0.1)
+    result_basis = basis[0]
+    with pytest.raises(ValueError, match='cannot be determined'):
+        cdm.estimate(result_basis, 'all-references', basis[1:],
+                     compositions[1:])
+
+
+def test_benchmark_reports_bias_as_well_as_error():
+    """
+    Bias is the number that catches a method pulling towards the reference
+    set's mean, which is the failure that grows with how unusual a protein is.
+    """
+    basis, compositions = _synthetic_set(count=18, seed=1)
+    scores = cdm.benchmark(basis, compositions,
+                           ['nearest-shapes', 'ridge'], folds=3,
+                           options={'subset-average': {'draws': 100}})
+    for method in ('nearest-shapes', 'ridge'):
+        entry = scores[method]
+        assert entry['n'] == 18 and entry['failures'] == 0
+        for category in ('helix', 'sheet', 'other'):
+            assert 0.0 <= entry[category]['rmse'] < 1.0
+            assert abs(entry[category]['bias']) <= entry[category]['rmse'] + 1e-9
+
+
+def test_benchmark_counts_failures_rather_than_hiding_them():
+    # Noiseless, so the twelve references span only the three shapes they were
+    # built from: eleven references, rank three, every fold refused.
+    basis, compositions = _synthetic_set(count=12, noise=0.0)
+    scores = cdm.benchmark(basis, compositions, ['all-references'], folds=3)
+    # 11 references cannot be determined by this data, so every fold fails.
+    assert scores['all-references']['failures'] == 12
+    assert scores['all-references']['n'] == 0
+
+
+def test_the_design_matrix_uses_the_coarser_grid():
+    fine = np.linspace(200.0, 240.0, 401)
+    coarse = np.arange(200.0, 240.5, 1.0)
+    reference = spc.Spectrum(coarse, _band(coarse, 220, 8, -20), technique='CD')
+    sample = spc.Spectrum(fine, _band(fine, 220, 8, -20), technique='CD')
+    grid, measured, design = cdm.design_matrix(sample, [reference],
+                                               region=(200.0, 240.0))
+    assert len(grid) == pytest.approx(41, abs=1)
+    assert design.shape == (len(grid), 1)

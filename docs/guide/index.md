@@ -13,6 +13,7 @@ data-model
 reading-files
 processing
 secondary-structure
+cd-methods
 uv-vis-components
 plotting
 ```

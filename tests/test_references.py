@@ -66,7 +66,7 @@ def test_the_page_marks_exactly_the_unverified_entries():
         for key, body in _entries() if 'UNVERIFIED' in body
     }
     for surname in unverified_authors:
-        pattern = rf'⚠[^\n]*(?:\n[^\n]*){{0,4}}{re.escape(surname)}'
+        pattern = rf'⚠[^\n]*(?:\n[^\n]*){{0,4}}\b{re.escape(surname)}\b'
         assert re.search(pattern, page), (
             f"{surname} is UNVERIFIED in references.bib but is not marked ⚠ "
             "in references.md"
@@ -81,7 +81,8 @@ def test_verified_entries_are_not_marked_on_the_page():
         surname = re.search(r'author\s*=\s*\{([^,}]+)',
                             body).group(1).split()[-1].strip('{}')
         for line in page.splitlines():
-            if surname in line and line.strip().startswith('- ⚠'):
+            if (re.search(rf'\b{re.escape(surname)}\b', line)
+                    and line.strip().startswith('- ⚠')):
                 pytest.fail(f"{surname} is verified but still marked ⚠ on the page")
 
 

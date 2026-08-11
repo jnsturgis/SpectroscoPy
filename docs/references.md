@@ -105,3 +105,51 @@ software paper and the biofilm application described in the roadmap.
 
 If you publish something that used SpectroscoPy, we would like to list it here:
 the feedback links at the foot of any page reach a human.
+
+
+## Circular dichroism — the methods compared in `processing.cd`
+
+Each entry says which method in
+[the CD methods guide](guide/cd-methods.md) it stands behind. The comparison
+between them in this library is by held-out validation on the reference sets,
+not by these papers' own reported accuracies, which were measured on different
+sets under different conditions.
+
+- ⚠ **CDSSTR — the subset idea behind `subset-average`.** Johnson, W. C.
+  (1999). Analyzing protein circular dichroism spectra for accurate secondary
+  structures. *Proteins* **35**, 307–312.
+
+The comparison of CONTIN, SELCON and CDSSTR by Sreerama & Woody (2000) is
+listed under *Secondary structure* above and stands behind all three of the
+classical methods here.
+
+- ⚠ **CONTIN — regularised inversion, the ancestor of `ridge`.** Provencher,
+  S. W. & Glöckner, J. (1981). Estimation of globular protein secondary
+  structure from circular dichroism. *Biochemistry* **20**, 33–37.
+
+- ⚠ **SP175, the soluble-protein reference set.** Lees, J. G., Miles, A. J.,
+  Wien, F. & Wallace, B. A. (2006). A reference database for circular
+  dichroism spectroscopy covering fold and secondary structure space.
+  *Bioinformatics* **22**, 1955–1962.
+
+- ⚠ **SMP180, adding membrane proteins.** Abdul-Gader, A., Miles, A. J. &
+  Wallace, B. A. (2011). A reference dataset for the analyses of membrane
+  protein secondary structures and transmembrane residues using circular
+  dichroism spectroscopy. *Bioinformatics* **27**, 1630–1636.
+
+- ⚠ **DichroWeb.** Miles, A. J., Ramalli, S. G. & Wallace, B. A. (2022).
+  DichroWeb, a website for calculating protein secondary structure from
+  circular dichroism spectroscopic data. *Protein Science* **31**, 37–46.
+
+  The server whose reference sets are republished as
+  [DichroWebGit](https://github.com/pcddb/DichroWebGit) under the MIT licence
+  — which is what makes them usable here at all. The same data taken from the
+  PCDDB website carries no redistribution grant.
+
+- ⚠ **θ₂₂₂ helicity and its chain-length correction.** Chen, Y.-H., Yang, J. T.
+  & Chau, K. H. (1974). Determination of the helix and β form of proteins in
+  aqueous solution by circular dichroism. *Biochemistry* **13**, 3350–3359.
+
+  Behind `structure.helix_from_theta222`, including the
+  `(1 − 2.57/n)` term: a helix has two ends that make no hydrogen bonds, so a
+  short chain signals less per residue than a long one.

@@ -691,3 +691,85 @@ far-UV shape, and the ±0.09 spread is the honest uncertainty. A proper
 CDSSTR or SELCON — with the selection and self-consistency rules that make
 subset fitting work — is still unbuilt, and the finding above says plainly why
 a naive version should not be shipped in its place.
+
+
+---
+
+## Four methods, and held-out validation (2026-08-11, after James's criticism)
+
+**The criticism was correct and is the important part of this section.** The
+previous entry tried three methods on AqpZ, kept the one that agreed with the
+crystal structure, and then explained why it should have. That is selection on
+a single data point with a post-hoc rationale. The mechanism described may be
+real; the evidence offered for it was not.
+
+Rebuilt as `processing.cd`: four named methods and a `benchmark` that hides a
+fraction of the reference set, estimates those proteins from the rest, and
+compares against structures known before the fit. AqpZ takes no part in
+choosing.
+
+### What held-out validation says (10-fold, 190-240 nm)
+
+| | SP175 helix rmse / bias | SMP180 helix rmse / bias |
+|---|---|---|
+| `all-references` | refused all 71 | refused all 128 |
+| `nearest-shapes` | 0.174 / **+0.050** | 0.160 / **+0.048** |
+| `subset-average` | 0.164 / **-0.077** | 0.155 / **-0.076** |
+| **`ridge`** | **0.143 / -0.019** | **0.143 / -0.013** |
+
+**`ridge` is the recommendation**, consistently on both sets and on both
+measures. It was not the method the AqpZ exercise picked.
+
+The regression-to-the-mean diagnosis survives, now as a measurement rather
+than an argument: `subset-average` carries a **-0.077 helix bias** and a
+matching **+0.059 on sheet**, pulling towards SMP180's own mean of 33 % helix.
+
+And the correction to the previous entry: **`nearest-shapes` is biased the
+other way, +0.05 on helix.** It has no way to describe a protein as less
+helical than its nearest neighbours. On AqpZ, a high-helix protein, that bias
+pointed towards the right answer. Some of what looked like the method being
+right was the bias being lucky.
+
+Free parameters were chosen on the same held-out data, never on AqpZ: ridge
+penalty 0.05 (lowest bias at essentially the best rmse; 0.02 is marginally
+better on rmse and three times the bias), and five neighbours (3, 5 and 8
+within 0.005 of each other, slow decline above).
+
+### What the wavelength range costs, measured
+
+SMP180, helix rmse: 0.126 at 180-240 nm, 0.143 at 190-240, 0.136 at 197-240,
+0.145 at 205-240. **Less than expected** -- about 0.02 between the best and
+the worst. The far-UV cut-off matters less than the choice of method or the
+reference set, which is not what we assumed before measuring it, and it means
+AqpZ's 196 nm limit is not what makes AqpZ hard.
+
+### AqpZ, reported as a disagreement
+
+| method (SMP180) | helix | sheet |
+|---|---|---|
+| `ridge` (recommended) | 0.449 | 0.180 |
+| `nearest-shapes` | 0.633 | 0.043 |
+| `subset-average` | 0.406 | 0.206 |
+| **crystal 1RC2 + 23 aa** | **0.701** | **0.000** |
+
+The methods disagree by 0.25 in helix, nearly twice the 0.14 rmse the
+benchmark leads one to expect, and the recommended method is the furthest from
+the truth. **That disagreement is the result.** It says AqpZ is not well
+described by the reference set -- unsurprising for a detergent-solubilised
+membrane channel, where absorption flattening suppresses the 208 nm band and
+lifts theta222/theta208 above 1. Quoting `ridge`'s 0.449 alone, with its
+excellent residual, would have been a confident wrong number.
+
+The guide is `docs/guide/cd-methods.md`: the algorithms in a paragraph each,
+the amplitude constraint as a table, the benchmark numbers, and the AqpZ
+disagreement written up as the worked example of what to do when methods
+diverge. Citations for CDSSTR, CONTIN, SP175, SMP180, DichroWeb and Chen's
+theta-222 are in `docs/references.bib`, all marked unverified pending a check
+against the publishers.
+
+### Still open
+
+A faithful SELCON3 or CDSSTR, with the selection and self-consistency rules
+that make subset fitting work. `subset-average` is the idea, not the
+published algorithm, and its measured bias is the argument for not letting it
+wear either name.
