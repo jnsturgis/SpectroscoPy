@@ -69,13 +69,17 @@ source = "vcs"
 fallback-version = "0.0.0"
 
 [tool.hatch.build.targets.wheel]
-# 'calc', 'formats' and 'tools_spc' are deprecated top-level shims kept so that
-# existing notebooks keep importing. They are removed in 0.2 -- see
-# SpectroscoPy_Codebase_Review.md Phase 0.
-packages = ["spectroscopy", "formats", "tools_spc"]
-# force-include, not include: 'packages' already fixes the source set, so a
-# bare top-level module has to be added explicitly.
-force-include = { "calc.py" = "calc.py" }
+# 'calc', 'formats' and 'tools_spc' were deprecated top-level shims, removed
+# 2026-08-13 (roadmap section 14.2 blocker 5). They promised removal "in 0.2"
+# and there is no 0.2; and they squatted on three plausible top-level names in
+# every environment that installed this package, which is a hazard to a user
+# with their own formats.py rather than a service to them.
+#
+# What they were for -- keeping existing notebooks importing -- they had
+# already stopped doing: the three notebooks that import formats.jcamp call
+# jcamp.readfile(), which is the upstream nzhagen API and has not existed here
+# since the io rewrite. The import succeeded and the next cell raised.
+packages = ["spectroscopy"]
 # spectroscopy/data/ is a ~100 kB curated subset of data/, shipped so that every
 # example in the documentation runs for someone who has just pip-installed and
 # has no data of their own. The full 5.6 MB collection stays in the repo only.
@@ -116,10 +120,6 @@ ignore = [
 ]
 
 [tool.ruff.lint.per-file-ignores]
-# Shims deliberately re-export names they do not use.
-"calc.py" = ["F401"]
-"formats/__init__.py" = ["F401"]
-"tools_spc/ftir_sidechains.py" = ["F401"]
 "spectroscopy/__init__.py" = ["F401", "F403"]
 # Vendored from github.com/nzhagen/jcamp; keep the diff to upstream small.
 "spectroscopy/io/jcamp.py" = ["E", "F", "W", "I", "UP"]
@@ -130,10 +130,7 @@ ignore = [
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
-filterwarnings = [
-    "ignore::DeprecationWarning:formats",
-    "ignore::DeprecationWarning:calc",
-]
+filterwarnings = []
 
 [tool.coverage.run]
 source = ["spectroscopy"]

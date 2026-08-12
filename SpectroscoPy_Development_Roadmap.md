@@ -519,11 +519,28 @@ be reconstructible from.
 defer — but say so explicitly in ADR-0001 rather than leaving it looking like an
 oversight.
 
-**5. The deprecated shims say "removed in 0.2".** `calc`, `formats` and
-`tools_spc` emit a DeprecationWarning promising removal in 0.2. There is now no
-0.2 — the next release is 1.0. Either they go before the freeze, or that promise
-is rewritten. They cannot silently survive into a version that promises
-stability.
+**5. ✅ Fixed 2026-08-13 — the shims are removed, not re-promised.** `calc`,
+`formats` and `tools_spc` emitted a DeprecationWarning promising removal in 0.2,
+and there is no 0.2. Checking *why* they were being kept settled it: nothing
+imports `calc` or `tools_spc` anywhere in the notebooks, and the three that
+import `formats.jcamp` call `jcamp.readfile()` — an upstream API this package
+has never had. The shim made the import succeed and the next cell fail, which
+is worse than not being there. See ADR-0001 §7.4 for the migration.
+
+**8. ⚠️ The metadata schema has no name for a designed set (raised by James,
+2026-08-13).** `parameter` is one continuous scalar — a titration, a melt, a
+dilution series. A panel of double mutants varying two sites (AA, AC, AS, CA,
+…) is a perfectly good set with no schema-blessed home: it works today with
+caller-chosen metadata keys and `group_by(callable)`, but nothing names it, and
+making `parameter` sometimes a list would break `sorted_by_parameter`, the
+van 't Hoff fit and `library.from_series`, which all do arithmetic on it.
+
+Metadata keys freeze with the format, so this is the same shape of problem as
+D2: reserving something like `factors` costs an afternoon now and a migration
+later. **Deciding not to have one is also a decision and also has to be made**,
+rather than arrived at by November passing. Not built — there is no such
+dataset in hand, and the working agreement is that the code comes after the
+data. ADR-0004 §7.
 
 ### 14.3 Sequence, backwards from early November
 

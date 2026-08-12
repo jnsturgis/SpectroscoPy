@@ -38,6 +38,18 @@ name rather than a per-reader one.
 **Provenance** -- what the instrument said. Free-form by nature; recorded here
 so that the reserved prefixes are known and readers do not collide.
 
+.. warning::
+
+   **A known gap, open until the freeze.** ``parameter`` is *one continuous
+   scalar*, which covers a titration, a melt and a dilution series. It does not
+   cover a **designed set with several categorical factors** -- a panel of
+   double mutants varying two sites, AA/AC/AS/CA/... Such a set works today
+   with caller-chosen keys and ``group_by(callable)``, but the schema has no
+   name for it, and making ``parameter`` sometimes a list would break every
+   consumer that does arithmetic on it. Whether to reserve something like
+   ``factors`` has to be decided before 1.0, because these names freeze with
+   the format. ADR-0004 section 7.
+
 Nothing here is enforced. A missing key is normal and every consumer decides
 what to do about it -- but the rule for the sample conditions is that a
 consumer **states its assumption or refuses**, never silently supplies a
@@ -96,7 +108,10 @@ IDENTIFICATION = (
                            "subtracted from it."),
     ('spec_type', 'name',  "The technique, as set by set_type()."),
     ('parameter', 'number', "The continuous condition this spectrum was "
-                            "measured at -- see Spectrum.set_parameter()."),
+                            "measured at -- see Spectrum.set_parameter(). "
+                            "One scalar: a designed set with several "
+                            "categorical factors has no home here yet, and "
+                            "that is open -- ADR-0004 section 7."),
     ('parameter_name', 'name', "What that number is: 'potential', "
                                "'temperature', 'concentration'."),
     ('parameter_unit', 'name', "What it is in: 'mV', 'C', 'uM'."),

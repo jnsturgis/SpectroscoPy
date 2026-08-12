@@ -149,12 +149,12 @@ additive and freeze-safe.
   except through the guide.
 - **`set_sample(info)`** — the parameter is called `info`; it is a name.
 - **`clip()`** — already a documented deprecated alias for `crop`. Fine.
-- **The top-level shims `calc`, `formats`, `tools_spc`** still emit
-  "will be removed in 0.2", and there is no 0.2 — the next release is 1.0.
-  This is §14.2 blocker 5, still open. They also occupy three guessable
-  top-level names. Either they go before the freeze or that promise is
-  rewritten; they cannot survive silently into a version that promises
-  stability.
+- **The top-level shims `calc`, `formats`, `tools_spc`** — ✅ **removed
+  2026-08-13.** They promised removal "in 0.2" and there is no 0.2, and they
+  occupied three guessable top-level names. What settled it was checking
+  whether they were doing their job: the three notebooks that import
+  `formats.jcamp` call an upstream `readfile()` this package has never had, so
+  the import succeeded and the next cell failed. ADR-0001 §7.4.
 
 ---
 
@@ -249,7 +249,7 @@ September decision. Recorded in C below.
 | `processing.common` is undiscoverable | **Keep.** Renaming a module is a bigger break than the problem. The guide is the discovery route, and `Spectrum` methods cover the same ground for most users |
 | `set_sample(info)` parameter named `info` | **Rename to `name` in September**, with the positional call unaffected. Cosmetic, zero risk, but it is still a breaking change for anyone using the keyword |
 | `clip()` deprecated alias for `crop` | **Keep.** Already documented as deprecated and correctly behaved |
-| `calc`, `formats`, `tools_spc` promise removal "in 0.2" | **Still open — §14.2 blocker 5.** There is no 0.2; the next release is 1.0. Either they go before the freeze or the promise is rewritten. This is the only C item with a deadline |
+| `calc`, `formats`, `tools_spc` promise removal "in 0.2" | **Done 2026-08-13 — removed.** Not re-promised: they were kept so notebooks would keep importing, and they had stopped doing that. Nothing imports `calc` or `tools_spc`; the three notebooks using `formats.jcamp` call an upstream `readfile()` this package never had, so the shim only delayed the failure by one cell. ADR-0001 §7.4 |
 | `library.coefficient` / `Coefficient` | **September.** Rename one; `Coefficient` → `CoefficientRecord` or the function → `lookup_coefficient`. Needs a decision, not an alias |
 
 

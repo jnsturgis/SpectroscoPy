@@ -3,14 +3,12 @@
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
 Phase 0 checkpoint tests: the package imports cleanly from anywhere, the layer
-boundaries hold, and the deprecated top-level names still work for existing
-notebooks.
+boundaries hold, and the deprecated top-level names are gone.
 """
 
 import pathlib
 import subprocess
 import sys
-import warnings
 
 import pytest
 
@@ -80,36 +78,46 @@ def test_io_layer_does_not_import_core_at_module_scope():
     )
 
 
-@pytest.mark.parametrize("statement", [
-    "import calc; calc.gauss",
-    "import formats; formats.jcamp",
-    "from formats import jcamp; jcamp.read",
-    "import formats.jcamp; formats.jcamp.read",
-])
-def test_deprecated_shims_still_work(statement):
-    """Existing notebooks must keep running through the 0.1 series."""
-    result = subprocess.run([sys.executable, "-c", statement],
-                            capture_output=True, text=True, cwd="/", check=False)
-    assert result.returncode == 0, result.stderr
+@pytest.mark.parametrize("name", ["calc", "formats", "tools_spc"])
+def test_the_deprecated_shims_are_gone(name):
+    """
+    Removed 2026-08-13, roadmap section 14.2 blocker 5.
 
+    They promised removal "in 0.2" and there is no 0.2 -- the next release is
+    1.0, and a version whose whole point is keeping its promises cannot be the
+    first one to break this one.
 
-def test_deprecated_shims_warn():
-    with warnings.catch_warnings(record=True) as caught:
-        warnings.simplefilter("always")
-        import importlib
+    What they were for -- keeping existing notebooks importing -- they had
+    stopped doing well before they were removed. The three notebooks that
+    import ``formats.jcamp`` call ``jcamp.readfile()``, which is the upstream
+    nzhagen API and has never existed in this package: the shim aliased
+    ``formats.jcamp`` to ``spectroscopy.io.jcamp``, so the import succeeded and
+    the *next* cell raised ``AttributeError``. A shim that makes a failure
+    arrive one cell later is worse than no shim, because it looks like support.
 
-        import formats
-        importlib.reload(formats)
-    assert any(issubclass(w.category, DeprecationWarning) for w in caught)
+    They also squatted on three plausible top-level names in every environment
+    that installed this package. ``import formats`` is a thing somebody else's
+    project may well want to be.
 
+    Asserted against the source tree rather than against ``import``, because a
+    stale copy outlives the repo: ``calc.py`` was ``force-include``-d, so the
+    editable install put a real *file* in site-packages and ``import calc``
+    kept working after the repo file was gone. That is the squatting problem
+    demonstrating itself, and it is an environment to clean rather than a
+    reason to weaken the test. What the repo can promise is that it no longer
+    ships them.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    for candidate in (root / f"{name}.py", root / name):
+        assert not candidate.exists(), (
+            f"{candidate} is back. It was removed deliberately; returning it "
+            f"needs a decision rather than a reappearance."
+        )
 
-def test_formats_and_io_share_module_objects():
-    """The shim must alias, not duplicate, the reader modules."""
-    import formats
-    import spectroscopy.io
-    assert formats.jcamp is spectroscopy.io.jcamp
-    assert formats.csv is spectroscopy.io.csv
-    assert formats.spy is spectroscopy.io.spy
+    packaging = (root / "pyproject.toml").read_text()
+    packages_line = next(line for line in packaging.splitlines()
+                         if line.startswith("packages = "))
+    assert name not in packages_line, f"{name!r} is shipped again"
 
 
 def test_cli_entry_point_is_importable():

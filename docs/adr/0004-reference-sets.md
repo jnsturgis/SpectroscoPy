@@ -293,7 +293,49 @@ signature at risk for no CD benefit. What was done instead is the useful half:
 call site. The inheritance is worth finishing on its own, with the UV-Vis
 tests watching.
 
-## 7. What would justify revisiting this
+## 7. Open — the abstractions may not all be right yet (James, 2026-08-13)
+
+**To be resolved before the format freezes.** Raised while reviewing the above:
+imagine a panel of double mutants, two sites varying — AA, AC, AS, CA, CC, CS,
+SA, SC, SS. A perfectly good set, and one this model has no name for.
+
+What it is not: it is not a `ReferenceSet` (no known truth per spectrum), and
+under the admission rule in section 6 it does not earn a `kind` either, because
+nothing would interpret data the base class does not. So the strain is not on
+the new class. It is on **`parameter`**, which the schema defines as *one
+continuous scalar*:
+
+| | today |
+|---|---|
+| `collection.parameters` | all `nan` — there is no number to put there |
+| `sorted_by_parameter()` | raises, and there is nothing to sort along anyway |
+| `to_matrix(with_parameter=True)` | raises |
+| `group_by('sample')` | works only by flattening `('A','C')` into `"AC"` |
+| `group_by(lambda s: s.metadata['site1'])` | **works today**, with keys the schema does not know |
+
+So the model is not wrong, it is **incomplete**: there is a named,
+schema-blessed concept for one continuous scalar and nothing for *k*
+categorical factors. A factorial design is usable now, with caller-chosen keys.
+
+**Making `parameter` a list is the wrong fix**, on this project's own grounds.
+`parameters` returns a float array, and `sorted_by_parameter`, the van 't Hoff
+fit and `library.from_series` all do arithmetic on it. A `parameter` that is
+sometimes a 2-tuple makes those fail in the interesting way rather than the
+loud way — the same failure class this ADR exists to remove. A factorial design
+wants a *different* concept beside `parameter`, not inside it: something like
+`metadata['factors'] = {'site1': 'A', 'site2': 'C'}` with the factor names at
+set level.
+
+**Why it has a deadline.** Metadata keys freeze with the format at 1.0 — the
+same argument as roadmap D2. If `factors` is the right name and shape, agreeing
+it costs an afternoon now; agreeing it after 1.0 means either a second set of
+names or a format migration. Deciding *not* to have one is also a decision, and
+also has to be made before November rather than arrived at.
+
+Deliberately not built: there is no dataset in hand to check a design against,
+and this project's working agreement is that a reader comes after a real file.
+
+## 8. What would justify revisiting this
 
 - A reference set whose per-item known truth is not per-item — a set where the
   structures are only known jointly, for example as a covariance rather than a

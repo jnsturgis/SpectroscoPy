@@ -356,12 +356,37 @@ nothing, which contradicts §1. **Recommendation:** keep them writable for 1.0
 same), but document them as the escape hatch they are, and revisit once a real
 constructor removes the need.
 
-### 7.4 The deprecated shims promise a version that will not exist
+### 7.4 ✅ The deprecated shims are gone (2026-08-13)
 
-`calc`, `formats` and `tools_spc` emit a `DeprecationWarning` saying they will
-be "removed in 0.2". The next release is 1.0. Either they go before the freeze,
-or the promise is rewritten — they cannot silently survive into a version whose
-whole point is that it keeps its promises.
+`calc`, `formats` and `tools_spc` emitted a `DeprecationWarning` saying they
+would be "removed in 0.2". There is no 0.2 — the next release is 1.0, and a
+version whose whole point is that it keeps its promises cannot be the first one
+to break this one. **Removed**, rather than the promise rewritten, once it
+turned out they were not doing the job they were kept for.
+
+They were kept so existing notebooks would keep importing. Checked against the
+notebooks rather than assumed: nothing anywhere imports `calc` or `tools_spc`,
+and the three that import `formats.jcamp` all call `jcamp.readfile()` — the
+upstream `nzhagen/jcamp` API, which has never existed in this package. The shim
+aliased `formats.jcamp` to `spectroscopy.io.jcamp`, so the import succeeded and
+the *next* cell raised `AttributeError`. **A shim that moves a failure one cell
+later is worse than no shim, because it looks like support.**
+
+The second reason is the one that applies to every user rather than to ours:
+three plausible top-level names were installed into site-packages by anyone who
+installed this package. `import formats` is a name somebody else's project may
+well want.
+
+Migration, and it gains rather than loses:
+
+```python
+import formats.jcamp                          import spectroscopy as spc
+d = formats.jcamp.readfile("Expt.06.dx")      s = spc.read("Expt.06.dx")
+d['x'], d['y'], d['xunits'], d['filename']    s.x, s.y, s.x_unit, s.name
+```
+
+A `readfile` compatibility function was considered and rejected: it would mean
+reviving a dead upstream API into a package that freezes in November.
 
 ---
 
