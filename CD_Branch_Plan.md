@@ -867,3 +867,78 @@ The best-validated method, chosen before AqpZ was looked at, lands 0.045 from
 the crystal with sheet correctly near zero. With the caveat attached to it: no
 concentration was supplied, so this is the amplitude-dependent method run
 without its amplitude.
+
+
+---
+
+## Libraries and collections, restructured (2026-08-13)
+
+ADR-0004 is **implemented and accepted**. This is the step James asked for
+before merging back to `main`, and most of it is core-model work rather than CD
+work: it changes `SpectrumCollection` and the metadata schema, both of which
+freeze in November.
+
+### What was ad hoc, and is not any more
+
+Three pieces of work each needed "a set of reference spectra with known
+properties", and each invented its own container -- `Library` for UV-Vis,
+parallel `(spectra, compositions)` lists for CD, `SpectrumCollection` for
+everything else. A reference set is now a `SpectrumCollection`, not a sibling
+of one, and each reference's known structure lives in its own metadata with the
+set providing gathered views. **The reversed-pairing failure -- same length,
+wrong order, helix 0.464 -> 0.307, no complaint -- is now unrepresentable**
+rather than merely tested against.
+
+Call sites lost an argument each: `cd.estimate(spectrum, method, references)`,
+`cd.benchmark(references)`, `from_cd(spectrum, method, references=...)`,
+`nearest_references(spectrum, references)`. Passing a bare list is refused with
+a message saying where to build the set instead.
+
+### Two defects in the core, both fixed
+
+**Set-level data stored per item could disagree.** Two spectra of one melt
+labelled `'C'` and `'K'` gathered to a `parameter_unit` of `None` -- which
+reads as *never set*, not as *contradicted*. Collections now have `info` for
+facts about the set, surviving `crop`, `select`, `map` and slicing exactly as
+`name` does; and the old gathered reader **warns** on a conflict instead of
+returning `None`. A better home was not enough on its own: the old home had to
+stop lying.
+
+**Non-JSON metadata degraded silently through `.spy`.** A `Category` came back
+a bare `str` with its DSSP states gone. The stored form is now JSON-native --
+a category is its name, a composition is `{name: fraction}` -- and the objects
+are rebuilt from the set's own declaration, which is also what stops a set
+inventing a vocabulary its numbers were never in.
+
+### The part worth keeping: the method had nothing left to switch on
+
+Collapsing the two kinds of standard into one type collapsed `from_cd`'s two
+branches into one, because a structural basis reads back as a one-hot
+composition and "the coefficients *are* the composition" is then the same
+arithmetic as mixing whole compositions. ADR-0002 still requires the method to
+be **named**, so it is now *checked against* the set supplied -- which catches
+running SMP180 as though it were a basis of pure structures, a mistake that
+previously produced an answer.
+
+Deliberately not done: `Library` is still not a subclass of `ReferenceSet`.
+It iterates over `Reference` objects where a collection iterates over
+`Spectrum`, and that loop is inside `unmix()`, whose signature freezes at 1.0.
+`unmix()` now **accepts** a `ReferenceSet`, which is the useful half; the
+inheritance is worth finishing on its own, with the UV-Vis tests watching, and
+not as a side effect of CD work.
+
+610 tests pass.
+
+### Next, in James's order
+
+1. **Collection serialisation** -- ADR-0004 section 5, still open and on the
+   1.0 critical path, because `.spy` freezes in November. A `ReferenceSet`
+   loaded from DichroWebGit cannot currently be written back out with its
+   licence and citation attached. Three candidates: a container format, a
+   sidecar manifest beside per-spectrum files (which `load_basis` already
+   reads), or an explicit decision that collections are assembled at load time
+   and never serialised. The third is defensible and cheapest, but it should
+   be **chosen** rather than arrived at by not implementing the other two.
+2. **Freeze blocker 5** -- the `calc`, `formats` and `tools_spc` shims promise
+   removal "in 0.2", and there is no 0.2.
+3. **CDSSTR**, on a branch off this one once the above land.

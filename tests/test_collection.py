@@ -341,3 +341,81 @@ def test_repr_shows_the_range(collection):
     labelled = collection.with_parameters([1, 2, 3, 10, 20, 30],
                                          name='potential', unit='mV')
     assert 'potential 1 to 30 mV' in repr(labelled)
+
+
+# ---------------------------------------------------------------------------
+# set-level facts (ADR-0004)
+#
+# Per-item data lives on the item and the collection gathers it; data about the
+# set lives on the set. Stored per item, a fact that is true of the whole
+# series can disagree with itself, and the disagreement was invisible.
+# ---------------------------------------------------------------------------
+
+def test_info_survives_slicing_and_batch_operations(collection):
+    """
+    Where a set came from and what may be done with it are properties of the
+    set, and a subset of it is still that data. A citation condition that
+    evaporated on ``crop`` would be no record of an obligation at all.
+    """
+    collection.info['source'] = 'measured in this lab'
+    collection.info['licence'] = 'CC-BY-4.0'
+
+    for derived in (collection[:3],
+                    collection.crop(1000, 1700),
+                    collection.select(lambda s: True),
+                    collection.normalize()):
+        assert derived.info['source'] == 'measured in this lab'
+        assert derived.info['licence'] == 'CC-BY-4.0'
+
+
+def test_info_is_copied_not_shared(collection):
+    """Editing a subset's provenance must not rewrite the original's."""
+    collection.info['source'] = 'first'
+    subset = collection[:2]
+    subset.info['source'] = 'second'
+    assert collection.info['source'] == 'first'
+
+
+def test_adding_two_collections_keeps_only_what_they_agree_on(collection):
+    """
+    Two sets joined are not either set. Carrying the first one's licence over
+    the second one's spectra would be inventing permission.
+    """
+    first = collection[:3]
+    first.info.update({'source': 'lab A', 'licence': 'MIT'})
+    second = collection[3:]
+    second.info.update({'source': 'lab B', 'licence': 'MIT'})
+
+    joined = first + second
+    assert joined.info == {'licence': 'MIT'}
+
+
+def test_the_parameter_label_is_a_fact_about_the_series(titration_tree):
+    """It goes in info, and the gathered per-spectrum copies still read."""
+    collection = SpectrumCollection.from_files(
+        str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV',
+        parameter_name='potential', parameter_unit='mV')
+    assert collection.info['parameter_unit'] == 'mV'
+
+    by_hand = SpectrumCollection(list(collection))
+    assert 'parameter_unit' not in by_hand.info
+    assert by_hand.parameter_unit == 'mV'
+
+
+def test_spectra_disagreeing_about_the_unit_now_say_so():
+    """
+    The defect ADR-0004 was written against: two spectra of one melt labelled
+    'C' and 'K' gathered to a ``parameter_unit`` of None, which reads as *never
+    set* rather than as *contradicted*.
+    """
+    celsius, kelvin = _spectrum("a", 1), _spectrum("b", 2)
+    celsius.set_parameter(20.0, name='temperature', unit='C')
+    kelvin.set_parameter(293.15, name='temperature', unit='K')
+    mixed = SpectrumCollection([celsius, kelvin])
+
+    with pytest.warns(UserWarning, match="disagree about parameter_unit"):
+        assert mixed.parameter_unit is None
+
+    # Said once on the set, there is nothing left to disagree with.
+    mixed.info['parameter_unit'] = 'C'
+    assert mixed.parameter_unit == 'C'

@@ -558,6 +558,30 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
 #:     how they select and weight the reference set.
 CD_METHODS = ('basis-spectra', 'reference-proteins')
 
+def _reference_set(references):
+    """
+    Check that the standards arrived as a set that knows its own structures.
+
+    Taking spectra and their compositions as two arguments is what ADR-0004
+    removed: the lists can fall out of step, and the case that does not raise
+    -- same length, wrong order -- moved AqpZ's helix estimate from 0.464 to
+    0.307 without complaining.
+    """
+    from spectroscopy.library import ReferenceSet  # noqa: PLC0415
+
+    if isinstance(references, ReferenceSet):
+        return references
+    raise TypeError(
+        f"references must be a library.ReferenceSet, not "
+        f"{type(references).__name__}. Build one with "
+        f"ReferenceSet.from_compositions(spectra, compositions), or load one "
+        f"with library.load_basis(manifest) or "
+        f"library.load_dichroweb_basis(directory) -- each reference then "
+        f"carries its own known structure, and there is no second list to "
+        f"keep in step."
+    )
+
+
 def _cd_design(spectrum, basis, region):
     """
     Put sample and basis on a common axis, at the **coarser** of the two
@@ -619,7 +643,7 @@ def _fit_fractions(design, measured):
     return coefficients
 
 
-def from_cd(spectrum, method=None, *, basis=None, compositions=None,
+def from_cd(spectrum, method=None, *, references=None,
             region=(190.0, 250.0)) -> Composition:
     """
     Estimate secondary structure from the **shape** of a CD spectrum.
@@ -639,13 +663,19 @@ def from_cd(spectrum, method=None, *, basis=None, compositions=None,
         Required, one of :data:`CD_METHODS`. Named rather than defaulted
         because which kind of standard was used is most of what the answer
         means, and the two are not interchangeable.
-    basis : sequence of Spectrum
-        The standards. For ``'basis-spectra'`` each must carry the
-        :class:`Category` it represents in ``metadata['category']``. For
-        ``'reference-proteins'`` they are whole proteins and ``compositions``
-        supplies their structures.
-    compositions : sequence of Composition
-        One per reference protein, required for ``'reference-proteins'``.
+    references : ReferenceSet
+        The standards, carrying their own known structure -- from
+        :func:`~spectroscopy.library.load_basis`,
+        :func:`~spectroscopy.library.load_dichroweb_basis` or
+        :meth:`~spectroscopy.library.ReferenceSet.from_compositions`.
+
+        Both kinds of standard are one type. A **structural basis** gives each
+        spectrum one category, so its known truth is one-hot and the fitted
+        coefficients *are* the composition. A **reference-protein set** gives
+        each spectrum a whole composition, and the answer is the same mixture
+        of those. ``method`` must match which kind was supplied, and is checked
+        against it: the two are not interchangeable and the result has to say
+        which was used (ADR-0002 section 7.2).
     region : tuple, default (190, 250)
         Wavelength range to fit, nm. The default is the far-UV amide region.
         Below about 190 nm most instruments run out of light and the noise
@@ -676,16 +706,30 @@ def from_cd(spectrum, method=None, *, basis=None, compositions=None,
             f"reference proteins give different answers from the same "
             f"spectrum, and the result has to say which was used."
         )
-    if not basis:
+    if not references:
         raise ValueError(
-            "from_cd needs a basis: no reference spectra ship with this "
-            "package (ADR-0002 section 9). Pass basis=[...] -- pure-structure "
-            "spectra for 'basis-spectra', reference proteins plus their "
-            "compositions for 'reference-proteins'."
+            "from_cd needs references: no reference spectra ship with this "
+            "package (ADR-0002 section 9). Pass references=... -- a "
+            "library.ReferenceSet of pure-structure spectra for "
+            "'basis-spectra', or of proteins of known structure for "
+            "'reference-proteins'."
+        )
+    references = _reference_set(references)
+    if not references.has_truth:
+        references.compositions          # raises, naming what is missing
+    if references.is_structural != (method == 'basis-spectra'):
+        supplied = ('a structural basis' if references.is_structural
+                    else 'reference proteins of known structure')
+        wanted = ('basis-spectra' if references.is_structural
+                  else 'reference-proteins')
+        raise ValueError(
+            f"method={method!r} does not match the standards supplied, which "
+            f"are {supplied}. Use method={wanted!r}, or pass the other kind of "
+            f"set. The two give different answers from the same spectrum, "
+            f"which is why the method is named rather than inferred."
         )
 
-    basis = list(basis)
-    x, measured, design = _cd_design(spectrum, basis, region)
+    x, measured, design = _cd_design(spectrum, references, region)
 
     # Rows are not information. With more references than the data can
     # distinguish, least squares still returns *an* answer -- one of infinitely
@@ -713,40 +757,25 @@ def from_cd(spectrum, method=None, *, basis=None, compositions=None,
             "the same wavelength range and the same sign convention."
         )
 
-    if method == 'basis-spectra':
-        fractions = {}
-        for reference, weight in zip(basis, coefficients):
-            category = reference.metadata.get('category')
-            if category is None:
-                raise ValueError(
-                    f"basis spectrum {reference.name!r} has no "
-                    f"metadata['category']; with method='basis-spectra' each "
-                    f"basis spectrum must say which structural category it "
-                    f"represents, as a structure.Category."
-                )
-            fractions[category] = fractions.get(category, 0.0) + weight / total
-    else:
-        if compositions is None or len(compositions) != len(basis):
-            raise ValueError(
-                f"method='reference-proteins' needs one Composition per "
-                f"reference protein; got {len(basis)} references and "
-                f"{0 if compositions is None else len(compositions)} "
-                f"compositions."
-            )
-        fractions = {}
-        for composition, weight in zip(compositions, coefficients):
-            for category, value in composition.fractions.items():
-                if value is None:
-                    continue
-                fractions[category] = (fractions.get(category, 0.0)
-                                       + (weight / total) * value)
+    # One path for both kinds of standard. A structural basis has a one-hot
+    # table, so this reduces to "the coefficients are the composition"; a
+    # reference-protein set mixes whole compositions in the same proportions.
+    # The third case really was the second with a degenerate table, which is
+    # the argument for it not having had its own code path (ADR-0004 section 3).
+    fractions = {}
+    for composition, weight in zip(references.compositions, coefficients):
+        for category, value in composition.fractions.items():
+            if value is None:
+                continue
+            fractions[category] = (fractions.get(category, 0.0)
+                                   + (weight / total) * value)
 
     residual = measured - design @ coefficients
     span = float(np.max(measured) - np.min(measured)) or 1.0
     quality = {
         'rmsd': float(np.sqrt(np.mean(residual ** 2))),
         'rmsd_relative': float(np.sqrt(np.mean(residual ** 2)) / span),
-        'n_references': len(basis),
+        'n_references': len(references),
         'fitted_points': int(len(x)),
         'region': (float(x.min()), float(x.max())),
         # What the coefficients summed to before being normalised. With a
@@ -954,8 +983,7 @@ def cd_shape_descriptors(spectrum, region=None, edge_tolerance=1.0):
     }
 
 
-def nearest_references(spectrum, basis, compositions=None, count=8,
-                       region=(190.0, 240.0)):
+def nearest_references(spectrum, references, count=8, region=(190.0, 240.0)):
     """
     Which reference proteins does this spectrum most *look* like, and what
     are their structures?
@@ -981,11 +1009,11 @@ def nearest_references(spectrum, basis, compositions=None, count=8,
     ----------
     spectrum : Spectrum
         The measured CD spectrum, any ellipticity unit.
-    basis : sequence of Spectrum
-        Reference proteins.
-    compositions : sequence of Composition, optional
-        Their known structures. Supplied, the result carries a composition
-        averaged over the neighbours, weighted by similarity.
+    references : ReferenceSet
+        Reference proteins. Where they carry their known structures -- as any
+        set built by :mod:`spectroscopy.library` does -- the result also
+        carries a composition averaged over the neighbours, weighted by
+        similarity. A set without them still ranks by shape.
     count : int
         How many neighbours to report.
     region : tuple
@@ -996,8 +1024,9 @@ def nearest_references(spectrum, basis, compositions=None, count=8,
     dict
         ``neighbours`` -- ``(similarity, name, composition)``, most similar
         first. ``composition`` -- the similarity-weighted mean over them, if
-        ``compositions`` was given; and ``spread``, the standard deviation
-        across the neighbours, which is the honest uncertainty. ``region``.
+        the references carry known structures; and ``spread``, the standard
+        deviation across the neighbours, which is the honest uncertainty.
+        ``region``.
 
     Notes
     -----
@@ -1019,9 +1048,12 @@ def nearest_references(spectrum, basis, compositions=None, count=8,
         norm = float(np.linalg.norm(values))
         return np.asarray(values, dtype=float) / (norm or 1.0)
 
+    references = _reference_set(references)
+    compositions = references.compositions if references.has_truth else None
+
     measured = unit(spectrum.resample(grid).y)
     scored = []
-    for index, reference in enumerate(basis):
+    for index, reference in enumerate(references):
         similarity = float(measured @ unit(reference.resample(grid).y))
         scored.append((similarity, reference.name,
                        compositions[index] if compositions is not None else None))

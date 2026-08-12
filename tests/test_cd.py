@@ -43,12 +43,37 @@ SHAPES = {
 
 @pytest.fixture
 def basis():
+    """
+    A structural basis, as a ReferenceSet: one spectrum per pure structure,
+    each carrying the category it is of.
+
+    The category is stored as a **name**, not as a ``Category`` object, and the
+    objects are declared once on the set. That is what survives ``.spy``, which
+    serialises metadata as JSON and would otherwise hand back a bare string
+    with the DSSP states silently gone (ADR-0004 section 2.5).
+    """
     spectra = []
     for category, y in SHAPES.items():
         spectrum = spc.Spectrum(X, y, technique='CD', name=category.name)
-        spectrum.metadata['category'] = category
+        spectrum.metadata['category'] = category.name
+        spectrum.metadata['known_from'] = 'synthetic, built in this test'
         spectra.append(spectrum)
-    return spectra
+    return lib.ReferenceSet(spectra, name='synthetic basis',
+                            info={'categories': list(SHAPES)})
+
+
+@pytest.fixture
+def proteins():
+    """The other kind of standard: whole proteins of known composition."""
+    truths = ({'helix': 0.80, 'sheet': 0.05, 'other': 0.15},
+              {'helix': 0.10, 'sheet': 0.60, 'other': 0.30})
+    spectra = [_mixture(truth, f'ref{index}')
+               for index, truth in enumerate(truths)]
+    compositions = [structure.Composition(
+        fractions={c: truth[c.name] for c in SHAPES},
+        method='dssp', technique='X-ray') for truth in truths]
+    return lib.ReferenceSet.from_compositions(spectra, compositions,
+                                              name='synthetic proteins')
 
 
 def _mixture(fractions, name='synthetic'):
@@ -90,7 +115,7 @@ def test_peaks_of_a_cd_spectrum_are_found_both_ways():
 
 def test_a_known_mixture_comes_back_apart(basis):
     truth = {'helix': 0.55, 'sheet': 0.20, 'other': 0.25}
-    result = from_cd(_mixture(truth), 'basis-spectra', basis=basis)
+    result = from_cd(_mixture(truth), 'basis-spectra', references=basis)
 
     for category, fraction in result.fractions.items():
         assert fraction == pytest.approx(truth[category.name], abs=1e-3)
@@ -106,10 +131,10 @@ def test_the_fit_is_scale_free(basis):
     common case for a reason that does not apply to it.
     """
     truth = {'helix': 0.55, 'sheet': 0.20, 'other': 0.25}
-    normal = from_cd(_mixture(truth), 'basis-spectra', basis=basis)
+    normal = from_cd(_mixture(truth), 'basis-spectra', references=basis)
     scaled = _mixture(truth)
     scaled.y = scaled.y * 37.0
-    louder = from_cd(scaled, 'basis-spectra', basis=basis)
+    louder = from_cd(scaled, 'basis-spectra', references=basis)
 
     for category in normal.fractions:
         assert louder.fractions[category] == pytest.approx(
@@ -119,37 +144,43 @@ def test_the_fit_is_scale_free(basis):
 def test_fractions_sum_to_one_and_are_never_negative(basis):
     """A negative fraction of helix is not a small number, it is a wrong fit."""
     result = from_cd(_mixture({'helix': 0.9, 'sheet': 0.05, 'other': 0.05}),
-                     'basis-spectra', basis=basis)
+                     'basis-spectra', references=basis)
     assert sum(result.fractions.values()) == pytest.approx(1.0, abs=1e-6)
     assert all(value >= 0.0 for value in result.fractions.values())
 
 
-def test_reference_proteins_carry_their_own_compositions():
+def test_reference_proteins_carry_their_own_compositions(proteins):
     """The other kind of standard: fit proteins, then mix their structures."""
     first = {'helix': 0.80, 'sheet': 0.05, 'other': 0.15}
     second = {'helix': 0.10, 'sheet': 0.60, 'other': 0.30}
-    proteins, compositions = [], []
-    for index, truth in enumerate((first, second)):
-        proteins.append(_mixture(truth, f'ref{index}'))
-        compositions.append(structure.Composition(
-            fractions={c: truth[c.name] for c in SHAPES},
-            method='dssp', technique='X-ray'))
 
     unknown = spc.Spectrum(X, 0.25 * proteins[0].y + 0.75 * proteins[1].y,
                            technique='CD', name='unknown')
-    result = from_cd(unknown, 'reference-proteins', basis=proteins,
-                     compositions=compositions)
+    result = from_cd(unknown, 'reference-proteins', references=proteins)
 
     for category in SHAPES:
         expected = 0.25 * first[category.name] + 0.75 * second[category.name]
         assert result.fractions[category] == pytest.approx(expected, abs=1e-3)
 
 
+def test_the_method_must_match_the_kind_of_standard(basis, proteins):
+    """
+    A structural basis and a set of reference proteins give different answers
+    from the same spectrum, so the method names which was used -- and naming
+    the wrong one is now caught rather than quietly answered.
+    """
+    sample = _mixture({'helix': 0.55, 'sheet': 0.20, 'other': 0.25})
+    with pytest.raises(ValueError, match='does not match the standards'):
+        from_cd(sample, 'reference-proteins', references=basis)
+    with pytest.raises(ValueError, match='does not match the standards'):
+        from_cd(sample, 'basis-spectra', references=proteins)
+
+
 def test_the_method_must_be_named(basis):
     """The two kinds of standard answer differently; the result must say."""
     with pytest.raises(ValueError, match='method must be one of'):
         from_cd(_mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0}),
-                basis=basis)
+                references=basis)
 
 
 def test_no_basis_says_where_to_get_one():
@@ -158,11 +189,37 @@ def test_no_basis_says_where_to_get_one():
                 'basis-spectra')
 
 
-def test_a_basis_spectrum_must_declare_its_category():
+def test_a_reference_must_say_what_it_is_of():
+    """A set of spectra with no known structure cannot answer the question."""
     plain = spc.Spectrum(X, SHAPES[HELIX], technique='CD', name='helix')
-    with pytest.raises(ValueError, match="metadata\\['category'\\]"):
+    with pytest.raises(ValueError, match='no known structure'):
         from_cd(_mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0}),
-                'basis-spectra', basis=[plain])
+                'basis-spectra', references=lib.ReferenceSet([plain]))
+
+
+def test_two_parallel_lists_are_refused_at_the_door(basis):
+    """
+    ADR-0004's whole point. Spectra and their compositions as two arguments
+    could fall out of step, and the case that did not raise -- same length,
+    wrong order -- moved a real helix estimate from 0.464 to 0.307 in silence.
+    The pairing now happens once, in from_compositions, where it is named.
+    """
+    sample = _mixture({'helix': 0.55, 'sheet': 0.20, 'other': 0.25})
+    with pytest.raises(TypeError, match='must be a library.ReferenceSet'):
+        from_cd(sample, 'basis-spectra', references=list(basis))
+
+
+def test_a_reversed_pairing_can_no_longer_be_expressed(basis):
+    """
+    There is one list, so reversing the spectra reverses their structures with
+    them. The composition of the reversed set is the same set of answers in a
+    different order -- not a different set of answers.
+    """
+    forwards = {s.name: c.get('helix')
+                for s, c in zip(basis, basis.compositions)}
+    backwards = {s.name: c.get('helix')
+                 for s, c in zip(basis[::-1], basis[::-1].compositions)}
+    assert forwards == backwards
 
 
 def test_a_basis_that_cannot_describe_the_spectrum_shows_in_the_rmsd(basis):
@@ -171,10 +228,10 @@ def test_a_basis_that_cannot_describe_the_spectrum_shows_in_the_rmsd(basis):
     missing the dominant component still returns fractions summing to one.
     """
     good = from_cd(_mixture({'helix': 0.55, 'sheet': 0.20, 'other': 0.25}),
-                   'basis-spectra', basis=basis)
+                   'basis-spectra', references=basis)
     unusual = spc.Spectrum(X, _band(X, 230, 6, 40) - _band(X, 205, 5, 25),
                            technique='CD', name='not in the basis')
-    poor = from_cd(unusual, 'basis-spectra', basis=basis)
+    poor = from_cd(unusual, 'basis-spectra', references=basis)
 
     assert sum(poor.fractions.values()) == pytest.approx(1.0, abs=1e-6)
     assert poor.quality['rmsd_relative'] > 50 * good.quality['rmsd_relative']
@@ -479,19 +536,21 @@ def test_from_cd_needs_no_amplitude_either():
     sample of unknown concentration: the fit is on shape alone.
     """
     x = np.linspace(190.0, 250.0, 241)
-    basis = []
+    spectra, categories = [], []
     for name, y in (('helix', _helical_shape(x)),
                     ('other', _band(x, 198, 7, -40) + _band(x, 220, 10, 3))):
         reference = spc.Spectrum(x, y, technique='CD', name=name)
-        reference.metadata['category'] = Category(
-            name, frozenset({'H'} if name == 'helix' else {'-'}))
-        basis.append(reference)
+        reference.metadata['category'] = name
+        spectra.append(reference)
+        categories.append(Category(
+            name, frozenset({'H'} if name == 'helix' else {'-'})))
+    basis = lib.ReferenceSet(spectra, info={'categories': categories})
 
     truth = 0.7 * basis[0].y + 0.3 * basis[1].y
     quiet = from_cd(spc.Spectrum(x, truth, technique='CD'),
-                    'basis-spectra', basis=basis)
+                    'basis-spectra', references=basis)
     loud = from_cd(spc.Spectrum(x, 250.0 * truth, technique='CD'),
-                   'basis-spectra', basis=basis)
+                   'basis-spectra', references=basis)
 
     for category in quiet.fractions:
         assert loud.fractions[category] == pytest.approx(
@@ -516,13 +575,44 @@ def test_a_structural_basis_loads_from_a_manifest(tmp_path):
         'sheet.csv,sheet,measured here,doi:10.0/x\n'
         'other.csv,other,measured here,doi:10.0/x\n')
 
-    basis, compositions = lib.load_basis(tmp_path / 'basis.csv')
+    basis = lib.load_basis(tmp_path / 'basis.csv')
 
-    assert compositions is None
+    assert isinstance(basis, lib.ReferenceSet)
+    assert basis.is_structural
     assert len(basis) == 3
-    assert {s.metadata['category'].name for s in basis} == {
+    assert {s.metadata['category'] for s in basis} == {
         'helix', 'sheet', 'other'}
     assert basis[0].metadata['reference_citation'] == 'doi:10.0/x'
+    # A value every row repeats describes the set, and a citation condition
+    # needs somewhere to live as an obligation of the whole set.
+    assert basis.info['citation'] == 'doi:10.0/x'
+    assert basis.info['source'] == 'measured here'
+    # And each spectrum's one category reads back as a one-hot composition,
+    # so nothing downstream has to branch on which kind of set this is.
+    helix = basis.compositions[0]
+    assert helix.get('helix') == 1.0 and helix.get('sheet') == 0.0
+
+
+def test_set_level_provenance_survives_selection(tmp_path):
+    """
+    A subset of SP175 is still SP175 data and still carries its citation
+    condition. ``info`` travels with ``select``, ``crop`` and slicing exactly
+    as ``name`` does -- and the subset is still a ReferenceSet, not a plain
+    collection that has quietly lost its provenance.
+    """
+    _write_basis_files(tmp_path, {c.name: y for c, y in SHAPES.items()})
+    (tmp_path / 'basis.csv').write_text(
+        'file,category,citation\n'
+        'helix.csv,helix,doi:10.0/x\n'
+        'sheet.csv,sheet,doi:10.0/x\n'
+        'other.csv,other,doi:10.0/x\n')
+    basis = lib.load_basis(tmp_path / 'basis.csv')
+
+    subset = basis.select(lambda s: s.name != 'sheet')
+    assert isinstance(subset, lib.ReferenceSet)
+    assert len(subset) == 2
+    assert subset.info['citation'] == 'doi:10.0/x'
+    assert [c.get('helix') for c in subset.compositions] == [1.0, 0.0]
 
 
 def test_a_loaded_basis_goes_straight_into_from_cd(tmp_path):
@@ -530,10 +620,10 @@ def test_a_loaded_basis_goes_straight_into_from_cd(tmp_path):
     _write_basis_files(tmp_path, {c.name: y for c, y in SHAPES.items()})
     (tmp_path / 'basis.csv').write_text(
         'file,category\nhelix.csv,helix\nsheet.csv,sheet\nother.csv,other\n')
-    basis, _ = lib.load_basis(tmp_path / 'basis.csv')
+    basis = lib.load_basis(tmp_path / 'basis.csv')
 
     truth = {'helix': 0.55, 'sheet': 0.20, 'other': 0.25}
-    result = from_cd(_mixture(truth), 'basis-spectra', basis=basis)
+    result = from_cd(_mixture(truth), 'basis-spectra', references=basis)
     for category, fraction in result.fractions.items():
         assert fraction == pytest.approx(truth[category.name], abs=2e-3)
 
@@ -549,14 +639,14 @@ def test_reference_proteins_load_with_their_compositions(tmp_path):
         'p1.csv,protein one,0.80,0.05,0.15\n'
         'p2.csv,protein two,0.10,0.60,0.30\n')
 
-    basis, compositions = lib.load_basis(tmp_path / 'refs.csv')
-    assert len(compositions) == 2
+    basis = lib.load_basis(tmp_path / 'refs.csv')
+    assert not basis.is_structural
+    assert len(basis.compositions) == 2
     assert basis[0].name == 'protein one'
 
     unknown = spc.Spectrum(X, 0.25 * basis[0].y + 0.75 * basis[1].y,
                            technique='CD')
-    result = from_cd(unknown, 'reference-proteins', basis=basis,
-                     compositions=compositions)
+    result = from_cd(unknown, 'reference-proteins', references=basis)
     for category in result.fractions:
         expected = (0.25 * first[category.name] + 0.75 * second[category.name])
         assert result.fractions[category] == pytest.approx(expected, abs=3e-3)
@@ -642,15 +732,11 @@ def test_a_degenerate_fit_says_so_rather_than_quoting_a_number():
 
 def test_nearest_references_is_amplitude_free(basis):
     """Shape only: both spectra are unit-normalised before comparison."""
-    compositions = [structure.Composition(
-        fractions={c: (1.0 if c is cat else 0.0) for c in SHAPES},
-        method='known', technique='X-ray')
-        for cat in SHAPES]
     target = _mixture({'helix': 0.9, 'sheet': 0.05, 'other': 0.05})
-    quiet = structure.nearest_references(target, basis, compositions, count=2,
+    quiet = structure.nearest_references(target, basis, count=2,
                                          region=(190.0, 250.0))
     louder = spc.Spectrum(X, 31.0 * target.y, technique='CD')
-    loud = structure.nearest_references(louder, basis, compositions, count=2,
+    loud = structure.nearest_references(louder, basis, count=2,
                                         region=(190.0, 250.0))
     assert ([n[1] for n in quiet['neighbours']]
             == [n[1] for n in loud['neighbours']])
@@ -659,13 +745,9 @@ def test_nearest_references_is_amplitude_free(basis):
 
 
 def test_nearest_references_finds_the_right_shape(basis):
-    compositions = [structure.Composition(
-        fractions={c: (1.0 if c is cat else 0.0) for c in SHAPES},
-        method='known', technique='X-ray')
-        for cat in SHAPES]
     helical = _mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0})
-    result = structure.nearest_references(helical, basis, compositions,
-                                          count=1, region=(190.0, 250.0))
+    result = structure.nearest_references(helical, basis, count=1,
+                                          region=(190.0, 250.0))
     assert result['neighbours'][0][1] == 'helix'
 
 
@@ -677,16 +759,19 @@ def test_more_references_than_the_data_can_determine_is_refused():
     """
     x = np.linspace(200.0, 240.0, 401)                # 0.1 nm sample grid
     coarse = np.arange(200.0, 240.5, 1.0)             # 1 nm references
-    basis = []
+    spectra = []
     for index in range(60):
         y = _band(coarse, 205 + 0.4 * index, 8, -30)
         reference = spc.Spectrum(coarse, y, technique='CD', name=f'r{index}')
-        reference.metadata['category'] = Category('helix', frozenset({'H'}))
-        basis.append(reference)
+        reference.metadata['category'] = 'helix'
+        spectra.append(reference)
+    basis = lib.ReferenceSet(
+        spectra, info={'categories': [Category('helix', frozenset({'H'}))]})
 
     sample = spc.Spectrum(x, _band(x, 210, 8, -30), technique='CD')
     with pytest.raises(ValueError, match='cannot be determined|cannot determine'):
-        from_cd(sample, 'basis-spectra', basis=basis, region=(200.0, 240.0))
+        from_cd(sample, 'basis-spectra', references=basis,
+                region=(200.0, 240.0))
 
 
 # ---------------------------------------------------------------------------
@@ -703,16 +788,17 @@ def _synthetic_set(count=24, seed=0, noise=0.3):
             SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
             COIL: _band(x, 198, 7, -40) + _band(x, 220, 10, 3)}
     generator = np.random.default_rng(seed)
-    basis, compositions = [], []
+    spectra, compositions = [], []
     for index in range(count):
         weights = generator.dirichlet([1.4, 1.0, 1.0])
         y = sum(w * pure[c] for w, c in zip(weights, pure))
-        basis.append(spc.Spectrum(x, y + noise * generator.normal(size=x.size),
-                                  technique='CD', name=f'ref{index}'))
+        spectra.append(spc.Spectrum(x, y + noise * generator.normal(size=x.size),
+                                    technique='CD', name=f'ref{index}'))
         compositions.append(structure.Composition(
             fractions=dict(zip(pure, weights)), method='known',
             technique='X-ray'))
-    return basis, compositions
+    return lib.ReferenceSet.from_compositions(spectra, compositions,
+                                              name='synthetic set')
 
 
 @pytest.mark.parametrize('method', sorted(cdm.METHODS))
@@ -721,9 +807,9 @@ def test_every_method_recovers_a_known_mixture(method):
     # the data cannot determine -- these spectra span a three-dimensional
     # space, so three is exactly what it can take.
     count = 3 if method == 'all-references' else 12
-    basis, compositions = _synthetic_set(count=count, noise=0.0)
+    references = _synthetic_set(count=count, noise=0.0)
     truth = {HELIX: 0.6, SHEET: 0.25, COIL: 0.15}
-    x = basis[0].x
+    x = references[0].x
     pure = {HELIX: _band(x, 208, 7, -37) + _band(x, 222, 9, -37)
                    + _band(x, 193, 7, 60),
             SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
@@ -731,7 +817,7 @@ def test_every_method_recovers_a_known_mixture(method):
     sample = spc.Spectrum(x, sum(truth[c] * pure[c] for c in pure),
                           technique='CD', name='unknown')
 
-    result = cdm.estimate(sample, method, basis, compositions,
+    result = cdm.estimate(sample, method, references,
                           region=(190.0, 240.0),
                           **({'draws': 300} if method == 'subset-average' else {}))
     assert result.method == method
@@ -747,13 +833,12 @@ def test_the_shape_only_methods_ignore_amplitude(method):
     set is in delta epsilon and a measurement is in millidegrees until three
     sample facts are supplied.
     """
-    basis, compositions = _synthetic_set(count=12, noise=0.0)
-    x = basis[0].x
+    references = _synthetic_set(count=12, noise=0.0)
+    x = references[0].x
     y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
-    quiet = cdm.estimate(spc.Spectrum(x, y, technique='CD'), method,
-                         basis, compositions)
+    quiet = cdm.estimate(spc.Spectrum(x, y, technique='CD'), method, references)
     loud = cdm.estimate(spc.Spectrum(x, 47.0 * y, technique='CD'), method,
-                        basis, compositions)
+                        references)
     for category in quiet.fractions:
         assert loud.fractions[category] == pytest.approx(
             quiet.fractions[category], abs=1e-6)
@@ -764,22 +849,21 @@ def test_sum_to_one_needs_matched_units_and_says_so():
     The classical self-consistency test compares an amplitude. On a spectrum
     in millidegrees against a basis in delta epsilon, nothing is accepted.
     """
-    basis, compositions = _synthetic_set(count=12, noise=0.0)
-    x = basis[0].x
+    references = _synthetic_set(count=12, noise=0.0)
+    x = references[0].x
     mismatched = spc.Spectrum(x, 900.0 * (_band(x, 208, 7, -30)
                                           + _band(x, 222, 9, -30)),
                               technique='CD')
     with pytest.raises(ValueError, match='sum to about 1'):
-        cdm.estimate(mismatched, 'subset-average', basis, compositions,
+        cdm.estimate(mismatched, 'subset-average', references,
                      draws=300, sum_to_one=True)
 
 
 def test_all_references_refuses_when_it_cannot_determine_them():
-    basis, compositions = _synthetic_set(count=80, noise=0.1)
-    result_basis = basis[0]
+    references = _synthetic_set(count=80, noise=0.1)
+    held_out = references[0]
     with pytest.raises(ValueError, match='cannot be determined'):
-        cdm.estimate(result_basis, 'all-references', basis[1:],
-                     compositions[1:])
+        cdm.estimate(held_out, 'all-references', references[1:])
 
 
 def test_benchmark_reports_bias_as_well_as_error():
@@ -787,8 +871,8 @@ def test_benchmark_reports_bias_as_well_as_error():
     Bias is the number that catches a method pulling towards the reference
     set's mean, which is the failure that grows with how unusual a protein is.
     """
-    basis, compositions = _synthetic_set(count=18, seed=1)
-    scores = cdm.benchmark(basis, compositions,
+    references = _synthetic_set(count=18, seed=1)
+    scores = cdm.benchmark(references,
                            ['nearest-shapes', 'ridge'], folds=3,
                            options={'subset-average': {'draws': 100}})
     for method in ('nearest-shapes', 'ridge'):
@@ -802,8 +886,8 @@ def test_benchmark_reports_bias_as_well_as_error():
 def test_benchmark_counts_failures_rather_than_hiding_them():
     # Noiseless, so the twelve references span only the three shapes they were
     # built from: eleven references, rank three, every fold refused.
-    basis, compositions = _synthetic_set(count=12, noise=0.0)
-    scores = cdm.benchmark(basis, compositions, ['all-references'], folds=3)
+    references = _synthetic_set(count=12, noise=0.0)
+    scores = cdm.benchmark(references, ['all-references'], folds=3)
     # 11 references cannot be determined by this data, so every fold fails.
     assert scores['all-references']['failures'] == 12
     assert scores['all-references']['n'] == 0
@@ -825,8 +909,8 @@ def test_the_design_matrix_uses_the_coarser_grid():
 # ---------------------------------------------------------------------------
 
 def test_selcon_is_in_the_registry_and_runs():
-    basis, compositions = _synthetic_set(count=20, seed=2, noise=0.2)
-    x = basis[0].x
+    references = _synthetic_set(count=20, seed=2, noise=0.2)
+    x = references[0].x
     pure = {HELIX: _band(x, 208, 7, -37) + _band(x, 222, 9, -37)
                    + _band(x, 193, 7, 60),
             SHEET: _band(x, 217, 9, -18) + _band(x, 195, 8, 32),
@@ -835,7 +919,7 @@ def test_selcon_is_in_the_registry_and_runs():
     sample = spc.Spectrum(x, sum(truth[c] * pure[c] for c in pure),
                           technique='CD', name='unknown')
 
-    result = cdm.estimate(sample, 'selcon', basis, compositions,
+    result = cdm.estimate(sample, 'selcon', references,
                           ignore_sum_rule=True, max_references=12)
     assert result.method == 'selcon'
     assert result.quality['n_solutions'] > 0
@@ -850,17 +934,17 @@ def test_selcon_needs_the_amplitude_and_says_so():
     which is why the docstring quotes the measured drift instead of promising
     scale-freedom.
     """
-    basis, compositions = _synthetic_set(count=16, seed=3, noise=0.1)
-    x = basis[0].x
+    references = _synthetic_set(count=16, seed=3, noise=0.1)
+    x = references[0].x
     y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
 
     with pytest.raises(ValueError, match='amplitude'):
         cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'), 'selcon',
-                     basis, compositions, max_references=10)
+                     references, max_references=10)
 
     with pytest.warns(UserWarning, match='not scale-free'):
         relaxed = cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'),
-                               'selcon', basis, compositions,
+                               'selcon', references,
                                ignore_sum_rule=True, max_references=10)
     assert relaxed.quality['ignore_sum_rule'] is True
 
@@ -870,15 +954,15 @@ def test_ignore_sum_rule_does_not_make_selcon_scale_free():
     The flag was originally called scale_free. It is not: renormalising the
     fractions does not remove the query's amplitude from the model.
     """
-    basis, compositions = _synthetic_set(count=16, seed=3, noise=0.1)
-    x = basis[0].x
+    references = _synthetic_set(count=16, seed=3, noise=0.1)
+    x = references[0].x
     y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
     with pytest.warns(UserWarning):
         quiet = cdm.estimate(spc.Spectrum(x, 0.1 * y, technique='CD'),
-                             'selcon', basis, compositions,
+                             'selcon', references,
                              ignore_sum_rule=True, max_references=10)
         loud = cdm.estimate(spc.Spectrum(x, y, technique='CD'), 'selcon',
-                            basis, compositions, ignore_sum_rule=True,
+                            references, ignore_sum_rule=True,
                             max_references=10)
     assert quiet.fractions[HELIX] != pytest.approx(loud.fractions[HELIX],
                                                    abs=0.01)
@@ -890,15 +974,15 @@ def test_measured_noise_weights_the_fit():
     standard error at 215 nm is three times that at 240. An unweighted fit
     treats both alike.
     """
-    basis, compositions = _synthetic_set(count=16, seed=4, noise=0.1)
-    x = basis[0].x
+    references = _synthetic_set(count=16, seed=4, noise=0.1)
+    x = references[0].x
     y = _band(x, 208, 7, -30) + _band(x, 222, 9, -30)
     sample = spc.Spectrum(x, y, technique='CD')
 
     # Noise huge at the blue end, tiny at the red.
     sigma = np.linspace(20.0, 0.05, x.size)
-    plain = cdm.estimate(sample, 'ridge', basis, compositions)
-    weighted = cdm.estimate(sample, 'ridge', basis, compositions, sigma=sigma)
+    plain = cdm.estimate(sample, 'ridge', references)
+    weighted = cdm.estimate(sample, 'ridge', references, sigma=sigma)
 
     assert plain.quality['weighted'] is False
     assert weighted.quality['weighted'] is True
@@ -907,11 +991,11 @@ def test_measured_noise_weights_the_fit():
 
 
 def test_resampling_reports_how_far_the_answer_moves_under_its_own_noise():
-    basis, compositions = _synthetic_set(count=16, seed=5, noise=0.1)
-    x = basis[0].x
+    references = _synthetic_set(count=16, seed=5, noise=0.1)
+    x = references[0].x
     sample = spc.Spectrum(x, _band(x, 208, 7, -30) + _band(x, 222, 9, -30),
                           technique='CD')
-    result = cdm.estimate(sample, 'ridge', basis, compositions,
+    result = cdm.estimate(sample, 'ridge', references,
                           sigma=np.full(x.size, 1.5), resamples=25)
     assert result.quality['n_resamples'] > 0
     assert set(result.quality['uncertainty']) == {'helix', 'sheet', 'other'}
@@ -927,3 +1011,79 @@ def test_uncertainty_from_replicates_is_the_standard_error():
     sem = cdm.uncertainty_from_replicates(spc.SpectrumCollection(scans))
     assert len(sem) == len(x)
     assert 0.05 < float(np.median(sem.y)) < 1.0
+
+
+def test_known_truth_survives_a_spy_round_trip(tmp_path, basis):
+    """
+    ADR-0004 section 2.5. ``.spy`` serialises metadata as JSON and silently
+    degrades anything else -- a ``Category`` written into metadata came back a
+    bare ``str``, with the frozenset of DSSP states gone and nothing saying so.
+
+    So the stored form is JSON-native: a category is its name, a composition is
+    ``{name: fraction}``, and the objects are rebuilt from the set's own
+    declaration. This is what makes the round trip lossless rather than
+    nearly-lossless.
+    """
+    for index, spectrum in enumerate(basis):
+        spectrum.save_as(str(tmp_path / f'ref{index}.spy'))
+    reloaded = lib.ReferenceSet(
+        [spc.read(tmp_path / f'ref{index}.spy') for index in range(len(basis))],
+        info={'categories': list(SHAPES)})
+
+    for before, after in zip(basis.compositions, reloaded.compositions):
+        assert {c.name: f for c, f in before.fractions.items()} == \
+               {c.name: f for c, f in after.fractions.items()}
+    # And the states came back, which is the part JSON cannot carry by itself.
+    assert all(c.states for c in reloaded.compositions[0].fractions)
+
+
+def test_a_category_the_set_does_not_declare_is_refused():
+    """
+    A bare name does not say which DSSP states it covers, so a set cannot
+    silently invent the vocabulary its numbers are in.
+    """
+    spectrum = spc.Spectrum(X, SHAPES[HELIX], technique='CD', name='r')
+    spectrum.metadata['composition'] = {'helix': 0.8, 'polyproline': 0.2}
+    references = lib.ReferenceSet([spectrum], info={'categories': [HELIX]})
+    with pytest.raises(ValueError, match='which this set does not declare'):
+        _ = references.compositions
+
+
+def test_a_set_cannot_hold_two_meanings_of_one_category():
+    """Two Category objects of one name and different states are two claims."""
+    strict = Category('helix', frozenset({'H'}))
+    loose = Category('helix', frozenset({'G', 'H', 'I'}))
+    spectra = [_mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0}, 'a'),
+               _mixture({'helix': 0.5, 'sheet': 0.5, 'other': 0.0}, 'b')]
+    compositions = [
+        structure.Composition(fractions={strict: 1.0}, method='dssp',
+                              technique='X-ray'),
+        structure.Composition(fractions={loose: 0.5}, method='dssp',
+                              technique='X-ray'),
+    ]
+    with pytest.raises(ValueError, match='disagree about what'):
+        lib.ReferenceSet.from_compositions(spectra, compositions)
+
+
+def test_from_compositions_checks_the_counts_and_says_why(basis):
+    with pytest.raises(ValueError, match='matched by position'):
+        lib.ReferenceSet.from_compositions(list(basis), basis.compositions[:2])
+
+
+def test_from_compositions_does_not_touch_the_callers_spectra():
+    spectrum = _mixture({'helix': 1.0, 'sheet': 0.0, 'other': 0.0}, 'r')
+    composition = structure.Composition(fractions={HELIX: 1.0}, method='dssp',
+                                        technique='X-ray')
+    lib.ReferenceSet.from_compositions([spectrum], [composition])
+    assert 'composition' not in spectrum.metadata
+
+
+def test_a_result_records_which_reference_set_it_came_from(basis):
+    """
+    The same spectrum against SP175 and against SMP180 is two results, not one,
+    and a composition that cannot say which is not reproducible.
+    """
+    basis.info['source'] = 'DichroWebGit SMP180'
+    result = cdm.estimate(_mixture({'helix': 0.6, 'sheet': 0.2, 'other': 0.2}),
+                          'ridge', basis, region=(190.0, 250.0))
+    assert result.quality['references'] == 'DichroWebGit SMP180'

@@ -166,11 +166,30 @@ def test_the_metadata_keys_the_library_reads_are_pinned():
         'reference_electrode',
         # identification
         'sample', 'reference', 'spec_type',
-        'parameter', 'parameter_name', 'parameter_unit', 'category',
+        'parameter', 'parameter_name', 'parameter_unit',
         'reference_source', 'reference_citation', 'reference_accession',
+        # known truth -- what another technique says the sample is (ADR-0004)
+        'composition', 'category', 'known_from',
         # acquisition
         'excitation_nm', 'z_value', 'z_quantity', 'scans',
     }
+
+
+def test_set_level_keys_are_not_spectrum_keys():
+    """
+    ADR-0004 puts set-level facts in ``collection.info``, and the two homes
+    stay separate: a key living in both is the disagreement the ADR removes,
+    reintroduced by a copy-paste.
+
+    ``parameter_name`` and ``parameter_unit`` are the deliberate exceptions --
+    they are the ones being moved, and the per-spectrum copies stay readable
+    until 1.0.
+    """
+    from spectroscopy import metadata
+
+    set_level = {key for key, _, _ in metadata.SET_LEVEL}
+    overlap = set_level & set(metadata.KNOWN_KEYS)
+    assert overlap == {'parameter_name', 'parameter_unit'}
 
 
 def test_the_keys_the_code_actually_reads_are_in_the_schema():

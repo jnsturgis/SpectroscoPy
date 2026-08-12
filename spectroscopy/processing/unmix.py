@@ -126,9 +126,16 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
         The measurement to explain. Baseline-correct and, for a scattering
         sample, scatter-correct it first: a sloping background is not one of
         the components, and the fit will distribute it across the ones it has.
-    library : Library or sequence of Reference
+    library : Library, ReferenceSet, or sequence of Reference
         What it may be made of. References are resampled onto the spectrum's
         own wavelength grid.
+
+        A :class:`~spectroscopy.library.ReferenceSet` works here too, which is
+        the point of it being one type: a set of measured extinction spectra
+        is the same kind of object as a CD reference set, differing only in
+        having no known-truth table (ADR-0004 section 3). Its ``info['unit']``
+        becomes the references' unit, and so decides whether the amounts come
+        back as concentrations or as relative numbers.
     path_length : float, optional
         Cuvette path length in cm. Beer-Lambert is ``A = eps * c * l``, so
         fitting extinction spectra to an absorbance recovers ``c * l``, and
@@ -157,10 +164,23 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
     -------
     UnmixResult
     """
-    from spectroscopy.library import Library  # noqa: PLC0415
+    from spectroscopy.library import (  # noqa: PLC0415
+        Library,
+        Reference,
+        ReferenceSet,
+    )
     from spectroscopy.spectra import Spectrum  # noqa: PLC0415
 
-    if not isinstance(library, Library):
+    if isinstance(library, ReferenceSet):
+        unit = library.info.get('unit', '')
+        source = library.info.get('source', '')
+        library = Library(
+            [Reference(name=reference.name or f'reference {index}',
+                       spectrum=reference, unit=unit,
+                       source=reference.metadata.get('reference_source', source))
+             for index, reference in enumerate(library)],
+            name=library.name or '')
+    elif not isinstance(library, Library):
         library = Library(list(library))
     if not len(library):
         raise ValueError("no references to fit against")

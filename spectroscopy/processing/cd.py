@@ -280,6 +280,37 @@ def _table(compositions, categories):
                      for composition in compositions], dtype=float)
 
 
+def _references(references, argument='references'):
+    """
+    Check that what arrived is a reference set, and say so plainly if not.
+
+    Every method here needs each spectrum's known structure. Taking that as a
+    second, parallel list is what ADR-0004 removed: a list of compositions in
+    the wrong order raises nothing and shifts the answer by 0.16 in helix.
+    """
+    from spectroscopy.library import ReferenceSet  # noqa: PLC0415
+
+    if isinstance(references, ReferenceSet):
+        return references
+    raise TypeError(
+        f"{argument} must be a library.ReferenceSet, not "
+        f"{type(references).__name__}. A set of spectra and a separate list "
+        f"of their compositions can fall out of step without raising "
+        f"anything, so the pairing is made once, where it can be checked: "
+        f"library.load_dichroweb_basis(directory), library.load_basis("
+        f"manifest), or ReferenceSet.from_compositions(spectra, compositions)."
+    )
+
+
+def _truth(references):
+    """``(categories, table)`` -- the known structure of a set, as a matrix."""
+    compositions = references.compositions
+    if not compositions:
+        raise ValueError("the reference set is empty")
+    categories = references.categories or list(compositions[0].fractions)
+    return categories, _table(compositions, categories)
+
+
 def uncertainty_from_replicates(collection):
     """
     Per-wavelength standard error from repeat scans.
@@ -296,13 +327,20 @@ def uncertainty_from_replicates(collection):
     return collection.sem()
 
 
-def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
+def estimate(spectrum, method, references, *, region=DEFAULT_REGION,
              sigma=None, resamples=0, seed=0, **options):
     """
     Estimate a composition by one named method. See :data:`METHODS`.
 
     Parameters
     ----------
+    references : ReferenceSet
+        Spectra of proteins whose structure is known, carrying that structure
+        with them -- from :func:`~spectroscopy.library.load_dichroweb_basis`,
+        :func:`~spectroscopy.library.load_basis`, or
+        :meth:`~spectroscopy.library.ReferenceSet.from_compositions`. A
+        structural basis and a set of reference proteins are the same type
+        here; the second is the first with a table that is not one-hot.
     sigma : Spectrum or array_like, optional
         Per-wavelength standard error, as
         :func:`uncertainty_from_replicates` returns from a set of repeat
@@ -328,9 +366,9 @@ def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
             f"unknown CD method {method!r}; available are "
             f"{sorted(METHODS)}"
         )
-    categories = list(compositions[0].fractions)
-    table = _table(compositions, categories)
-    grid, measured, design = design_matrix(spectrum, basis, region)
+    references = _references(references)
+    categories, table = _truth(references)
+    grid, measured, design = design_matrix(spectrum, references, region)
 
     errors = None
     if sigma is not None:
@@ -354,8 +392,13 @@ def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
                                table, **options)
 
     fractions, quality = solve(measured)
-    quality = {**quality, 'method': method, 'n_references': len(basis),
+    quality = {**quality, 'method': method, 'n_references': len(references),
                'weighted': errors is not None}
+    # Which reference set an answer came from is part of the answer: the same
+    # spectrum against SP175 and against SMP180 is two results, not one.
+    provenance = references.info.get('source') or references.name
+    if provenance:
+        quality['references'] = provenance
 
     if errors is not None and int(resamples) > 0:
         generator = np.random.default_rng(seed)
@@ -378,7 +421,7 @@ def estimate(spectrum, method, basis, compositions, *, region=DEFAULT_REGION,
                        quality=quality, source=spectrum.name)
 
 
-def benchmark(basis, compositions, methods=None, *, folds=10,
+def benchmark(references, methods=None, *, folds=10,
               region=DEFAULT_REGION, seed=0, options=None):
     """
     Hold out part of the reference set and estimate it from the rest.
@@ -391,9 +434,10 @@ def benchmark(basis, compositions, methods=None, *, folds=10,
 
     Parameters
     ----------
-    basis, compositions : sequence
+    references : ReferenceSet
         The reference set, as :func:`~spectroscopy.library.load_dichroweb_basis`
-        returns it.
+        returns it. Each protein's structure travels with its spectrum, so
+        hiding a fold cannot separate the two.
     methods : sequence of str, optional
         Which to compare. All of :data:`METHODS` by default.
     folds : int
@@ -413,22 +457,23 @@ def benchmark(basis, compositions, methods=None, *, folds=10,
     """
     methods = list(methods or METHODS)
     options = options or {}
-    categories = list(compositions[0].fractions)
-    truth = _table(compositions, categories)
+    references = _references(references)
+    categories, truth = _truth(references)
 
     generator = np.random.default_rng(seed)
-    order = generator.permutation(len(basis))
+    order = generator.permutation(len(references))
     parts = np.array_split(order, int(folds))
 
     errors = {method: [] for method in methods}
     failures = {method: 0 for method in methods}
     for part in parts:
-        keep = [index for index in range(len(basis)) if index not in set(part)]
-        pool = [basis[index] for index in keep]
+        held_out = set(part)
+        keep = [index for index in range(len(references))
+                if index not in held_out]
+        pool = [references[index] for index in keep]
         pool_table = truth[keep]
-        pool_compositions = [compositions[index] for index in keep]
         for held in part:
-            _, measured, design = design_matrix(basis[held], pool, region)
+            _, measured, design = design_matrix(references[held], pool, region)
             for method in methods:
                 try:
                     fractions, _ = METHODS[method](
@@ -438,7 +483,6 @@ def benchmark(basis, compositions, methods=None, *, folds=10,
                     failures[method] += 1
                     continue
                 errors[method].append(np.asarray(fractions) - truth[held])
-        del pool_compositions
 
     summary = {}
     for method in methods:

@@ -116,6 +116,7 @@ selection on a single data point.
 from the rest, and compares with structures that were known before the fit.
 
 ```{code-cell}
+from spectroscopy.library import ReferenceSet
 from spectroscopy.processing.structure import Category, Composition
 
 # A small synthetic reference set, so this page runs without downloading
@@ -132,16 +133,20 @@ pure = {HELIX: band(208, 7, -37) + band(222, 9, -37) + band(193, 7, 60),
         COIL: band(198, 7, -40) + band(220, 10, 3)}
 
 rng = np.random.default_rng(0)
-basis, compositions = [], []
+spectra, compositions = [], []
 for index in range(24):
     weights = rng.dirichlet([1.4, 1.0, 1.0])
     y = sum(w * pure[c] for w, c in zip(weights, pure))
-    basis.append(spc.Spectrum(x, y + 0.3 * rng.normal(size=x.size),
-                              technique='CD', name=f'ref{index}'))
+    spectra.append(spc.Spectrum(x, y + 0.3 * rng.normal(size=x.size),
+                                technique='CD', name=f'ref{index}'))
     compositions.append(Composition(
         fractions=dict(zip(pure, weights)), method='known', technique='X-ray'))
 
-scores = cd.benchmark(basis, compositions, folds=6,
+# The spectra and their known structures are paired once, here, and travel
+# together from then on -- see ADR-0004 for the failure that motivated it.
+references = ReferenceSet.from_compositions(spectra, compositions)
+
+scores = cd.benchmark(references, folds=6,
                       options={'subset-average': {'draws': 200}})
 for method, entry in scores.items():
     if entry['n']:
@@ -237,9 +242,12 @@ git clone https://github.com/pcddb/DichroWebGit
 ```python
 from spectroscopy.library import load_dichroweb_basis
 
-basis, compositions = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
-result = cd.estimate(my_spectrum, 'ridge', basis, compositions,
-                     region=(190.0, 240.0))
+references = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
+result = cd.estimate(my_spectrum, 'ridge', references, region=(190.0, 240.0))
+
+print(references)                    # what it is and where it came from
+print(references.info['licence'])    # and the terms it arrived under
+print(result.quality['references'])  # which set this answer used
 ```
 
 Cite [Lees *et al.* 2006](../references.md) for SP175, [Abdul-Gader *et al.* 2011](../references.md) for
@@ -330,7 +338,7 @@ near-native AqpZ scans the standard error is **0.45 mdeg at 215 nm and 0.16 at
 
 ```python
 sigma = cd.uncertainty_from_replicates(my_repeat_scans)   # a SpectrumCollection
-result = cd.estimate(spectrum, 'ridge', basis, compositions,
+result = cd.estimate(spectrum, 'ridge', references,
                      sigma=sigma, resamples=200)
 print(result.quality['uncertainty'])
 ```

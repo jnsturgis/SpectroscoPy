@@ -164,9 +164,8 @@ In one call, given a reference set you supply:
 from spectroscopy.library import load_dichroweb_basis
 from spectroscopy.processing import cd
 
-basis, compositions = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
-result = cd.estimate(spectrum, 'selcon', basis, compositions,
-                     region=(190.0, 240.0))
+references = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
+result = cd.estimate(spectrum, 'selcon', references, region=(190.0, 240.0))
 ```
 
 Not executed here, because **no reference set ships with this package** — the

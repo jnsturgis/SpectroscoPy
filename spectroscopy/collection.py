@@ -27,6 +27,7 @@ from __future__ import annotations
 import glob as _glob
 import os
 import re
+import warnings
 from collections.abc import Sequence
 
 import numpy as np
@@ -35,6 +36,22 @@ from spectroscopy.history import ProcessingStep
 from spectroscopy.spectra import Spectrum
 
 __all__ = ['SpectrumCollection']
+
+#: Sentinel for "argument not given", where ``None`` is a legitimate value.
+_UNSET = object()
+
+
+def _same(first, second) -> bool:
+    """
+    Equality that survives numpy arrays in ``info``.
+
+    ``a == b`` on two arrays is an array, and ``bool()`` of it raises. Merging
+    the provenance of two sets is not the place to discover that.
+    """
+    try:
+        return bool(np.all(np.asarray(first) == np.asarray(second)))
+    except (ValueError, TypeError):
+        return first is second
 
 
 def _parameter_reader(spec):
@@ -76,16 +93,54 @@ def _parameter_reader(spec):
 
 
 class SpectrumCollection(Sequence):
-    """An ordered collection of :class:`~spectroscopy.spectra.Spectrum`."""
+    """
+    An ordered collection of :class:`~spectroscopy.spectra.Spectrum`.
 
-    def __init__(self, spectra=(), name=None):
+    Parameters
+    ----------
+    spectra : iterable of Spectrum
+    name : str, optional
+    info : dict, optional
+        Facts about the **set** rather than about any spectrum in it: what the
+        series parameter is called, where a reference set came from, the terms
+        it arrived under. See :data:`spectroscopy.metadata.SET_LEVEL`.
+
+        Per-item data belongs in that item's own ``metadata``, and the
+        collection offers *gathered views* of it -- :attr:`parameters`,
+        :attr:`samples`. That way there is only ever one list and it cannot
+        fall out of step with the spectra. Set-level data has the opposite
+        problem: stored per item it can disagree with itself, and the
+        disagreement is invisible. Hence two homes (ADR-0004).
+
+        ``info`` survives :meth:`crop`, :meth:`select`, :meth:`map` and
+        slicing, exactly as ``name`` does -- a subset of SP175 is still SP175
+        data, and still carries SP175's citation condition.
+    """
+
+    def __init__(self, spectra=(), name=None, info=None):
         self._spectra = list(spectra)
         for item in self._spectra:
             if not isinstance(item, Spectrum):
                 raise TypeError(
-                    f"SpectrumCollection takes Spectrum objects, got {type(item).__name__}"
+                    f"{type(self).__name__} takes Spectrum objects, "
+                    f"got {type(item).__name__}"
                 )
         self.name = name
+        self.info = dict(info) if info else {}
+
+    def _like(self, spectra, name=_UNSET):
+        """
+        A collection of the same class as this one, keeping ``name`` and
+        ``info``.
+
+        Every operation that returns a collection goes through here, so a
+        subclass -- :class:`~spectroscopy.library.ReferenceSet` -- stays itself
+        through ``select``, ``crop`` and slicing rather than degrading to a
+        plain collection and losing its provenance on the way.
+        """
+        return type(self)(spectra,
+                          name=self.name if name is _UNSET else name,
+                          info=dict(self.info))
 
     # -- Sequence protocol -------------------------------------------------
 
@@ -94,7 +149,7 @@ class SpectrumCollection(Sequence):
 
     def __getitem__(self, index):
         if isinstance(index, slice):
-            return SpectrumCollection(self._spectra[index], name=self.name)
+            return self._like(self._spectra[index])
         return self._spectra[index]
 
     def __repr__(self) -> str:
@@ -112,9 +167,11 @@ class SpectrumCollection(Sequence):
 
     def __add__(self, other) -> SpectrumCollection:
         if isinstance(other, SpectrumCollection):
-            return SpectrumCollection(self._spectra + list(other))
+            merged = {key: value for key, value in self.info.items()
+                      if key in other.info and _same(other.info[key], value)}
+            return SpectrumCollection(self._spectra + list(other), info=merged)
         if isinstance(other, Spectrum):
-            return SpectrumCollection(self._spectra + [other])
+            return self._like(self._spectra + [other])
         return NotImplemented
 
     # -- construction ------------------------------------------------------
@@ -192,7 +249,11 @@ class SpectrumCollection(Sequence):
                                        name=parameter_name,
                                        unit=parameter_unit)
             spectra.append(spectrum)
-        return cls(spectra)
+
+        info = {key: value for key, value in
+                (('parameter_name', parameter_name),
+                 ('parameter_unit', parameter_unit)) if value is not None}
+        return cls(spectra, info=info)
 
     # -- grouping and reduction -------------------------------------------
 
@@ -206,7 +267,7 @@ class SpectrumCollection(Sequence):
         groups: dict = {}
         for spectrum in self._spectra:
             groups.setdefault(getter(spectrum), []).append(spectrum)
-        return {value: SpectrumCollection(members, name=str(value))
+        return {value: self._like(members, name=str(value))
                 for value, members in groups.items()}
 
     def _stack(self):
@@ -261,8 +322,7 @@ class SpectrumCollection(Sequence):
 
     def map(self, function) -> SpectrumCollection:
         """Apply ``function`` to each spectrum, returning a new collection."""
-        return SpectrumCollection([function(s) for s in self._spectra],
-                                  name=self.name)
+        return self._like([function(s) for s in self._spectra])
 
     def _batch(self, method_name, *args, **kwargs) -> SpectrumCollection:
         return self.map(lambda s: getattr(s, method_name)(*args, **kwargs))
@@ -293,8 +353,7 @@ class SpectrumCollection(Sequence):
 
     def select(self, predicate) -> SpectrumCollection:
         """The spectra for which ``predicate(spectrum)`` is true."""
-        return SpectrumCollection([s for s in self._spectra if predicate(s)],
-                                  name=self.name)
+        return self._like([s for s in self._spectra if predicate(s)])
 
     # -- aliases -----------------------------------------------------------
     #
@@ -363,17 +422,41 @@ class SpectrumCollection(Sequence):
 
     @property
     def parameter_name(self):
-        """What the parameter is, if the spectra agree on it."""
+        """What the parameter is -- 'potential', 'temperature'."""
         return self._parameter_label('parameter_name')
 
     @property
     def parameter_unit(self):
-        """What the parameter is in, if the spectra agree on it."""
+        """What the parameter is in -- 'mV', 'C'."""
         return self._parameter_label('parameter_unit')
 
     def _parameter_label(self, key):
+        """
+        From ``info``, falling back to the per-spectrum copies.
+
+        The fallback is the pre-ADR-0004 arrangement, kept working until 1.0
+        for collections assembled by hand. It is the reason this is not simply
+        ``self.info.get(key)``: a spectrum labelled by ``set_parameter`` still
+        carries its own copy, and dropping the fallback would lose the label
+        of every collection built that way.
+
+        Where the copies disagree there is no answer, and the old behaviour --
+        return ``None``, indistinguishable from *never set* -- hid a real
+        conflict. It now says so.
+        """
+        if key in self.info:
+            return self.info[key]
         labels = {s.metadata.get(key) for s in self._spectra} - {None}
-        return labels.pop() if len(labels) == 1 else None
+        if len(labels) > 1:
+            warnings.warn(
+                f"the spectra in this collection disagree about {key}: "
+                f"{sorted(labels)}. It describes the series rather than any "
+                f"one spectrum, so set it once on the collection -- "
+                f"collection.info[{key!r}] = ... -- rather than per spectrum.",
+                stacklevel=3,
+            )
+            return None
+        return labels.pop() if labels else None
 
     def with_parameters(self, values, name=None, unit=None):
         """
@@ -405,7 +488,11 @@ class SpectrumCollection(Sequence):
             copied = spectrum._derive()  # pylint: disable=protected-access
             copied.set_parameter(value, name=name, unit=unit)
             spectra.append(copied)
-        return SpectrumCollection(spectra, name=self.name)
+        labelled = self._like(spectra)
+        for key, value in (('parameter_name', name), ('parameter_unit', unit)):
+            if value is not None:
+                labelled.info[key] = value
+        return labelled
 
     def sorted_by_parameter(self, reverse=False):
         """
@@ -426,8 +513,7 @@ class SpectrumCollection(Sequence):
         order = np.argsort(parameters)
         if reverse:
             order = order[::-1]
-        return SpectrumCollection([self._spectra[i] for i in order],
-                                  name=self.name)
+        return self._like([self._spectra[i] for i in order])
 
     def to_dataframe(self, orientation='wide'):
         """

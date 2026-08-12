@@ -1,8 +1,10 @@
 # ADR-0004 — Reference sets are collections, not a parallel hierarchy
 
-**Status:** Proposed, 2026-08-12 (James, reviewing the CD branch: *"is this
-well structured or just ad hoc?"*). Ad hoc — this records what the structure
-should be instead.
+**Status:** **Accepted and implemented, 2026-08-13.** Proposed 2026-08-12
+(James, reviewing the CD branch: *"is this well structured or just ad hoc?"*).
+Ad hoc — this records what the structure should be instead. Section 6 records
+what was built and the one thing that was deliberately deferred; section 5
+remains open and is on the 1.0 critical path.
 **Depends on** ADR-0001 (the core data model) and the metadata schema added
 for roadmap D2.
 **Affects** `library`, `processing.cd`, `processing.unmix`,
@@ -205,7 +207,52 @@ than arrived at by not implementing the other two.
 
 ---
 
-## 6. What would justify revisiting this
+## 6. What was built, 2026-08-13
+
+`library.ReferenceSet(SpectrumCollection)`, with `.compositions` and
+`.categories` as gathered views and `from_compositions` as **the one place**
+spectra and structures are matched by position. `load_basis` and
+`load_dichroweb_basis` return one; `cd.estimate`, `cd.benchmark`,
+`structure.from_cd` and `structure.nearest_references` each lost an argument
+and now refuse a bare list with a message saying where to build the set.
+
+`SpectrumCollection` gained `info`, which survives `crop`, `select`, `map`,
+`group_by` and slicing — and so does the subclass, since every operation now
+derives through one helper rather than hard-coding `SpectrumCollection(...)`.
+A subset of SP175 is still a `ReferenceSet` and still carries SP175's licence.
+
+`metadata.KNOWN_TRUTH` is the new group, JSON-native as section 2.5 requires,
+and `metadata.SET_LEVEL` documents what belongs on the set instead. The
+`'C'` versus `'K'` case now **warns** rather than returning `None`: silence was
+the defect, and the fix is not only to provide a better home but to stop the
+old home lying about it.
+
+Three things fell out that the ADR did not anticipate:
+
+- **`from_cd`'s two branches collapsed into one.** A structural basis reads
+  back as a one-hot composition, so "the coefficients are the composition" is
+  the same arithmetic as mixing whole compositions. Section 3 predicted this;
+  what it did not say is that the method argument then has nothing to switch
+  on — so it is now *checked against* the kind of set supplied, which catches
+  running SMP180 as though it were a basis of pure structures.
+- **A composition can be asked for in a vocabulary the set never declared.**
+  A bare category name does not say which DSSP states it covers, so
+  `compositions` refuses rather than inventing a `Category` with no states.
+- **A structural basis declares only the categories it contains.** Declaring
+  the full four-category vocabulary would have made every fit report a
+  confident `0.0` for a category the basis has no spectrum for — a claim the
+  method never made, which ADR-0002 section 7.2 distinguishes from `None`.
+
+**Deferred, deliberately: `Library` is not yet a subclass.** Section 3 says it
+should be. It iterates over `Reference` objects where a collection iterates
+over `Spectrum`, and that loop is inside `unmix()`, whose signature freezes at
+1.0. Changing it as a side effect of CD work would put a frozen UV-Vis
+signature at risk for no CD benefit. What was done instead is the useful half:
+`unmix()` **accepts** a `ReferenceSet`, so the three cases already meet at the
+call site. The inheritance is worth finishing on its own, with the UV-Vis
+tests watching.
+
+## 7. What would justify revisiting this
 
 - A reference set whose per-item known truth is not per-item — a set where the
   structures are only known jointly, for example as a covariance rather than a

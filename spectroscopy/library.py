@@ -37,7 +37,10 @@ from dataclasses import dataclass, field
 
 import numpy as np
 
+from spectroscopy.collection import SpectrumCollection
+
 __all__ = [
+    'ReferenceSet',
     'Reference', 'Library', 'COEFFICIENTS', 'coefficient',
     'concentration_from_absorbance', 'from_series',
     'load_basis', 'MANIFEST_COLUMNS',
@@ -203,6 +206,211 @@ def concentration_from_absorbance(absorbance, species, wavelength=None,
                                                           path_length)
 
 
+class ReferenceSet(SpectrumCollection):
+    """
+    Spectra of samples whose structure is already known by other means.
+
+    A reference set **is** a :class:`~spectroscopy.collection.SpectrumCollection`
+    -- not a wrapper around one -- so it arrives with ``to_matrix``, ``select``,
+    ``resample``, ``crop``, indexing and iteration already working, and stays a
+    ``ReferenceSet`` through all of them (ADR-0004).
+
+    What it adds is *gathered views* of each reference's known truth:
+    :attr:`compositions` and :attr:`categories`. The truth is stored in each
+    spectrum's own ``metadata``, and these read it back. That is the whole
+    point of the class. The arrangement it replaces was two parallel lists,
+    ``(spectra, compositions)``, passed around together:
+
+        compositions one short : ValueError from numpy about core dimensions
+        compositions reversed  : no error. helix 0.464 -> 0.307
+
+    The second is the dangerous one -- same length, wrong pairing, a plausible
+    answer, no complaint. With one list there is nothing to reverse.
+
+    Set-level facts -- ``source``, ``citation``, ``licence``, ``accession``,
+    ``unit`` -- live in :attr:`~spectroscopy.collection.SpectrumCollection.info`
+    and survive slicing, so a five-protein subset of SP175 still carries
+    SP175's citation condition.
+
+    Two kinds of set, one type
+    --------------------------
+    A **reference-protein set** (SP175, SMP180) gives each spectrum a whole
+    composition. A **structural basis** gives each spectrum one category, which
+    is the same thing with a degenerate table -- all of one structure. Both
+    read back through :attr:`compositions`, which is why they no longer need
+    two code paths.
+
+    A UV-Vis unmixing set has no known truth at all: a spectrum in epsilon
+    units is its own property and the fitted coefficient is the answer. Such a
+    set is still a ``ReferenceSet``; the table is simply empty.
+    """
+
+    # -- construction ------------------------------------------------------
+
+    @classmethod
+    def from_compositions(cls, spectra, compositions, *, name=None, info=None,
+                          known_from=None):
+        """
+        Build one from spectra and their known compositions, matched by
+        position.
+
+        **This is the only place the positional matching happens**, and it is
+        deliberately a single, named, checkable step rather than an invariant
+        every call site has to maintain. After this, there is one list.
+
+        The spectra are copied, not modified: the truth is written onto the
+        copies, so a caller's own spectra do not silently acquire metadata.
+        """
+        spectra = list(spectra)
+        compositions = list(compositions)
+        if len(spectra) != len(compositions):
+            raise ValueError(
+                f"got {len(spectra)} spectra and {len(compositions)} "
+                f"compositions. They are matched by position, so the counts "
+                f"must agree -- and note that agreeing counts do not make the "
+                f"pairing right, which is why this is the only place it is done."
+            )
+
+        declared = _declared_categories(compositions)
+        labelled = []
+        for spectrum, composition in zip(spectra, compositions):
+            copied = spectrum._derive()      # pylint: disable=protected-access
+            copied.metadata['composition'] = {
+                category.name: (None if fraction is None else float(fraction))
+                for category, fraction in composition.fractions.items()
+            }
+            source = known_from or composition.method
+            if source:
+                copied.metadata['known_from'] = source
+            labelled.append(copied)
+
+        info = dict(info or {})
+        info.setdefault('categories', declared)
+        return cls(labelled, name=name, info=info)
+
+    # -- gathered views ----------------------------------------------------
+
+    @property
+    def categories(self):
+        """
+        The structural categories this set's known truth is declared against.
+
+        Held once, on the set, because it is a fact about the set: the stored
+        form of a composition is ``{name: fraction}`` and of a category is its
+        name, since ``.spy`` serialises metadata as JSON and turns a
+        ``Category`` into a bare string with its DSSP states gone. These are
+        what rebuild the objects (ADR-0004 section 2.5).
+        """
+        declared = self.info.get('categories')
+        return list(declared) if declared else []
+
+    @property
+    def has_truth(self) -> bool:
+        """True when every spectrum carries a composition or a category."""
+        return bool(self) and all(
+            'composition' in s.metadata or 'category' in s.metadata
+            for s in self)
+
+    @property
+    def is_structural(self) -> bool:
+        """
+        True for a basis of pure structures -- each spectrum *is* one category.
+
+        The distinction matters to the reader of a result and not to the
+        arithmetic: :attr:`compositions` returns a one-hot composition either
+        way, so nothing downstream has to branch on it.
+        """
+        return bool(self) and all('category' in s.metadata for s in self)
+
+    @property
+    def compositions(self):
+        """
+        Each reference's known composition, in order, as
+        :class:`~spectroscopy.processing.structure.Composition` objects.
+
+        Computed on every access rather than cached, which keeps it impossible
+        for the view to be stale. The sets in use are at most a few hundred
+        spectra; if that changed, caching with invalidation would be worth what
+        it costs, and not before.
+        """
+        from spectroscopy.processing.structure import (  # noqa: PLC0415
+            Category,
+            Composition,
+        )
+
+        declared = {category.name: category for category in self.categories}
+        missing = [s.name for s in self
+                   if 'composition' not in s.metadata
+                   and 'category' not in s.metadata]
+        if missing:
+            raise ValueError(
+                f"{len(missing)} of {len(self)} references have no known "
+                f"structure, so this set cannot say what its spectra are of: "
+                f"{', '.join(str(n) for n in missing[:5])}"
+                f"{' ...' if len(missing) > 5 else ''}. Build the set with "
+                f"ReferenceSet.from_compositions(), or load it with "
+                f"library.load_basis()."
+            )
+
+        result = []
+        for spectrum in self:
+            stored = spectrum.metadata.get('composition')
+            if stored is None:
+                label = str(spectrum.metadata['category'])
+                stored = {name: (1.0 if name == label else 0.0)
+                          for name in declared} or {label: 1.0}
+            unknown = sorted(set(stored) - set(declared))
+            if unknown:
+                raise ValueError(
+                    f"{spectrum.name} declares structure in categories "
+                    f"{unknown}, which this set does not declare. Its "
+                    f"categories are {sorted(declared) or 'undeclared'} -- "
+                    f"set collection.info['categories'] to the Category "
+                    f"objects the fractions mean, since a bare name does not "
+                    f"say which DSSP states it covers."
+                )
+            result.append(Composition(
+                fractions={declared.get(name, Category(name)): fraction
+                           for name, fraction in stored.items()},
+                method=spectrum.metadata.get(
+                    'known_from', 'supplied with the reference set'),
+                technique='reference',
+                source=spectrum.name,
+            ))
+        return result
+
+    def __repr__(self) -> str:
+        label = f" {self.name!r}" if self.name else ""
+        kind = ('structural basis' if self.is_structural
+                else 'reference proteins' if self.has_truth
+                else 'no known structure')
+        where = self.info.get('source')
+        return (f"<ReferenceSet{label}: {len(self)} references, {kind}"
+                + (f", from {where}" if where else "") + ">")
+
+
+def _declared_categories(compositions):
+    """
+    The category objects a set of compositions agree on.
+
+    Two ``Category`` objects with the same name and different DSSP states are
+    two different claims about what "helix" means, and averaging over them
+    would be silently answering a question nobody asked.
+    """
+    declared: dict = {}
+    for composition in compositions:
+        for category in composition.fractions:
+            seen = declared.setdefault(category.name, category)
+            if seen.states != category.states:
+                raise ValueError(
+                    f"two references disagree about what {category.name!r} "
+                    f"covers: DSSP states {sorted(seen.states)} and "
+                    f"{sorted(category.states)}. A reference set has one "
+                    f"vocabulary or it is two reference sets."
+                )
+    return list(declared.values())
+
+
 @dataclass
 class Reference:
     """
@@ -245,7 +453,23 @@ class Reference:
 
 class Library:
     """
-    A named set of reference spectra.
+    A named set of reference spectra, keyed by species name, for unmixing.
+
+    The UV-Vis specialisation of :class:`ReferenceSet`, and the one case with
+    no known-truth table at all: a spectrum in epsilon units *is* its own
+    property, and the fitted coefficient is the answer. That is why it holds
+    :class:`Reference` entries -- name, unit, uncertainty -- rather than bare
+    spectra, and why it is keyed rather than ordered.
+
+    .. note::
+
+       ADR-0004 records this as a subclass of ``ReferenceSet``. It is not one
+       yet, deliberately: ``Library`` iterates over ``Reference`` objects and a
+       collection iterates over ``Spectrum``, so inheriting would change what
+       ``for reference in library`` yields -- and that is the loop inside
+       :func:`~spectroscopy.processing.unmix.unmix`, whose signature freezes at
+       1.0. The unification is worth doing on its own, with the UV-Vis tests
+       watching, and not as a side effect of the CD work.
 
     Deliberately thin. The useful operations are selecting a subset and
     handing it to :func:`spectroscopy.processing.unmix.unmix`; anything
@@ -422,8 +646,8 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
 #: fraction columns are required; the rest are provenance and are optional but
 #: strongly wanted -- a reference whose origin is not recorded cannot be cited,
 #: and most published sets require citation as a condition of use.
-MANIFEST_COLUMNS = ('file', 'name', 'category', 'source', 'citation',
-                    'accession')
+MANIFEST_COLUMNS = ('file', 'name', 'category', 'known_from', 'source',
+                    'citation', 'accession')
 
 
 def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
@@ -465,14 +689,19 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
         Where the files are. Defaults to the manifest's own directory, which
         is the usual arrangement.
 
+        ``known_from``
+            How the structure was determined -- ``'DSSP on 1RC2'``. Optional,
+            and worth filling in: a composition taken from an earlier CD fit
+            makes any set built on it circular, and nothing else records that.
+
     Returns
     -------
-    tuple
-        ``(spectra, compositions)``. ``compositions`` is ``None`` for a
-        structural basis, in which case each spectrum carries its
-        ``metadata['category']`` and the pair goes straight into
-        ``from_cd(method='basis-spectra', basis=spectra)``. Otherwise both are
-        passed to ``method='reference-proteins'``.
+    ReferenceSet
+        Either kind, as one type. A structural basis has
+        :attr:`~ReferenceSet.is_structural` true and its
+        :attr:`~ReferenceSet.compositions` read back as one-hot; a
+        reference-protein set carries whole compositions. Both go into
+        ``cd.estimate(spectrum, method, references)`` unchanged.
 
     Notes
     -----
@@ -525,6 +754,7 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
         )
 
     spectra, compositions = [], []
+    set_level: dict = {}
     for number, row in enumerate(rows, start=2):
         row = {key.strip().lower(): (value or '').strip()
                for key, value in row.items() if key}
@@ -541,6 +771,11 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
         for key in ('source', 'citation', 'accession'):
             if row.get(key):
                 spectrum.metadata[f'reference_{key}'] = row[key]
+                # A value every row repeats is a fact about the set, and a
+                # citation condition needs somewhere to live as one. Where the
+                # rows differ it stays per-row and the set says nothing.
+                set_level[key] = (row[key] if set_level.get(key, row[key])
+                                  == row[key] else None)
 
         if structural:
             label = row['category']
@@ -549,7 +784,9 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
                     f"{manifest} line {number}: category {label!r} is not one "
                     f"of {sorted(known)}"
                 )
-            spectrum.metadata['category'] = Category(label, known[label])
+            spectrum.metadata['category'] = label
+            spectrum.metadata['known_from'] = (
+                row.get('known_from') or f'{manifest.name}, line {number}')
         else:
             fractions = {}
             for label in fraction_columns:
@@ -563,11 +800,25 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
                     f"fractions of 1, not percentages."
                 )
             compositions.append(Composition(
-                fractions=fractions, method='supplied with the reference set',
+                fractions=fractions,
+                method=(row.get('known_from')
+                        or f'{manifest.name}, line {number}'),
                 technique='reference', source=spectrum.name))
         spectra.append(spectrum)
 
-    return spectra, (None if structural else compositions)
+    info = {key: value for key, value in set_level.items() if value}
+    if structural:
+        # Only the categories this basis actually contains. A basis with no
+        # turn spectrum cannot estimate turn, and declaring the category would
+        # make every fit report a confident 0.0 for it -- a claim the method
+        # never made, which ADR-0002 section 7.2 distinguishes from None.
+        info['categories'] = [
+            Category(label, known[label])
+            for label in dict.fromkeys(s.metadata['category'] for s in spectra)
+        ]
+        return ReferenceSet(spectra, name=manifest.stem, info=info)
+    return ReferenceSet.from_compositions(spectra, compositions,
+                                          name=manifest.stem, info=info)
 
 
 #: How the DichroWebGit datasets spell their structural categories, mapped
@@ -613,10 +864,10 @@ def load_dichroweb_basis(directory, first_nm=DICHROWEB_FIRST_NM,
 
     Returns
     -------
-    tuple
-        ``(spectra, compositions)``, ready for
-        ``from_cd(method='reference-proteins', basis=spectra,
-        compositions=compositions)``.
+    ReferenceSet
+        Ready for ``cd.estimate(spectrum, method, references)``, carrying the
+        MIT licence and the source in its ``info`` so a result can say where
+        its basis came from.
 
     Notes
     -----
@@ -680,11 +931,19 @@ def load_dichroweb_basis(directory, first_nm=DICHROWEB_FIRST_NM,
                             technique='CD', name=name)
         spectrum.y_quantity = 'Delta epsilon'
         spectrum.y_unit = 'delta epsilon'
-        spectrum.metadata['reference_source'] = f'DichroWebGit {directory.name}'
         spectra.append(spectrum)
         compositions.append(Composition(
             fractions={category: float(fractions[row, column])
                        for row, category in enumerate(resolved)},
             method='supplied with the reference set',
             technique='reference', source=name))
-    return spectra, compositions
+
+    return ReferenceSet.from_compositions(
+        spectra, compositions, name=directory.name,
+        known_from='supplied with the reference set',
+        info={
+            'source': f'DichroWebGit {directory.name}',
+            'licence': 'MIT (c) 2023 Andy Miles, github.com/pcddb/DichroWebGit',
+            'unit': 'delta epsilon',
+            'categories': resolved,
+        })

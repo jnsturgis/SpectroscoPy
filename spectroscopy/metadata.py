@@ -18,7 +18,7 @@ titration will want a temperature and a reference electrode. That is four
 modules converging on the same handful of sample facts, which is the point at
 which they should be agreed once rather than five times.
 
-Four groups, and the difference matters:
+Five groups, and the difference matters:
 
 **Sample conditions** -- what was in the cuvette and how it was measured.
 These are the ones an analysis reads back to turn a signal into a quantity,
@@ -26,6 +26,11 @@ and getting them wrong is the expensive kind of error, because the arithmetic
 succeeds either way.
 
 **Identification** -- what this spectrum is of, and its place in a series.
+
+**Known truth** -- what a *different* technique says the sample is. This is
+what makes a spectrum a reference rather than just a spectrum, and it is not a
+measurement condition: "this protein is 46 % helix" is not a fact about how
+the spectrum was recorded (ADR-0004 section 2.3).
 
 **Acquisition** -- instrument settings general enough to deserve a shared
 name rather than a per-reader one.
@@ -43,8 +48,8 @@ result looks wrong.
 
 from __future__ import annotations
 
-__all__ = ['SAMPLE_CONDITIONS', 'IDENTIFICATION', 'ACQUISITION',
-           'PROVENANCE_PREFIXES',
+__all__ = ['SAMPLE_CONDITIONS', 'IDENTIFICATION', 'KNOWN_TRUTH', 'ACQUISITION',
+           'PROVENANCE_PREFIXES', 'SET_LEVEL',
            'KNOWN_KEYS', 'describe', 'unknown_keys']
 
 
@@ -95,17 +100,41 @@ IDENTIFICATION = (
     ('parameter_name', 'name', "What that number is: 'potential', "
                                "'temperature', 'concentration'."),
     ('parameter_unit', 'name', "What it is in: 'mV', 'C', 'uM'."),
-    ('category', 'Category',
-     "For a reference spectrum in a structural basis: which "
-     "processing.structure.Category it represents. Read by "
-     "structure.from_cd(method='basis-spectra')."),
     ('reference_source', 'name',
-     "Where a reference spectrum came from, e.g. 'DichroWebGit SP175'."),
+     "Where this one spectrum came from, e.g. 'DichroWebGit SP175'. Where a "
+     "whole set shares a source it belongs in the set's info instead -- see "
+     "SET_LEVEL -- because a licence obligation smeared across 128 spectra is "
+     "not a record of one."),
     ('reference_citation', 'name',
      "What to cite for it. Several published sets make citation a condition "
      "of use, so this travels with the data."),
     ('reference_accession', 'name',
      "Its accession in whatever bank it came from, e.g. a PCDDB CD0000...."),
+)
+
+#: What another technique says the sample is. Stored **JSON-native**, because
+#: ``.spy`` serialises metadata as JSON and silently degrades anything else: a
+#: ``Category`` written here comes back as a bare ``str`` with its DSSP states
+#: gone (ADR-0004 section 2.5). So the stored form of a composition is a plain
+#: ``{name: fraction}`` dict and the stored form of a category is its name; the
+#: ``Category`` objects are rebuilt from the set's own declaration by
+#: :class:`~spectroscopy.library.ReferenceSet`.
+#:
+#: The rule for this group is that **a known-truth value names its source**.
+#: A composition from DSSP on a crystal structure and one from a previous CD
+#: fit are not the same kind of evidence, and a reference set built from the
+#: second is circular.
+KNOWN_TRUTH = (
+    ('composition', 'fractions',
+     "This sample's known secondary structure, as {category name: fraction} "
+     "summing to about 1. What makes a spectrum a reference protein."),
+    ('category', 'name',
+     "For a spectrum in a structural basis: the one category it represents, "
+     "by name. The degenerate composition -- all of one thing."),
+    ('known_from', 'name',
+     "How the composition or category was determined: 'DSSP on 1RC2', "
+     "'supplied with SP175'. Absent means nobody said, which is the one "
+     "answer that cannot be checked."),
 )
 
 #: Instrument settings that are generic rather than vendor-specific, so they
@@ -145,10 +174,39 @@ ACQUISITION = (
 #: instrument said is not lost.
 PROVENANCE_PREFIXES = ('opus_', 'spc_', 'jcamp_', 'file_')
 
-#: Every key this library reads by name.
+#: Facts about a **set** rather than about any spectrum in it. These live in
+#: ``SpectrumCollection.info``, not in ``Spectrum.metadata``.
+#:
+#: The distinction is not tidiness. Stored per-item, a fact that is true of the
+#: set can disagree with itself -- two spectra of one melt labelled ``'C'`` and
+#: ``'K'`` gathered to a ``parameter_unit`` of ``None``, which reads as *not
+#: set* rather than as *contradicted* (ADR-0004 section 2.4).
+SET_LEVEL = (
+    ('parameter_name', 'name',
+     "What the series parameter is: 'potential', 'temperature'."),
+    ('parameter_unit', 'name', "What it is in: 'mV', 'C', 'uM'."),
+    ('source',    'name', "Where the set came from, e.g. 'DichroWebGit SP175'."),
+    ('citation',  'name',
+     "What to cite for it. A citation condition is an obligation of the whole "
+     "set, and this is the one place it can be recorded as one."),
+    ('licence',   'name',
+     "The terms it arrived under -- 'MIT', 'PCDDB terms of use'. Whether it "
+     "may be redistributed is a property of the set, and not one to guess."),
+    ('accession', 'name', "Its accession or identifier in whatever bank."),
+    ('categories', 'list of Category',
+     "For a reference set: the structural categories its known truth is "
+     "declared against, in order. This is what rebuilds Category objects from "
+     "the plain names stored per item."),
+    ('unit',      'name',
+     "The ordinate the whole set is in, e.g. 'delta epsilon'. A set mixing "
+     "units is not a set."),
+)
+
+#: Every key this library reads by name, in a spectrum's own metadata.
 KNOWN_KEYS = frozenset(
     [key for key, _, _ in SAMPLE_CONDITIONS]
     + [key for key, _, _ in IDENTIFICATION]
+    + [key for key, _, _ in KNOWN_TRUTH]
     + [key for key, _, _ in ACQUISITION]
 )
 
@@ -158,7 +216,10 @@ def describe() -> str:
     lines = []
     for title, group in (("Sample conditions", SAMPLE_CONDITIONS),
                          ("Identification", IDENTIFICATION),
-                         ("Acquisition", ACQUISITION)):
+                         ("Known truth", KNOWN_TRUTH),
+                         ("Acquisition", ACQUISITION),
+                         ("Set level (collection.info, not spectrum.metadata)",
+                          SET_LEVEL)):
         lines.append(f"{title}:")
         for key, unit, meaning in group:
             lines.append(f"  {key:<22} [{unit}]  {meaning}")
