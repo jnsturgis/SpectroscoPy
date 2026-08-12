@@ -29,7 +29,8 @@ from dataclasses import dataclass, field
 
 __all__ = [
     'FormatEntry', 'register_reader', 'register_writer',
-    'read_spectrum', 'read_spectra', 'write_spectrum',
+    'register_collection_writer',
+    'read_spectrum', 'read_spectra', 'write_spectrum', 'write_collection',
     'infer_file_type', 'known_types', 'known_extensions', 'describe_formats',
 ]
 
@@ -59,6 +60,12 @@ class FormatEntry:
     description: str = ''
     #: True when the reader returns a list of Spectrum rather than filling one.
     multi: bool = False
+    #: Writes a whole SpectrumCollection to one file, set-level facts and all.
+    #: Separate from ``writer`` because writing one spectrum and writing a set
+    #: are different operations even in a format that can hold either: a set
+    #: has a name, a provenance and a licence of its own, and there is nowhere
+    #: to put them in a file that describes one spectrum (ADR-0004 section 5).
+    collection_writer: Callable | None = None
     #: Opened in binary mode. Text formats sniff an encoding first; a
     #: binary one must not, and would be corrupted by the attempt.
     binary: bool = False
@@ -102,6 +109,23 @@ def register_writer(name, extensions=(), description=''):
     def decorate(function):
         entry = _entry(name)
         entry.writer = function
+        entry.extensions = tuple(dict.fromkeys(entry.extensions + tuple(extensions)))
+        entry.description = description or entry.description
+        return function
+    return decorate
+
+
+def register_collection_writer(name, extensions=(), description=''):
+    """
+    Decorator registering a *collection* write function for a format.
+
+    Only a format with room for the set's own facts can have one. Everything
+    else stores one spectrum, and a set written into it would either lose all
+    but one or produce something no reader could take apart.
+    """
+    def decorate(function):
+        entry = _entry(name)
+        entry.collection_writer = function
         entry.extensions = tuple(dict.fromkeys(entry.extensions + tuple(extensions)))
         entry.description = description or entry.description
         return function
@@ -215,11 +239,17 @@ def read_spectra(path, file_type=None, **kwargs):
               else _open(path, encoding))
     with opener as handle:
         if entry.multi:
-            spectra = list(entry.reader(handle, **arguments))
+            result = entry.reader(handle, **arguments)
         else:
             spectrum = Spectrum()
             entry.reader(handle, spectrum, **arguments)
-            spectra = [spectrum]
+            result = [spectrum]
+
+    # A collection format returns the set itself, name, info and class
+    # included; there would be no point in one that handed back a bare list
+    # and let this function throw the set-level facts away.
+    loaded = result if isinstance(result, SpectrumCollection) else None
+    spectra = list(result)
 
     directory, filename = os.path.split(os.fspath(path))
     for spectrum in spectra:
@@ -227,6 +257,10 @@ def read_spectra(path, file_type=None, **kwargs):
                              'NAME': filename, 'TYPE': entry.name}
         if spectrum.name in ('unnamed', '', None):
             spectrum.name = filename
+    if loaded is not None:
+        loaded.fileinfo = {'PATH': directory + os.sep if directory else '',
+                           'NAME': filename, 'TYPE': entry.name}
+        return loaded
     return SpectrumCollection(spectra, name=filename)
 
 
@@ -260,3 +294,43 @@ def write_spectrum(spectrum, path, file_type=None, **kwargs):
     arguments.pop('encoding', None)
     with open(path, 'w', encoding='utf-8') as handle:
         entry.writer(handle, spectrum, **arguments)
+
+
+def write_collection(collection, path, file_type=None, **kwargs):
+    """
+    Write a whole collection to one file.
+
+    Only a format that is *about* a set can do this. Everything else stores one
+    spectrum, and writing a hundred and twenty-eight of them into a file whose
+    format has room for one would either lose a hundred and twenty-seven or
+    produce something no reader could take apart -- so it raises, naming what
+    to do instead.
+    """
+    entry = _lookup(file_type, path, 'write')
+    if entry.collection_writer is None:
+        able = [n for n in known_types()
+                if REGISTRY[n].collection_writer is not None]
+        raise ValueError(
+            f"{entry.name!r} stores one spectrum, so it has nowhere to put "
+            f"what is true of a set of {len(collection)} -- its name, where it "
+            f"came from, the terms it arrived under. Save as "
+            f"{' or '.join(repr(n) for n in able)}, or write the spectra "
+            f"individually in a loop over write_spectrum(), in which case none "
+            f"of the set-level facts are saved anywhere."
+        )
+    arguments = {**entry.defaults, **kwargs}
+    arguments.pop('encoding', None)
+    with open(path, 'w', encoding='utf-8') as handle:
+        entry.collection_writer(handle, collection, **arguments)
+
+
+def read_collection(path, file_type=None, **kwargs):
+    """
+    Read a file as a :class:`SpectrumCollection`.
+
+    An alias for :func:`read_spectra` under the name people reach for when
+    what they saved was a set. Both work on either kind of file: a
+    one-spectrum format loads as a collection of one, which is the honest
+    answer rather than an error.
+    """
+    return read_spectra(path, file_type, **kwargs)

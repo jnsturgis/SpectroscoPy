@@ -2,9 +2,9 @@
 
 **Status:** **Accepted and implemented, 2026-08-13.** Proposed 2026-08-12
 (James, reviewing the CD branch: *"is this well structured or just ad hoc?"*).
-Ad hoc — this records what the structure should be instead. Section 6 records
-what was built and the one thing that was deliberately deferred; section 5
-remains open and is on the 1.0 critical path.
+Ad hoc — this records what the structure should be instead. Section 5 was left
+open and was resolved on 2026-08-13; section 6 records what was built and the
+one thing that was deliberately deferred.
 **Depends on** ADR-0001 (the core data model) and the metadata schema added
 for roadmap D2.
 **Affects** `library`, `processing.cd`, `processing.unmix`,
@@ -184,26 +184,67 @@ and produce two ways to hold spectra that behave almost but not quite alike.
 
 ---
 
-## 5. Open — and it needs deciding before 1.0
+## 5. Resolved — `.spy` holds a set as well as a spectrum (James, 2026-08-13)
 
-**Collections cannot be saved.** There is no collection writer; spectra are
-saved one at a time. So set-level data has nowhere to persist, and a
-`ReferenceSet` loaded from `load_dichroweb_basis` cannot be written back out
-with its licence and citation attached.
+**The problem.** There was no collection writer; spectra were saved one at a
+time. So set-level data had nowhere to persist, and a `ReferenceSet` loaded
+from `load_dichroweb_basis` could not be written back out with its licence and
+citation attached.
 
-This is not a reference-set problem. It is a `.spy` question, and `.spy`
-freezes at 1.0 (roadmap §14.2), so it is on the critical path whatever is
-decided:
+**The decision: one format, not two.** `.spy` gains an optional `# collection`
+block followed by repeated spectrum blocks. Not a second format beside it —
+a set of spectra and a spectrum are the same kind of document, and a caller
+should not have to know which they have before they can open it.
 
-- a container format holding several spectra plus set-level data;
-- or a sidecar manifest beside per-spectrum files, which is what
-  `library.load_basis` already reads;
-- or an explicit decision that collections are assembled at load time and
-  never serialised, in which case set-level data is always reconstructed
-  from its source and never round-trips.
+```
+# spy format 1.0                    # spy format 1.0
+# header                            # collection
+{spectrum json}                     {"name": ..., "kind": ..., "info": {...}}
+# data                              # spectrum
+...                                 {spectrum json}
+                                    # data
+                                    ...
+                                    # spectrum
+                                    ...
+```
 
-The third is defensible and is the cheapest, but it should be *chosen* rather
-than arrived at by not implementing the other two.
+`# header` and `# spectrum` are the same marker, so every file ever written
+still reads and a single spectrum is still written byte-for-byte as before.
+One function writes a spectrum block and both paths call it.
+
+**No version bump**, and the reason is stronger than "nobody has files yet":
+a bump would not have protected anyone. `_detect_version` accepts any `1.x`
+and dispatches to the same reader, so a `1.1` collection handed to today's
+code would have parsed as one spectrum with every block's numbers run
+together. Only a major bump would have tripped it. What protects a caller is
+the marker, which is checked.
+
+**Set-level `info` is JSON**, as `metadata` is. The one value JSON has no form
+for is a list of `Category`, and it is the one that must survive: a category is
+a name *plus the DSSP states it claims*, and `'helix'` alone does not say
+whether it covers 3-10 and pi. Categories are written as name + states.
+
+**`kind` records the class**, so a saved `ReferenceSet` comes back one rather
+than a plain collection with `.compositions` gone and the truth sitting unread
+in each spectrum's metadata. Restored from a small explicit table — a file
+should not be able to name an arbitrary class and have it constructed — and an
+unrecognised name loads as a plain collection *with a warning*, so a file from
+a later version is still readable for its spectra and its provenance.
+
+The catalogue has exactly two entries today, and the rule for admission is
+worth stating because otherwise it grows by habit: **a kind earns an entry when
+it reads data the base class stores but does not interpret.** `ReferenceSet`
+qualifies. A titration does not, and is deliberately not a class: it is a
+`SpectrumCollection` with a parameter per spectrum and its name and unit in
+`info`, both of which the base class already reads. Needing somewhere to put
+*that* is what produced `info` in the first place.
+
+**API.** `collection.save_as(path)` writes; `io.read_spectra(path)` reads, and
+already returned a `SpectrumCollection`, so nothing new was added to the frozen
+top-level surface. `read_spectrum` keeps its contract unchanged — one spectrum
+out, an error if the file holds several. A collection file holding exactly one
+spectrum therefore just reads, with no special rule for it: a set of one is a
+set, and asking it for its single spectrum is a fair question.
 
 ---
 

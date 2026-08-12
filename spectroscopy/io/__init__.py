@@ -31,12 +31,14 @@ from spectroscopy.io.registry import (  # noqa: F401,E402
     read_spectrum,
     register_reader,
     register_writer,
+    write_collection,
     write_spectrum,
 )
 
 __all__ = [
     'jcamp', 'csv', 'dpt', 'opus', 'spc', 'spy', 'table',
-    'read_spectrum', 'read_spectra', 'write_spectrum',
+    'read_spectrum', 'read_spectra',
+    'write_spectrum', 'write_collection',
     'register_reader', 'register_writer',
     'known_types', 'known_extensions', 'infer_file_type', 'describe_formats',
     'detect_encoding',

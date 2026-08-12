@@ -931,14 +931,51 @@ not as a side effect of CD work.
 
 ### Next, in James's order
 
-1. **Collection serialisation** -- ADR-0004 section 5, still open and on the
-   1.0 critical path, because `.spy` freezes in November. A `ReferenceSet`
-   loaded from DichroWebGit cannot currently be written back out with its
-   licence and citation attached. Three candidates: a container format, a
-   sidecar manifest beside per-spectrum files (which `load_basis` already
-   reads), or an explicit decision that collections are assembled at load time
-   and never serialised. The third is defensible and cheapest, but it should
-   be **chosen** rather than arrived at by not implementing the other two.
+1. **Collection serialisation** -- ADR-0004 section 5. Done, see below.
 2. **Freeze blocker 5** -- the `calc`, `formats` and `tools_spc` shims promise
    removal "in 0.2", and there is no 0.2.
 3. **CDSSTR**, on a branch off this one once the above land.
+
+
+---
+
+## A set can be saved (2026-08-13)
+
+ADR-0004 section 5, resolved. It was on the 1.0 critical path because the
+native format freezes in November, and it was the one thing the restructuring
+above could not do for itself: a `ReferenceSet` fetched from DichroWebGit
+could not be written back out with its licence and citation attached.
+
+**One format, not two** (James). `.spy` gains an optional `# collection` block
+in front of repeated spectrum blocks. `# header` and `# spectrum` are the same
+marker, so every file ever written still reads, and a single spectrum is
+written byte-for-byte as before -- collections cost single-spectrum files
+nothing. There is one function that writes a spectrum block and both paths
+call it.
+
+**No version bump, and not only because nobody has files yet.** A bump would
+not have protected anyone: `_detect_version` accepts any `1.x` and dispatches
+to the same reader, so a `1.1` collection given to today's code would have
+parsed as one spectrum with every block's numbers run together. Only a major
+bump would have tripped it. What protects a caller is the marker, and that is
+now checked.
+
+`collection.save_as(path)` writes and `io.read_spectra(path)` reads -- it
+already returned a collection, so **nothing was added to the frozen top-level
+surface**. `read_spectrum` is unchanged: one spectrum out, an error if the file
+holds several. A collection file holding exactly one spectrum needs no special
+rule and gets none.
+
+**What earns a `kind`.** The file records the class so a saved `ReferenceSet`
+comes back one rather than a plain collection with `.compositions` gone. That
+needs a catalogue, so it needs a rule, or it grows by habit: *a kind earns an
+entry when it reads data the base class stores but does not interpret.*
+`ReferenceSet` qualifies -- `compositions` reads each spectrum's
+`metadata['composition']` against the set's `info['categories']`. A titration
+does not, and is deliberately not a class: it is a `SpectrumCollection` with a
+parameter per spectrum and its name and unit in `info`, both of which the base
+class already reads. The catalogue has two entries and the rule is what keeps
+it that size. An unknown kind loads as a plain collection with a warning, so a
+file from a later version is still readable for its spectra and provenance.
+
+626 tests pass.

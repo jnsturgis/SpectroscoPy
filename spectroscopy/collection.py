@@ -255,6 +255,26 @@ class SpectrumCollection(Sequence):
                  ('parameter_unit', parameter_unit)) if value is not None}
         return cls(spectra, info=info)
 
+    def save_as(self, filename, file_type='spy', **kwargs) -> None:
+        """
+        Write the whole collection to one file. The partner of
+        :func:`spectroscopy.io.read_spectra`, which reads it back.
+
+        ``.spy`` holds either one spectrum or a set, and only it has room for
+        what is true of the *set* -- its name, where it came from, the terms it
+        arrived under, the units it is in. Asking for a format that stores one
+        spectrum raises rather than quietly writing the first of forty.
+
+        To write the spectra as separate files instead, loop::
+
+            for spectrum in collection:
+                spectrum.save_as(f"{spectrum.name}.spy")
+
+        which is fine for the spectra and saves nothing about the set.
+        """
+        from spectroscopy.io import registry  # pylint: disable=C0415
+        registry.write_collection(self, filename, file_type, **kwargs)
+
     # -- grouping and reduction -------------------------------------------
 
     def group_by(self, key='sample'):
