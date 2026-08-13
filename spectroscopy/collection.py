@@ -2,12 +2,17 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Many spectra at once: load them, group them, average them, process them.
+Working with many spectra at once.
 
-A :class:`SpectrumCollection` is an ordered set of
-:class:`~spectroscopy.spectra.Spectrum`. It is a ``Sequence``, so indexing,
-slicing, ``len`` and iteration all work; every operation that returns a
-collection returns a new one and leaves the original alone.
+Most experiments give you a folder of files rather than one spectrum: three
+replicates of each sample, a titration measured at a dozen potentials, a melt
+recorded every second degree. A collection holds them together so you can
+treat them as the one thing they are.
+
+It behaves like a list. You can index it, slice it, loop over it and ask how
+long it is. What it adds is that anything you do to it happens to every
+spectrum in it, and you get a new collection back -- the originals are never
+altered.
 
     >>> import spectroscopy as spc
     >>> folder = spc.datasets.replicate_directory()
@@ -19,40 +24,36 @@ collection returns a new one and leaves the original alone.
     >>> sorted(averages)
     ['CelluloseX', 'Glucose', 'H2O']
 
-Loading
-    :meth:`SpectrumCollection.from_files` takes globs, names each spectrum
-    from its filename, and can read a measured parameter out of the path.
-    :func:`spectroscopy.io.read_spectra` reads one file that holds many.
+Averaging replicates is the thing this exists for. Grouping by sample name
+finds the replicates by what they are rather than by where they sit in a list,
+so adding a file later cannot quietly spoil an average -- which is exactly what
+happens when you write spectra[0] + spectra[1] + spectra[2] and then measure a
+fourth. Use median() instead of mean() when you suspect one replicate went
+wrong.
 
-Grouping and reducing
-    :meth:`~SpectrumCollection.group_by` returns ``{value: collection}``;
-    :meth:`~SpectrumCollection.mean`, ``std``, ``sem`` and ``median`` reduce a
-    collection to one spectrum.
+Cropping, baseline correction, smoothing, normalising and resampling all work
+on a collection just as they do on a single spectrum. For anything else, map()
+applies a function of your own to each one.
 
-Batch processing
-    :meth:`~SpectrumCollection.crop`, ``baseline_correct``, ``normalize``,
-    ``smooth``, ``resample`` and ``subtract_reference`` apply to every
-    spectrum. :meth:`~SpectrumCollection.map` applies anything else.
+When you want the numbers rather than the objects, to_matrix() gives you the
+common x axis and one row per spectrum as plain numpy -- which is the form PCA,
+NMF and anything else from scikit-learn expect.
 
-Handing over
-    :meth:`~SpectrumCollection.to_matrix` returns ``(x, X)`` as plain numpy,
-    which is what scikit-learn wants; :meth:`~SpectrumCollection.to_dataframe`
-    needs pandas, which is not a dependency.
+Two things worth knowing before you rely on them.
 
-Two things worth knowing before you rely on them:
+A series usually varies in some measured quantity: temperature, potential,
+concentration. If you tell the collection what that quantity is, it will gather
+the values for you and put the spectra in order along it. Do put them in order
+explicitly, because loading sorts filenames as *text*, and text order puts
+-120 mV before -20 mV -- a titration loaded that way plots as a scribble and
+fits as nonsense.
 
-**A collection knows about a continuous parameter.** Where the spectra of a
-series were measured at a temperature, a potential or a concentration,
-:attr:`~SpectrumCollection.parameters` gathers those values and
-:meth:`~SpectrumCollection.sorted_by_parameter` puts the series in order --
-worth doing explicitly, because ``from_files`` sorts paths as *text* and
-``-120mV`` sorts before ``-20mV``.
-
-**Facts about the set live in** :attr:`~SpectrumCollection.info`, not on each
-spectrum: what the parameter is called and what it is in, and for a reference
-set where it came from and under what terms. ``info`` survives cropping,
-selection and slicing. Per-spectrum data stays in each spectrum's ``metadata``
-and the collection gathers it, so the two cannot fall out of step (ADR-0004).
+Facts about the set as a whole -- what the varying quantity is called and what
+it is measured in, or for a set of reference spectra where it came from and on
+what terms -- belong on the collection, in ``info``. Facts about one spectrum
+stay on that spectrum. Keeping them apart is what stops the two disagreeing:
+there is one copy of anything that describes the whole set, so it cannot say
+degrees in one place and kelvin in another.
 """
 
 from __future__ import annotations

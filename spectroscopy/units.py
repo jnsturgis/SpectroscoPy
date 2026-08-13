@@ -2,39 +2,39 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Axis units: what a spectrum is in, and converting between them.
+Axis units, and converting between them.
+
+Spectroscopists write the same measurement several ways, and confusing them is
+easy and expensive. This module holds what each unit means and how to get from
+one to another; you normally reach it through a spectrum, with .to().
 
     >>> import spectroscopy as spc
     >>> spectrum = spc.datasets.load('ethanol')
-    >>> in_nm = spectrum.to('nm')
-    >>> in_nm.x_unit
+    >>> spectrum.to('nm').x_unit
     'nm'
 
-Reached through :meth:`~spectroscopy.spectra.Spectrum.to`; the functions here
-are for when you have bare numbers rather than a spectrum.
+On the x axis it knows nanometres, micrometres, wavenumbers, electron volts
+and terahertz. These are reciprocal rather than scaled -- nanometres to
+wavenumbers is 1e7 divided by the wavelength -- so converting reverses the
+axis, and an evenly spaced grid does not stay evenly spaced. That is worth
+knowing before you compare two spectra point by point.
 
-**x axis** -- ``nm``, ``um``, ``cm^-1``, ``eV``, ``THz``. These are
-*reciprocal*, not scaled: nm to cm^-1 is ``1e7 / nm``, so the axis reverses and
-an evenly spaced grid stops being evenly spaced.
+On the y axis it knows absorbance, transmittance, percent transmittance and
+reflectance, and the circular dichroism ordinates: millidegrees, degrees, mean
+residue ellipticity and delta epsilon. Absorbance and transmittance are not
+two units for one quantity -- one is the logarithm of the other -- which is why
+these are conversions rather than a table of factors.
 
-**y axis** -- ``absorbance``, ``transmittance``, ``%T``, ``reflectance``, and
-the CD ordinates ``mdeg``, ``deg``, ``deg cm^2 dmol^-1``, ``delta epsilon``.
-Absorbance to transmittance is ``T = 10**-A``: a transform between two
-dimensionless quantities rather than a unit conversion, which is why this is a
-table of functions and not a table of factors.
+It also knows which way a band points in each ordinate. That matters because
+peak finding uses it: in absorbance a band is a maximum, in transmittance a
+minimum, and in circular dichroism it can be either, since a helix is negative
+at 222 nm and positive at 193 in the same spectrum.
 
-:func:`band_direction` says which way a band points in a given ordinate --
-``'up'``, ``'down'``, ``'unknown'``, or ``'both'`` for the CD ordinates, where
-a helix is negative at 222 nm and positive at 193 in the one spectrum. Peak
-finding reads it, so it decides whether maxima, minima or both are returned.
-
-.. note::
-
-   Getting from millidegrees to mean residue ellipticity is **not** here, and
-   cannot be: it needs a concentration, a path length and a residue count,
-   which no unit table can supply. See
-   :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`, which
-   asks for all three and refuses to guess.
+One conversion is deliberately not here. Getting from millidegrees to mean
+residue ellipticity needs the concentration, the path length and the number of
+residues, and no table of units can supply those. Ask the spectrum instead,
+with to_mean_residue_ellipticity, which requires all three and refuses to
+assume any of them.
 """
 
 from __future__ import annotations

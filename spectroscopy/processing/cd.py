@@ -2,7 +2,13 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Secondary structure from a far-UV CD spectrum.
+Secondary structure from a far-UV circular dichroism spectrum.
+
+A protein's CD spectrum below 250 nm is dominated by the peptide bonds, and
+helix, sheet and coil each absorb differently -- so in principle the spectrum
+says how much of each there is. In practice it says so only through a set of
+reference proteins whose structures are already known, and the whole difficulty
+is that there are far more references than the measurement can distinguish.
 
     >>> import spectroscopy as spc
     >>> from spectroscopy.processing import cd
@@ -12,44 +18,48 @@ Secondary structure from a far-UV CD spectrum.
     >>> round(answer.get('helix'), 2)
     0.45
 
-:func:`estimate` returns a
-:class:`~spectroscopy.processing.structure.Composition`. The method is named
-rather than defaulted, because which one you used is most of what the answer
-means. :func:`benchmark` measures a method against a reference set by holding
-proteins out, and :func:`uncertainty_from_replicates` turns repeat scans into
-the per-wavelength error that ``sigma=`` weights the fit by.
+A typical reference set holds a hundred proteins; a spectrum from 190 to
+240 nm carries about fifty independent numbers. Fitting a hundred unknowns to
+fifty equations has infinitely many exact answers, and an ordinary least
+squares fit will hand you one of them with an excellent residual and no
+warning at all. Every method here is a different way of coping with that, so
+you have to say which one you used -- there is no sensible default.
 
-The methods
------------
-``all-references``  every reference at once, and **refuses** when the data
-                    cannot determine them. The honest baseline.
-``nearest-shapes``  rank references by shape, average the closest few. Nothing
-                    is inverted, so nothing is arbitrary.
-``subset-average``  fit many small random subsets, average those that pass a
-                    consistency test. The idea behind CDSSTR.
-``selcon``          the self-consistent method with variable selection: the
-                    unknown joins the basis carrying a guess at its own
-                    structure, which is iterated to a fixed point.
-``ridge``           penalised least squares over the whole set. The standard
-                    treatment of an underdetermined system.
+  all-references  fits them all and refuses when the data cannot determine
+                  them. Useful as an honest baseline, rarely as an answer.
+  nearest-shapes  does not fit anything. It asks which reference proteins your
+                  spectrum most resembles and averages their known structures.
+  subset-average  fits many small groups of references and averages the ones
+                  that come out self-consistent. Eight references really are
+                  determined by fifty numbers.
+  selcon          adds your own spectrum to the reference set carrying a guess
+                  at its structure, solves, replaces the guess with the answer,
+                  and repeats until it settles.
+  ridge           fits all of them but penalises large coefficients, which
+                  picks one solution out of the many that fit.
 
-The one thing that decides which you can use
---------------------------------------------
-A reference set is in Δε per residue; your spectrum is in millidegrees until
-you supply a concentration, a path length and a residue count. **``selcon``
-always needs them** -- its self-consistent step puts your spectrum into the
-basis beside the references, so the amplitude is part of the model, and
-``ignore_sum_rule=True`` produces a number without making it scale-free.
-``subset-average`` needs them only with ``sum_to_one=True``. The rest work on
-shape alone.
+The one thing that decides which you can use is units. A reference set is in
+delta epsilon per residue; your spectrum is in millidegrees until you supply a
+concentration, a path length and a residue count. Selcon always needs them,
+because your spectrum sits in the reference set as though it were one of them,
+so its size relative to the others is part of the calculation. Subset-average
+needs them only if you ask for the sum-to-one test. The others look at shape
+alone and do not care.
 
-Getting a path length wrong by ten is easy and silent, and moves any
-amplitude-dependent answer by ten while the spectrum still looks normal.
+This matters because getting a path length wrong by a factor of ten is easy,
+silent, and moves any amplitude-dependent answer by the same factor while the
+spectrum still looks perfectly normal.
 
-Which to use, what each is sensitive to, and the measured accuracy of all five
-on SP175 and SMP180 are in :doc:`the guide </guide/cd-methods>`. Choose there,
-not by which method agrees with a protein you already know -- any of them will
-agree with something.
+benchmark() tells you how well a method does on a reference set by hiding
+proteins and estimating them from the rest. Use it to choose, rather than
+picking whichever method agrees with a protein you already know -- with enough
+methods, one of them always will. The measured accuracy of all five on the two
+published reference sets is in the CD methods guide.
+
+If you have repeat scans, uncertainty_from_replicates turns them into the
+error at each wavelength, which is a measured quantity rather than an assumed
+one, and estimate() will both weight the fit by it and tell you how far the
+answer moves under it.
 """
 
 from __future__ import annotations

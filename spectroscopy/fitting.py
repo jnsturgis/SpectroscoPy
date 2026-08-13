@@ -2,15 +2,26 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Curve fitting: decomposing a band into overlapping components.
+Pulling apart a band that is really several overlapping ones.
 
-Peak *detection* answers "where are the maxima" (:mod:`spectroscopy.peaks`).
-Fitting answers the harder question -- "this envelope is several overlapping
-bands; how much of each?" -- which is what amide I secondary structure, band
-area ratios and any quantitative deconvolution actually need.
+Peak finding tells you where the maxima are. That is a different and easier
+question than this one: an amide I band is a single broad envelope made of
+several component bands, none of which is a separate maximum, and what you
+want is how much of each. Any quantitative deconvolution -- secondary
+structure, band area ratios -- needs this rather than peak positions.
 
-The return type is a dataclass over numpy arrays rather than a DataFrame, so
-that reading a result does not oblige you to install pandas.
+You give it starting positions, it fits component curves and returns them with
+their areas, along with the residual so you can see what the model failed to
+account for. The components come back as curves you can plot beside the data,
+which is usually how you tell a good fit from an arithmetically successful one.
+
+Fitting more components than the data supports is the standard way to get a
+confident wrong answer here, and nothing in the arithmetic will warn you: more
+components always fit better. The residual is what to look at, and whether the
+components you fitted are ones you can defend.
+
+Results come back as plain numpy arrays rather than a table object, so reading
+one does not oblige you to install pandas.
 """
 
 from __future__ import annotations

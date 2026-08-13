@@ -2,27 +2,16 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Generic delimited-text reader: many spectra from one wide file.
+The reader for the file a colleague sent that nothing else understands.
 
-For the file a colleague sent that no dedicated reader handles. Reached as
-``spc.read(path, 'table', ...)``; the keywords say how the columns are laid
-out. Three real layouts, each of which defeats a plain two-column reader in a
-different way:
+Most instruments write something recognisable. Some write a wide table with
+every spectrum as a column, or as a pair of columns, or with three header rows
+before the numbers start. Rather than a parser per instrument, this reads any
+of them once you say how the columns are arranged.
 
-===============================  =========================================
-``J_Peri.csv`` (Chloe)           173 columns as (x, y) **pairs** -- an
-                                 excitation-emission series, one spectrum
-                                 per excitation wavelength, with the series
-                                 names on a sparse first header row.
-``sfGFP.csv`` (GFP binding)      one **shared** wavelength column then many
-                                 named sample columns.
-``Sepharose ... .csv`` (AKTA)    **UTF-16-LE** with a BOM, two header rows,
-                                 tab separated, paired columns.
-===============================  =========================================
-
-So the reader supports paired and shared-x layouts, sniffs the separator and
-the number of header rows, and takes column names from the header. Encoding is
-handled upstream in :mod:`spectroscopy.io.registry`.
+Reach it through spc.read(path, 'table', ...) and describe the layout with the
+keywords. Three real cases it was built against, each of which defeats a plain
+two-column reader in a different way:
 """
 
 from __future__ import annotations

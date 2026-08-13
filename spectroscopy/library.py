@@ -2,47 +2,48 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Reference spectra of known things, to identify or quantify an unknown against.
+Reference spectra of known things, to measure an unknown against.
+
+Two questions use this module. "How much of each of these is in my sample?"
+needs reference spectra of the pure components, and is answered by the unmix
+module. "What structure does this protein have?" needs reference spectra of
+proteins whose structures are already known, and is answered by the circular
+dichroism module. Both are the same idea at different scales, so both use the
+same container.
 
     >>> import spectroscopy as spc
-    >>> from spectroscopy import library
     >>> references = spc.datasets.reference_set('sp175')
     >>> len(references)
     71
-    >>> library.coefficient('dsDNA').unit
-    '(ug/mL)^-1 cm^-1'
 
-:class:`ReferenceSet` is the container: an ordered set of spectra that carry
-their own known properties, so a fit can report a composition or a
-concentration without a second list to keep in step. Build one with
-:meth:`ReferenceSet.from_compositions`, or load one with :func:`load_basis`
-(your own, from a small CSV manifest) or :func:`load_dichroweb_basis` (the
-published CD sets).
+A ReferenceSet is a collection of spectra that each carry what is known about
+them. Because the known property travels with its own spectrum there is no
+second list to keep in step -- which matters more than it sounds, since a list
+of properties in the wrong order raises nothing at all and simply gives a
+wrong answer.
 
-:class:`Library` is the UV-Vis specialisation, keyed by species name and
-holding :class:`Reference` entries with units and uncertainties.
-:func:`from_series` builds one from a concentration series -- Beer-Lambert run
-backwards -- and :mod:`spectroscopy.processing.unmix` consumes it.
+You can build one from spectra and their known compositions, load one from a
+folder of files described by a small spreadsheet, or use one of the published
+sets that ship with the package.
 
-What is and is not shipped
---------------------------
-**The published CD reference sets ship** -- SP175 and SMP180, via
-:func:`spectroscopy.datasets.reference_set` -- because their terms allow it.
+For ultraviolet work, a Library is the same idea keyed by species name, holding
+each reference with its units and its measured uncertainty. If you have
+measured a dilution series of something, from_series turns it into a reference
+by running Beer-Lambert backwards: absorbance against concentration at every
+wavelength, with the slope as the extinction coefficient.
 
-**Scalar extinction coefficients are shipped**, because they are published,
-citable numbers that everyone doing UV-Vis on protein or nucleic acid already
-uses. They live in :data:`COEFFICIENTS` with their source recorded.
+What ships, and what does not
+-----------------------------
+The published circular dichroism reference sets -- SP175 and SMP180 -- ship
+with the package, because their terms allow it. So do the scalar extinction
+coefficients everyone doing ultraviolet work on protein or nucleic acid
+already uses, with their sources recorded.
 
-**Full epsilon(lambda) reference spectra are not.** Inventing a plausible
-absorbance curve for dsDNA would be fabricating reference data, and a
-fabricated reference is worse than no reference: it makes an unmixing look
-quantitative when it is decorative. Real ones come from measurement, which is
-what :func:`from_series` is for -- a concentration series in, an extinction
-spectrum with per-wavelength uncertainties out. That is also the honest route
-to a house library of the things a particular lab actually works with.
-
-The synthetic references used in the documentation are built in the page that
-uses them and are labelled as synthetic there.
+Full extinction spectra for ultraviolet components do not ship. Inventing a
+plausible absorbance curve for DNA would be making up reference data, and made
+up reference data is worse than none: it makes a decorative answer look like a
+measurement. Measure your own with from_series, which is also the honest way to
+get a library of the things your lab actually works with.
 """
 
 from __future__ import annotations

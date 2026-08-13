@@ -2,27 +2,33 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Protein secondary structure, from spectra.
+Protein secondary structure, estimated from a spectrum.
 
-    >>> from spectroscopy.processing import structure
+How much of a protein is helix, sheet or turn can be estimated from an
+infrared amide I band or from a far-UV CD spectrum. The two techniques see
+different things and are wrong in different ways, so the useful thing is not
+just to have a number from each but to be able to compare them.
 
-One output type, several inputs. :func:`from_ftir` estimates from an amide I
-band, :func:`from_cd` from a far-UV CD spectrum against reference proteins,
-and :func:`helix_from_theta222` from a single CD ordinate. All return the same
-:class:`Composition` against the same vocabulary, which is what makes two
-estimates of one sample comparable -- :meth:`Composition.compare` does that
-comparison on the categories both methods can express.
+That is why everything here returns the same kind of answer, a Composition,
+describing the same categories. A category is defined by which DSSP states it
+covers -- DSSP being what a crystallographer's structure gets turned into --
+so when two methods split things up differently, comparing them is a matter of
+merging categories until the two agree, rather than lining up names and hoping.
 
-:func:`nearest_references` answers a different and often better question: not
-"what is this made of" but "what does it most look like, and what are those".
-:func:`cd_shape_descriptors` reports band positions and ratios, which are
-amplitude-free and need no reference set at all.
+from_ftir estimates from an amide I band. from_cd estimates from a CD spectrum
+against reference proteins. helix_from_theta222 gets the helix fraction alone
+from the signal at a single wavelength, which is the right tool when a spectrum
+does not reach far enough into the ultraviolet to have any shape left to fit.
 
-**DSSP is the baseline vocabulary** (ADR-0002). Every category is declared as
-the set of DSSP states it claims, so comparing two methods is an operation on
-set partitions rather than a table of judgement calls. See
-:cite:`kabsch1983dssp` -- or, until this project has a citation extension,
-``docs/references.md``.
+A fraction of None means the method could not estimate that category -- which
+is not the same as estimating it to be zero, and is kept distinct throughout.
+
+Two functions here answer a different and often better question than "what is
+it made of". nearest_references asks what your spectrum most looks like and
+tells you what those proteins are, which is evidence you can weigh rather than
+a number you have to trust. cd_shape_descriptors reports where the bands sit
+and how they compare, which needs no reference set at all and does not change
+if your concentration is wrong.
 """
 
 from __future__ import annotations

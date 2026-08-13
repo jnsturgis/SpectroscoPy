@@ -2,8 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-One spectrum: its numbers, what they are, where they came from, and what has
-been done to them.
+One spectrum: the numbers, what they mean, and what has been done to them.
+
+A Spectrum is two arrays -- x and y -- together with enough about them that
+nothing downstream has to guess. It knows what technique produced it, what its
+axes are in, what the sample was, and every step of processing it has been
+through.
 
     >>> import spectroscopy as spc
     >>> spectrum = spc.datasets.load('ethanol')
@@ -13,36 +17,33 @@ been done to them.
     >>> [step.name for step in processed.history]
     ['crop', 'baseline_correct']
 
-Making one
-    ``Spectrum(x, y, technique='CD', name=...)`` from arrays, or
-    :func:`spectroscopy.read` from a file. The string forms
-    ``Spectrum(directory, filename)`` still work.
+You get one either by reading a file -- spc.read("sample.dpt") works out the
+format for itself -- or by building it from arrays you already have, with
+Spectrum(x, y, technique='CD'). Setting the technique fills in sensible axis
+labels and units, and a file that states its own units is always believed in
+preference to those defaults.
 
-The data
-    ``x`` and ``y`` are numpy arrays. ``x_unit``, ``y_unit``, ``x_quantity``
-    and ``y_quantity`` say what they are, and ``technique`` sets sensible
-    defaults for all four -- a file that states its own units overrides them.
-    :meth:`Spectrum.to` converts between units, including the transforms that
-    are not scalings, such as absorbance to transmittance.
+Processing does not change the spectrum you started with. Cropping returns a
+new spectrum, so operations chain and you can always go back to what you
+loaded. You can assign to .x and .y directly if you must, but nothing then
+records that you did, which is the reason to prefer the methods.
 
-    Assigning to ``x`` or ``y`` directly works and bypasses the history. That
-    is the escape hatch, not the route.
+Units convert with .to(). Some of those conversions are not simple scalings:
+nanometres to wavenumbers is a reciprocal, so the axis reverses and an evenly
+spaced grid stops being evenly spaced; absorbance to transmittance is not a
+unit change at all but a different quantity. Both are handled, which is the
+point of asking for them by name.
 
-``metadata``
-    A plain dict; anything may go in it. The keys this library reads *by name*
-    are agreed in :mod:`spectroscopy.metadata`, because ``.spy`` serialises
-    the dictionary verbatim, which makes those names part of the file format.
+Anything else you know about the sample goes in .metadata, an ordinary
+dictionary. The handful of names the library itself looks for -- path length,
+concentration, temperature and so on -- are agreed in the metadata module,
+because a spectrum saved as .spy stores that dictionary as it stands, so those
+names become part of the file.
 
-``history``
-    A list of :class:`~spectroscopy.history.ProcessingStep`, appended to by
-    every processing method and carried through ``.spy``. It is what lets a
-    figure say how its spectrum was made a year later, including the
-    hand-chosen numbers -- the factor a water subtraction used, and why that
-    matters, being the whole point.
-
-Processing methods return a **new** spectrum and leave the original alone, so
-they chain. Arithmetic (``+``, ``-``, ``*``, ``/``) works between spectra on a
-common axis and against scalars.
+.history is the reason to save as .spy rather than as a text file. It holds
+every step, with the numbers each one used -- including the ones you chose by
+eye, like the factor a water subtraction needed. A year later the figure can
+still say how it was made.
 """
 
 # pylint: disable=W0511, W0107

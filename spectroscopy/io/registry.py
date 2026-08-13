@@ -2,21 +2,27 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Format registry: one table of what can be read and written.
+Where the file formats are listed.
 
-Everything else is derived from it -- which extensions map to which format,
-what :func:`spectroscopy.read` accepts, and what
-:func:`describe_formats` prints. Users go through ``spc.read()``; this module
-is for adding a format.
+One table says what can be read and written, and everything else follows from
+it: which extensions belong to which format, what spc.read() will accept, and
+what describe_formats() prints. If you are opening a file you want spc.read();
+this module is for adding a format that is not here yet.
 
-Adding one is a decorator::
+Adding one means writing a function and decorating it::
 
     @register_reader('dpt', extensions=['.dpt'], description='Bruker OPUS')
     def read(handle, spectrum, **kwargs):
         ...
 
-Layering: this module must not import ``spectroscopy.spectra`` at module scope
-(review C1). Where it needs to build a Spectrum it imports inside the function.
+and that is the whole job -- nothing else has to be told. Formats that hold
+several spectra in one file say so, and formats that also carry facts about the
+set as a whole register a second writer for it.
+
+One rule for anyone adding a reader: do not import the Spectrum class at the
+top of your module. Readers sit underneath the data model, not beside it, and
+importing upwards creates a loop. Where a reader needs to build a Spectrum, it
+imports inside the function.
 """
 
 from __future__ import annotations

@@ -2,16 +2,22 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-PeakTable -- the result type for peak detection.
+What peak finding gives you back.
 
-What :meth:`Spectrum.find_peaks <spectroscopy.spectra.Spectrum.find_peaks>`
-returns: positions, heights, prominences and widths as numpy arrays, plus
-``kind`` saying whether they are maxima, minima or both.
+A PeakTable holds the positions of the peaks it found, together with their
+heights, how far each one stands out from its surroundings, and how wide it is.
+The values are numpy arrays in the same order, so peaks.position[0] and
+peaks.height[0] describe the same peak.
 
-:meth:`PeakTable.maxima` and :meth:`PeakTable.minima` select one sign --
-useful for CD, where a helix has bands of both. :meth:`PeakTable.to_dataframe`
-is the opt-in route to pandas, which is not a dependency, and imports it
-inside the method.
+It also remembers whether it was looking for maxima, minima, or both. That is
+not bookkeeping: in absorbance a band is a maximum and in transmittance the
+same band is a minimum, and a circular dichroism spectrum genuinely has both
+at once -- a helix is negative at 222 nm and positive at 193. Where a table
+holds both, .maxima() and .minima() give you one sort at a time.
+
+Everything is numpy rather than a table object, so reading a result does not
+oblige you to install pandas. If you want a DataFrame, .to_dataframe() will
+build one, and imports pandas only at that point.
 """
 
 from __future__ import annotations
