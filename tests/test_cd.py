@@ -1087,3 +1087,89 @@ def test_a_result_records_which_reference_set_it_came_from(basis):
     result = cdm.estimate(_mixture({'helix': 0.6, 'sheet': 0.2, 'other': 0.2}),
                           'ridge', basis, region=(190.0, 250.0))
     assert result.quality['references'] == 'DichroWebGit SMP180'
+
+
+# ---------------------------------------------------------------------------
+# the reference sets that ship
+#
+# SP175 and SMP180 are somebody else's data, and they ship because their terms
+# allow it -- MIT, via github.com/pcddb/DichroWebGit -- rather than because
+# they are useful. ADR-0002 section 9 forbade shipping reference data until the
+# terms had been checked; they have been, and these tests are what keep the
+# conditions attached to the data rather than to a memory of a conversation.
+# ---------------------------------------------------------------------------
+
+def test_the_reference_sets_ship_and_load():
+    for name, count in (('sp175', 71), ('smp180', 128)):
+        references = spc.datasets.reference_set(name)
+        assert isinstance(references, lib.ReferenceSet)
+        assert len(references) == count
+        assert references.has_truth and not references.is_structural
+
+
+def test_the_licence_notice_ships_beside_the_data():
+    """
+    MIT permits redistribution **provided the notice travels with the copy**.
+    Shipping the numbers without this file is the one way this arrangement
+    becomes a licence violation, and it is a file rather than code -- exactly
+    what a build backend drops silently.
+    """
+    import pathlib
+
+    import spectroscopy
+    notice = (pathlib.Path(spectroscopy.__file__).parent / 'data'
+              / 'cd_reference' / 'LICENSE.DichroWebGit')
+    assert notice.is_file(), "the DichroWebGit MIT notice is not shipped"
+    text = notice.read_text()
+    assert 'MIT License' in text
+    assert 'Andy Miles' in text
+
+
+def test_a_shipped_set_carries_its_licence_and_citation():
+    """
+    Citation is a *condition of use* of these data, so it has to travel with
+    the set rather than live in a docstring. A result can then say what it
+    owes without the caller having looked it up.
+    """
+    for name in ('sp175', 'smp180'):
+        references = spc.datasets.reference_set(name)
+        assert 'MIT' in references.info['licence']
+        assert 'Andy Miles' in references.info['licence']
+        assert references.info['citation']
+        assert references.info['unit'] == 'delta epsilon'
+
+
+def test_the_aqpz_example_is_cropped_to_where_it_was_measured():
+    """
+    The shipped scan stops at 197 nm because the J-815's photomultiplier
+    voltage passes 600 V below that, and starved-detector output is not
+    measurement. Shipping the full 180 nm scan would hand a reader 17 nm of
+    detector noise that looks exactly like a band.
+    """
+    protein = spc.datasets.load('aqpz')
+    assert protein.technique == 'CD'
+    assert protein.y_unit == 'mdeg'
+    assert protein.x.min() >= 196.0
+    assert protein.metadata['n_residues'] == 254
+    assert protein.metadata['sample'] == 'AqpZ-W14A'
+
+
+def test_the_shipped_example_gives_the_documented_disagreement():
+    """
+    The tutorial's point, pinned: three methods, three answers, and the one
+    with the best held-out score furthest from the crystal structure. If this
+    ever stops being true the tutorial's argument has to change with it.
+    """
+    protein = spc.datasets.load('aqpz')
+    references = spc.datasets.reference_set('smp180')
+    crystal_helix = 178 / (231 + 23)
+
+    answers = {method: cdm.estimate(protein, method, references)
+               for method in ('nearest-shapes', 'ridge')}
+    helix = {m: c.get('helix') for m, c in answers.items()}
+
+    assert helix['nearest-shapes'] == pytest.approx(0.633, abs=0.01)
+    assert helix['ridge'] == pytest.approx(0.449, abs=0.01)
+    assert abs(helix['nearest-shapes'] - helix['ridge']) > 0.15
+    assert (abs(helix['ridge'] - crystal_helix)
+            > abs(helix['nearest-shapes'] - crystal_helix))

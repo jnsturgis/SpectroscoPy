@@ -16,8 +16,13 @@ stop.
     3570
 
 Use :func:`available` to see what there is. These are a deliberately tiny
-selection (about 100 kB); the fuller collection lives in ``data/`` in the
-source repository and is not shipped in the wheel.
+selection; the fuller collection lives in ``data/`` in the source repository
+and is not shipped in the wheel.
+
+:func:`reference_set` is the exception to "these are examples": SP175 and
+SMP180 are the real published CD reference sets, shipped because their terms
+allow it, and are meant to be used for actual work rather than only for
+following a page.
 """
 
 from __future__ import annotations
@@ -26,7 +31,7 @@ import os
 
 __all__ = ['available', 'describe', 'path', 'load', 'load_pair',
            'ftir_replicates', 'replicate_directory', 'emission_series',
-           'DATASETS']
+           'reference_set', 'DATASETS', 'REFERENCE_SETS']
 
 #: name -> (relative path, technique, one-line description)
 DATASETS = {
@@ -45,6 +50,42 @@ DATASETS = {
     'uvvis_2': (
         'uvvis_spectra/Spectrum2.csv', 'UV-Vis',
         'Second membrane fraction, UV-Vis (headerless CSV)'),
+    'aqpz': (
+        'cd_spectra/aqpz_w14a.spy', 'CD',
+        'AqpZ-W14A far-UV CD, 4 uM, 30 C (JASCO J-815, HT < 600 V)'),
+}
+
+#: The published CD reference sets that ship, ``name -> (directory, citation)``.
+#:
+#: **These are somebody else's data and they ship because their terms allow
+#: it.** The `pcddb organisation <https://github.com/pcddb/DichroWebGit>`_
+#: publishes them under the MIT licence, © 2023 Andy Miles, which permits
+#: redistribution provided the notice travels with them --
+#: ``LICENSE.DichroWebGit`` sits beside the data and is installed with it.
+#: Taken from the PCDDB website instead they would carry no such grant: those
+#: terms give access and say nothing about reuse (ADR-0002 §9).
+#:
+#: Citation is a condition of use of the underlying data, so it travels in the
+#: set's ``info`` rather than in a docstring nobody reads.
+#:
+#: .. warning::
+#:
+#:    The volume and page numbers in ``docs/references.md`` are marked
+#:    **unverified** -- written from memory and not yet checked against the
+#:    publishers. So what travels with the data here is author, year and
+#:    journal, which are what identify the paper, and the reader is sent to the
+#:    reference list rather than being handed page numbers this package cannot
+#:    vouch for. Meeting a citation condition with a citation that might be
+#:    wrong is worse than not printing one.
+REFERENCE_SETS = {
+    'sp175': (
+        'cd_reference/sp175',
+        'Lees, Miles, Wien & Wallace (2006), Bioinformatics -- SP175. '
+        'Full reference: docs/references.md'),
+    'smp180': (
+        'cd_reference/smp180',
+        'Abdul-Gader, Miles & Wallace (2011), Bioinformatics -- SMP180. '
+        'Full reference: docs/references.md'),
 }
 
 
@@ -112,8 +153,15 @@ def load(name):
     spectrum = read_spectrum(path(name))
     if technique:
         spectrum.set_type(technique)
-    spectrum.name = name
-    spectrum.set_sample(name)
+    # Only name it after the key when the file did not name itself. Most of
+    # these are JCAMP or bare CSV and cannot; a .spy states its own name and
+    # sample, and overwriting them here would contradict what the rest of the
+    # library promises -- that a file's own statement beats any default.
+    if spectrum.name in (None, '', 'unnamed') or spectrum.name.endswith(
+            ('.jdx', '.csv', '.dx', '.dpt')):
+        spectrum.name = name
+    if not spectrum.metadata.get('sample'):
+        spectrum.set_sample(name)
     return spectrum
 
 
@@ -179,6 +227,58 @@ def emission_series():
         spectrum.name = f"ex {spectrum.metadata['excitation_nm']:.0f} nm"
     from spectroscopy.collection import SpectrumCollection  # pylint: disable=C0415
     return SpectrumCollection(wanted, name='J-peri emission series')
+
+
+def reference_set(name='smp180'):
+    """
+    A published CD reference set, as a
+    :class:`~spectroscopy.library.ReferenceSet`.
+
+    ``'sp175'``
+        71 soluble proteins, 175-240 nm. The standard set for a soluble
+        protein, and the one most published comparisons use.
+    ``'smp180'``
+        128 proteins, 180-240 nm, **30 of them membrane proteins**. Use this
+        one if your protein is in detergent or lipid: a membrane protein's
+        far-UV spectrum resembles other membrane proteins about twice as often
+        as its structure alone would explain, so a set with none in it has
+        nothing close to yours.
+
+    Both are in delta epsilon per residue, and both carry their licence and
+    citation in ``info`` -- citation is a condition of use of the underlying
+    data, so it travels with the set rather than living in a docstring.
+
+    Deliberately **not** ``load()``: that returns one
+    :class:`~spectroscopy.spectra.Spectrum`, and a function whose return type
+    depends on the string you pass it is the kind of thing the guessability
+    audit exists to remove.
+
+        >>> import spectroscopy as spc
+        >>> references = spc.datasets.reference_set('sp175')   # doctest: +SKIP
+        >>> len(references)                                    # doctest: +SKIP
+        71
+
+    Returns
+    -------
+    ReferenceSet
+    """
+    from spectroscopy.library import load_dichroweb_basis  # pylint: disable=C0415
+
+    if name not in REFERENCE_SETS:
+        raise KeyError(
+            f"No reference set {name!r}; available: "
+            f"{', '.join(sorted(REFERENCE_SETS))}"
+        )
+    relative, citation = REFERENCE_SETS[name]
+    folder = os.path.join(_root(), relative)
+    if not os.path.isdir(folder):
+        raise FileNotFoundError(
+            f"Reference set {name!r} is missing (looked in {folder}). If you "
+            f"are running from a source checkout, it is in data/cd_reference/."
+        )
+    references = load_dichroweb_basis(folder)
+    references.info['citation'] = citation
+    return references
 
 
 def load_pair():

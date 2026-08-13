@@ -13,6 +13,7 @@ the `.ipynb` and edit it directly.
 
 atr-ftir
 uv-vis
+cd-secondary-structure
 raman
 fluorescence
 ```

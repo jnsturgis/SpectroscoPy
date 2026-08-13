@@ -524,15 +524,47 @@ SELCON_SUM_BOUNDS = (0.95, 1.05)
 SELCON_MAX_RMSD = 0.25
 
 
-def _pseudo_inverse_solution(design, table, measured, keep):
-    """``f = F A+ a`` with the pseudo-inverse truncated to ``keep`` values."""
+def _truncated_solutions(design, table, measured, limit):
+    """
+    ``f = F A+ a`` at every truncation from 1 to ``limit``, in one pass.
+
+    SELCON collects solutions across truncations rather than choosing one, so
+    the same matrix is inverted once per retained singular value. Decomposing
+    it once and varying only the truncation is the difference between this
+    being usable and not: on SMP180's 128 references the naive form -- one
+    ``np.linalg.svd`` per truncation, of a matrix that had not changed -- took
+    **281 seconds** for a single estimate against 5.
+
+    **``limit`` is capped at the number of singular values.** Asking for more
+    truncations than the matrix has does not produce more solutions; it
+    produces the full-rank solution again. Collecting it repeatedly weights it
+    more heavily in every average downstream, which is what the earlier
+    per-truncation version did: on SMP180's 128 references over 51 wavelengths
+    it counted the full-rank answer about eighty times per subset, so roughly
+    half of SELCON's "accepted solutions" were one solution. Nothing in the
+    published description asks for that -- it was the bound on a loop.
+
+    Yields ``(keep, fractions, weights)``.
+    """
     left, values, right = np.linalg.svd(design, full_matrices=False)
-    keep = max(1, min(int(keep), len(values)))
+    projected = left.T @ measured
+    threshold = values[0] * 1e-12 if len(values) else 0.0
+
     inverse = np.zeros_like(values)
-    nonzero = values[:keep] > values[0] * 1e-12
-    inverse[:keep][nonzero] = 1.0 / values[:keep][nonzero]
-    weights = right.T @ (inverse * (left.T @ measured))
-    return table.T @ weights, weights
+    for keep in range(1, min(int(limit), len(values)) + 1):
+        index = keep - 1
+        if values[index] > threshold:
+            inverse[index] = 1.0 / values[index]
+        weights = right.T @ (inverse * projected)
+        yield keep, table.T @ weights, weights
+
+
+def _pseudo_inverse_solution(design, table, measured, keep):
+    """One truncation of :func:`_truncated_solutions`, for a single answer."""
+    for _, fractions, weights in _truncated_solutions(design, table, measured,
+                                                      max(1, int(keep))):
+        result = (fractions, weights)
+    return result
 
 
 def _selcon(measured, design, table, *, min_references=5, max_references=None,
@@ -621,11 +653,10 @@ def _selcon(measured, design, table, *, min_references=5, max_references=None,
         for _ in range(int(iterations)):
             augmented = np.column_stack([sub_design, target])
             augmented_table = np.vstack([sub_table, guess])
-            solutions = []
-            for keep in range(1, min(size + 1, augmented.shape[1]) + 1):
-                fractions, _ = _pseudo_inverse_solution(
-                    augmented, augmented_table, target, keep)
-                solutions.append(fractions)
+            limit = min(size + 1, augmented.shape[1])
+            solutions = [fractions for _, fractions, _
+                         in _truncated_solutions(augmented, augmented_table,
+                                                 target, limit)]
             updated = np.mean(solutions, axis=0)
             if np.max(np.abs(updated - guess)) < convergence:
                 guess = updated
@@ -636,9 +667,9 @@ def _selcon(measured, design, table, *, min_references=5, max_references=None,
         # SELCON collects solutions, it does not return one.
         augmented = np.column_stack([sub_design, target])
         augmented_table = np.vstack([sub_table, guess])
-        for keep in range(1, min(size + 1, augmented.shape[1]) + 1):
-            fractions, weights = _pseudo_inverse_solution(
-                augmented, augmented_table, target, keep)
+        limit = min(size + 1, augmented.shape[1])
+        for keep, fractions, weights in _truncated_solutions(
+                augmented, augmented_table, target, limit):
             total = float(np.sum(fractions))
             if ignore_sum_rule:
                 if abs(total) < 1e-9:
