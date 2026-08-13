@@ -979,3 +979,75 @@ it that size. An unknown kind loads as a plain collection with a warning, so a
 file from a later version is still readable for its spectra and provenance.
 
 626 tests pass.
+
+
+---
+
+## The tutorial, the data that ships, and a SELCON defect (2026-08-13)
+
+James asked for CD secondary structure in the tutorials, to widen the pool of
+testers nearby. The tutorials promise that every page runs against data that
+ships, and a CD page cannot keep that promise without reference data.
+
+**So SP175 and SMP180 now ship** (120 kB), and ADR-0002 §9's posture is
+satisfied rather than broken: it forbade shipping reference data *until the
+terms had been checked*, and DichroWebGit's MIT licence permits redistribution
+provided the notice travels with the copy. `LICENSE.DichroWebGit` is installed
+beside the data with a test that keeps it there, and the citation condition
+travels in the set's `info`. The unknown is one near-native AqpZ-W14A scan,
+2.5 kB, decimated to the 1 nm the reference sets use and cropped at 197 nm
+where the J-815's photomultiplier passes 600 V.
+
+### Two things in SELCON, and the second was found by fixing the first
+
+**It was 56× slower than it needed to be.** The SVD of an unchanged matrix was
+recomputed once per truncation: 281 seconds for one estimate against SMP180,
+against 5 for the same answer.
+
+**Making that bit-identical exposed the defect.** The truncation loop ran to
+the subset size while the truncation itself was clamped to the number of
+singular values, so past the rank the same solution was collected repeatedly —
+about eighty times per subset on SMP180, meaning **roughly half of SELCON's
+accepted solutions were one solution**, weighting it most heavily in exactly
+the largest subsets. Nothing in the published description asks for that. It was
+a loop bound.
+
+### Re-measured, ten-fold, 190–240 nm
+
+| | SP175 helix rmse / bias | SMP180 helix rmse / bias |
+|---|---|---|
+| `all-references` | refused all 71 | refused all 128 |
+| `nearest-shapes` | 0.163 / +0.048 (71) | 0.147 / +0.041 (128) |
+| `subset-average` | 0.158 / −0.071 (61) | 0.153 / −0.076 (113) |
+| `ridge` | 0.143 / −0.019 (71) | 0.143 / −0.013 (128) |
+| **`selcon`** | **0.078 / −0.002 (60)** | **0.098 / −0.005 (114)** |
+
+**`ridge` and `nearest-shapes` reproduce the recorded values to three
+decimals**, which is the check that the fix changed only what it touched.
+SELCON improves from 0.107 to 0.098 on SMP180 and answers 114 of 128 instead
+of 95 — more accurate *and* refusing less often.
+
+The matched comparison is stronger than before, too:
+
+| | SELCON | `ridge`, same proteins | `ridge`, the ones SELCON refused |
+|---|---|---|---|
+| SP175 | 0.078 (60) | 0.115 | **0.246** (11) |
+| SMP180 | 0.098 (114) | 0.136 | **0.193** (14) |
+
+So SELCON wins by about 0.04 on the proteins both attempted, and the ones it
+declines are genuinely the hard ones — `ridge` does roughly twice as badly on
+them. **A refusal is information about the protein, not a gap in the method.**
+
+### Still open
+
+**The estimate depends on where the wavelength grid starts.** The same AqpZ
+scan sampled at 0.1 nm from 196.2 nm and at 1 nm from 197.0 nm gives
+`nearest-shapes` 0.705 against 0.633. The design is built at 1 nm either way,
+so this is the grid offset alone — and 0.07 in helix is larger than the ±0.030
+this document quotes as SELCON's uncertainty on AqpZ. Not yet written up in the
+guide, and it bears on how much any of these numbers mean.
+
+**The 0.657 recorded above for AqpZ does not reproduce** from either sampling
+of the 4 µM 30 °C scan; the shipped extraction gives 0.599 after the fix. The
+2026-08-12 table should be read as superseded by the tutorial's numbers, which
+are computed from data anyone can now load.

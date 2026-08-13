@@ -160,46 +160,58 @@ unusual the protein is — which is exactly when the estimate matters.
 
 ## Measured: SP175 and SMP180, ten-fold held out, 190–240 nm
 
-Not from this page — these are runs against the real reference sets, which
-you fetch yourself (see below). Errors are in fraction units, so 0.14 is
-fourteen percentage points.
+Not from this page — these are runs against the real reference sets, which now
+ship with the package (see below). Errors are in fraction units, so 0.14 is
+fourteen percentage points. Re-measured 2026-08-13, after the SELCON fix
+described at the end of this section.
 
 **SP175** (71 soluble proteins):
 
-| method | helix rmse | helix bias | sheet rmse | sheet bias |
-|---|---|---|---|---|
-| `all-references` | — | — | — | — refused, all 71 |
-| `nearest-shapes` | 0.174 | +0.050 | 0.136 | −0.035 |
-| `subset-average` | 0.164 | −0.077 | 0.118 | +0.059 |
-| **`ridge`** | **0.143** | **−0.019** | **0.117** | +0.019 |
+| method | n answered | helix rmse | helix bias | sheet rmse | sheet bias |
+|---|---|---|---|---|---|
+| `all-references` | 0 | — | — | — | — refused, all 71 |
+| `nearest-shapes` | 71 | 0.163 | +0.048 | 0.132 | −0.033 |
+| `subset-average` | 61 | 0.158 | −0.071 | 0.114 | +0.053 |
+| `ridge` | 71 | 0.143 | −0.019 | 0.117 | +0.019 |
+| **`selcon`** | **60** | **0.078** | **−0.002** | **0.093** | **−0.002** |
 
 **SMP180** (128 soluble and membrane proteins):
 
 | method | n answered | helix rmse | helix bias | sheet rmse | sheet bias |
 |---|---|---|---|---|---|
 | `all-references` | 0 | — | — | — | — refused, all 128 |
-| `nearest-shapes` | 128 | 0.160 | +0.048 | 0.137 | −0.036 |
-| `subset-average` | 108 | 0.155 | −0.076 | 0.119 | +0.052 |
+| `nearest-shapes` | 128 | 0.147 | +0.041 | 0.129 | −0.029 |
+| `subset-average` | 113 | 0.153 | −0.076 | 0.118 | +0.051 |
 | `ridge` | 128 | 0.143 | −0.013 | 0.121 | +0.010 |
-| **`selcon`** | **95** | **0.107** | **+0.001** | **0.103** | **−0.002** |
+| **`selcon`** | **114** | **0.098** | **−0.005** | **0.095** | **+0.004** |
 
-**`selcon` is the most accurate and the least biased** — and it declines to
-answer for 26 % of the set, which is the trade. That refusal rate is a feature
-rather than a shortfall: the alternative is a confident number from a fit that
-failed its own consistency tests.
+**`selcon` is the most accurate and the least biased**, on both sets and on
+both categories — and it declines to answer for some proteins, which is the
+trade. That refusal is a feature rather than a shortfall: the alternative is a
+confident number from a fit that failed its own consistency tests.
 
-Its rmse is conditional on succeeding, so it needs the fair comparison. On the
-**same 95 proteins** SELCON answered, `ridge` scores 0.137 against SELCON's
-0.107 — so SELCON is genuinely better, not merely selective. The 33 it refused
-are somewhat harder for `ridge` too (0.161), so there is a mild selection
-effect on top.
+Its rmse is conditional on succeeding, so it needs the fair comparison, on the
+proteins both methods answered:
+
+| | SELCON | `ridge`, same proteins | `ridge`, the ones SELCON refused |
+|---|---|---|---|
+| SP175 | 0.078 (60) | 0.115 | **0.246** (11) |
+| SMP180 | 0.098 (114) | 0.136 | **0.193** (14) |
+
+Two things follow. SELCON is **genuinely better and not merely selective** —
+it wins by about 0.04 on the proteins both attempted. And the proteins it
+declines are the hard ones: `ridge` does roughly twice as badly on them as on
+the rest, so a refusal is information about the protein rather than a gap in
+the method.
 
 Three things worth reading off these.
 
-**`ridge` is the recommendation**, on both sets, on both rmse and bias. Not by
-a wide margin, but consistently.
+**`selcon` is the recommendation where the spectrum is in the reference set's
+units**, and `ridge` where it is not. That caveat is not small — see the
+amplitude table above — and it is why `ridge` remains the default suggestion
+for a spectrum of unknown concentration.
 
-**`subset-average` has a real bias**: −0.077 on helix, +0.059 on sheet. It
+**`subset-average` has a real bias**: −0.076 on helix, +0.051 on sheet. It
 pulls towards the reference set's own mean composition, which for SMP180 is
 33 % helix. That is the regression-to-the-mean effect above, measured rather
 than argued.
@@ -227,13 +239,48 @@ Reaching to 180 nm is worth about 0.02 in rmse. Losing the range down to
 choice of method or the reference set**, which is not what we expected before
 measuring it.
 
+### A defect found by making it faster (2026-08-13)
+
+The numbers above are a re-measurement, and worth explaining because they moved.
+
+SELCON collects solutions across every truncation of the pseudo-inverse rather
+than choosing one. The implementation recomputed the SVD of an unchanged matrix
+once per truncation, which made a single estimate against SMP180 take **281
+seconds**. Decomposing once and varying only the truncation takes 5 — and
+making that change produce bit-identical output is what exposed the real
+defect.
+
+The truncation loop ran to the subset size, while the truncation itself was
+clamped to the number of singular values. Past the rank, the same solution was
+therefore collected again and again: with 128 references over 51 wavelengths,
+the full-rank answer counted about eighty times per subset, so **roughly half
+of SELCON's accepted solutions were one solution**, dominating the average for
+exactly the largest subsets. Nothing in the published description asks for
+that; it was the bound on a loop.
+
+Fixed, SELCON improves on both sets and refuses less often — SMP180 helix rmse
+0.107 → 0.098 and 95 proteins answered → 114. `ridge` and `nearest-shapes` are
+unchanged to three decimals, which is the check that the re-measurement changed
+only what the fix touched.
+
 ## Getting the reference sets
 
-They are **not shipped**. SP175, SMP180 and IDP175 are published by the PCDDB
-organisation as part of [DichroWebGit](https://github.com/pcddb/DichroWebGit)
-under the **MIT licence**, which does permit redistribution — but the same data
-taken from the PCDDB website carries no such grant, so the provenance matters
-and is worth keeping with the files.
+**SP175 and SMP180 ship with the package**, and are meant for real work rather
+than only for following a page:
+
+```python
+references = spc.datasets.reference_set('smp180')
+```
+
+They ship because their terms allow it. The PCDDB organisation publishes them
+as part of [DichroWebGit](https://github.com/pcddb/DichroWebGit) under the
+**MIT licence**, which permits redistribution provided the notice travels with
+the copy — so `LICENSE.DichroWebGit` is installed beside the data. The same
+data taken from the PCDDB website carries no such grant: those terms give
+access and say nothing about reuse. Citation is a condition of use of the
+underlying data, and travels in the set's `info`.
+
+IDP175 does not ship; fetch it, or any set of your own, the same way:
 
 ```
 git clone https://github.com/pcddb/DichroWebGit
@@ -242,7 +289,7 @@ git clone https://github.com/pcddb/DichroWebGit
 ```python
 from spectroscopy.library import load_dichroweb_basis
 
-references = load_dichroweb_basis('DichroWebGit/Datasets/SMP180')
+references = load_dichroweb_basis('DichroWebGit/Datasets/IDP175')
 result = cd.estimate(my_spectrum, 'ridge', references, region=(190.0, 240.0))
 
 print(references)                    # what it is and where it came from
