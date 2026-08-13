@@ -221,6 +221,11 @@ Items 1 and 2 are unblocked today. Item 3 is unblocked by finding one notebook.
 
 ## Merge criteria
 
+> **Merged into `main` 2026-08-13, with criterion 1 consciously set aside.**
+> See the entry at the end of this document for why: the branch stopped being
+> purely post-1.0 CD work and became half core-freeze work, and criterion 1
+> would have held *that* half back until after the freeze it exists to serve.
+
 Not "it works" — this branch merges when:
 
 1. The freeze work on `main` is done and 1.0 is out.
@@ -1051,3 +1056,55 @@ guide, and it bears on how much any of these numbers mean.
 of the 4 µM 30 °C scan; the shipped extraction gives 0.599 after the fix. The
 2026-08-12 table should be read as superseded by the tutorial's numbers, which
 are computed from data anyone can now load.
+
+
+---
+
+## Merged into `main` (2026-08-13)
+
+### Why criterion 1 was set aside
+
+The merge criteria said this branch merges after 1.0 is out. That was right
+when it was written and is wrong now, because **the branch stopped being purely
+post-1.0 CD work**. Roughly half of what it carries has a *pre*-freeze deadline:
+
+- `SpectrumCollection.info` and the metadata schema — keys freeze in November
+- `.spy` holding a collection — the format freezes in November
+- ADR-0005 — a decision about which keys freeze
+- **freeze blocker 5**, the shim removal — a `main` roadmap item that happened
+  to get done here
+
+Holding those on a branch until after 1.0 would keep them off `main` until
+after the freeze they exist to serve. Criterion 1 was protecting the release
+from CD; it had started protecting the release from its own preparation.
+
+The other three criteria are met. WP5 has measured a spread (held-out
+validation on both reference sets, and the AqpZ disagreement written up). No
+reference data ships whose terms were not checked — SP175 and SMP180 are MIT
+with the notice installed beside them. `Composition` is unchanged: no field of
+it moved while four methods and two techniques were built against it.
+
+### What merging does and does not promise
+
+**Nothing was added to the frozen surface.** `spectroscopy.__all__` is
+byte-identical to before this work.
+
+`processing.cd`, `processing.melting`, `structure.from_cd` and
+`library.ReferenceSet` land as an **experimental surface, outside the 1.0 API
+promise** — ADR-0002 §10, following the precedent roadmap §20.3 set for the
+FTIR estimator and widening it to cover both halves. They ship, they are
+documented, their accuracy is published, and 1.0 does not undertake to keep
+their signatures. ADR-0005 §2.3 has already concluded that `ReferenceSet`
+should become a convenience rather than a kind, so freezing it would contradict
+a decision already taken.
+
+### What is left
+
+WP3 (readers proper) never became necessary — the AqpZ export is text, so
+`spc.read` handles it. WP7, the combined CD + FTIR estimate, waits on the FTIR
+half working (§20, September). And the work that prompted the branch to be
+opened at all — a faithful CDSSTR, with the selection and self-consistency
+rules that make subset fitting work — is next, on a branch off this one.
+`subset-average` remains the *idea* rather than the published algorithm, and
+its measured −0.076 helix bias is the argument for not letting it wear the
+name.

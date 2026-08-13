@@ -297,3 +297,42 @@ user comparing against "the crystal structure" deserves to know which they got:
 - **Where the module lives.** `processing.structure` follows the
   `processing.ftir` precedent, but the CD half is not FTIR and the PDB half is
   not spectroscopy.
+
+---
+
+## 10. Status at 1.0: the estimators are experimental (2026-08-13)
+
+**`processing.structure`, `processing.cd`, `processing.melting` and
+`library.ReferenceSet` are outside the 1.0 API promise.** They ship, they are
+documented, their measured accuracy is published — and 1.0 does not undertake
+to keep their signatures. Roadmap §20.3 recommended exactly this for the FTIR
+estimator; it applies to the whole secondary-structure surface, and it is
+recorded here rather than left as a recommendation.
+
+**The frozen surface is unchanged by any of it.** `spectroscopy.__all__` is
+byte-identical to what it was before this work: nothing here was added to the
+ten-name public surface, and everything here is reached through a submodule.
+
+Three reasons, in order of weight.
+
+**The numbers are not all usable yet.** §19 measured the FTIR estimator at ±20
+percentage points across a concentration series at R² = 0.999, and the
+diagnosis is scheduled for September. Promising an interface whose output is
+known to be wrong would be promising the wrong thing.
+
+**ADR-0005 is about to reshape one of these types.** Its §2.3 concludes that
+`ReferenceSet` should become a convenience rather than a kind, once a
+collection interprets declared quantities generally. Freezing it at 1.0 would
+contradict a decision already taken.
+
+**The CD half has held-out validation and still disagrees with itself.** On
+AqpZ the methods differ by 0.18 in helix and the best-validated one is furthest
+from the crystal structure. That is the honest state of the technique rather
+than a defect in the code, but it is not a state to build a stability promise
+on.
+
+What *is* promised at 1.0 is the part that has been stable through all of this:
+the DSSP vocabulary, `Category`, and the `Composition` contract of §3 — one
+answer type across techniques, `None` for *not estimated* rather than zero, and
+`quality` never empty. Those are what the estimators must satisfy, and they
+have not changed while four methods and two techniques were built against them.

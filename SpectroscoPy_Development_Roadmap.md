@@ -1129,6 +1129,12 @@ Three options, and the middle one is the recommendation:
 Recommend the second: it keeps the contract the CD branch is being built
 against, keeps the failure visible, and promises nothing that cannot be kept.
 
+**✅ Taken, 2026-08-13, and widened.** The experimental surface is recorded in
+ADR-0002 §10 and covers the CD half as well as the FTIR one -- both estimators,
+the melt tools and `library.ReferenceSet`. What 1.0 does promise is the
+vocabulary and the `Composition` contract, which have not changed while four
+CD methods were built against them.
+
 ### 20.4 Until then
 
 August work is what does not need James or a lab: the `parameter_from=` gap
