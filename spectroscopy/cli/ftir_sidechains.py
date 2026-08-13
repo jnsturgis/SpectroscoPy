@@ -9,7 +9,7 @@ Usage:
     spc-ftir-sidechains [-h] [--wn_range X Y] [--pH PH] [--res RES] [--D2O]
                         [--addN] [--addC] [--plot] [--output OUTPUT] filename
 
-All the science is in :mod:`spectroscopy.processing.ftir`; this module only
+All the science is in ``spectroscopy.processing.ftir``; this module only
 parses arguments, reads the sequence file, and optionally plots or saves.
 """
 

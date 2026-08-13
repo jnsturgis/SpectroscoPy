@@ -86,15 +86,52 @@ DEFAULT_NEIGHBOURS = 5
 DEFAULT_SUBSET_SIZE = 8
 
 
+def _shared_grid(basis):
+    """The wavelengths every reference has, if they all have the same ones."""
+    grids = [np.asarray(b.x, dtype=float) for b in basis]
+    first = grids[0]
+    if all(g.shape == first.shape and np.allclose(g, first) for g in grids[1:]):
+        return np.sort(first)
+    return None
+
+
 def design_matrix(spectrum, basis, region=DEFAULT_REGION):
     """
-    ``(x, measured, design)`` on a common axis at the **coarser** spacing.
+    Put the measurement and the references on one set of wavelengths.
 
-    Coarser because a measurement cannot carry more information about a basis
-    than the basis has. Resampling a 1 nm reference set onto a 0.1 nm spectrum
-    makes a matrix of 439 rows whose rank is 46: ten times as many equations
-    as there is information, which makes an underdetermined fit look well
-    posed to anything that counts rows.
+    Returns those wavelengths, the measurement on them, and a column per
+    reference. Everything downstream works from this.
+
+    Comparing spectra means having values at the same places, and almost
+    nothing arrives that way -- a reference set is on whole nanometres, and an
+    instrument writes whatever step it was set to. Somebody has to be moved,
+    and moving anybody invents values between the ones actually recorded.
+
+    So use the wavelengths the *references* were measured at. There is one
+    spectrum on one side and a hundred on the other, and interpolating one
+    spectrum damages less than interpolating a hundred. It usually damages
+    nothing at all: a reference set on whole nanometres and a scan at 0.1 nm
+    steps share every whole nanometre, so both sides are read at points they
+    genuinely hold.
+
+    The wavelengths are not chosen to suit the measurement, and that is the
+    point. Anchoring the grid where the scan happens to begin lands it between
+    both sides' real points and interpolates everybody: on a real AqpZ
+    spectrum, starting at 196.2 nm instead of 197.0 moved the helix estimate
+    from 0.633 to 0.705, which is a large answer to a question about where a
+    file starts.
+
+    Where the references disagree among themselves -- a basis assembled from
+    several sources -- there is no set of wavelengths they all hold, so a
+    common grid is built at the coarsest spacing present and everybody is
+    interpolated. That is the compromise, taken only when nothing better is
+    available.
+
+    The spacing is never finer than the coarsest side, because a measurement
+    cannot carry more information about a reference than the reference has.
+    Resampling a 1 nm reference set onto a 0.1 nm scan makes 439 equations of
+    rank 46: ten times as many rows as there is information, which makes an
+    underdetermined fit look well posed to anything that counts rows.
     """
     x = np.asarray(spectrum.x, dtype=float)
     spacings = [float(np.median(np.abs(np.diff(np.asarray(b.x, dtype=float)))))
@@ -110,7 +147,18 @@ def design_matrix(spectrum, basis, region=DEFAULT_REGION):
             f"over only {max(high - low, 0):g} nm, which is not enough to "
             f"compare shapes"
         )
-    grid = np.arange(low, high + step / 2, step)
+    shared = _shared_grid(basis)
+    if shared is not None:
+        grid = shared[(shared >= low - 1e-9) & (shared <= high + 1e-9)]
+    else:
+        grid = np.arange(low, high + step / 2, step)
+    if len(grid) < 5:
+        raise ValueError(
+            f"only {len(grid)} wavelengths are common to the spectrum, the "
+            f"basis and the region {sorted(region)}; that is not enough to "
+            f"compare shapes"
+        )
+
     measured = np.asarray(spectrum.resample(grid).y, dtype=float)
     design = np.column_stack([np.asarray(b.resample(grid).y, dtype=float)
                               for b in basis])
@@ -269,9 +317,10 @@ def _references(references, argument='references'):
     """
     Check that what arrived is a reference set, and say so plainly if not.
 
-    Every method here needs each spectrum's known structure. Taking that as a
-    second, parallel list is what ADR-0004 removed: a list of compositions in
-    the wrong order raises nothing and shifts the answer by 0.16 in helix.
+    Every method here needs each spectrum's known structure, and the set is
+    what carries it. Passing the structures separately, as a second list, is
+    how they come to be in the wrong order -- which raises nothing at all and
+    shifts a helix estimate by 0.16.
     """
     from spectroscopy.library import ReferenceSet  # noqa: PLC0415
 
@@ -288,7 +337,7 @@ def _references(references, argument='references'):
 
 
 def _truth(references):
-    """``(categories, table)`` -- the known structure of a set, as a matrix."""
+    """What the references are known to contain, as numbers a fit can use."""
     compositions = references.compositions
     if not compositions:
         raise ValueError("the reference set is empty")
@@ -303,10 +352,10 @@ def uncertainty_from_replicates(collection):
     CD is nearly always measured as several accumulations, so the noise is
     **measured, not assumed** -- and it is strongly wavelength-dependent, since
     it grows wherever the photomultiplier is working hardest. Feeding that to
-    :func:`estimate` weights each wavelength by how well it is known, and lets
+    ``estimate`` weights each wavelength by how well it is known, and lets
     the uncertainty on the composition be propagated rather than guessed.
 
-    Returns a :class:`~spectroscopy.spectra.Spectrum` of standard errors,
+    Returns a ``Spectrum`` of standard errors,
     which is just ``collection.sem()``; this exists to say so in one place.
     """
     return collection.sem()
@@ -315,20 +364,20 @@ def uncertainty_from_replicates(collection):
 def estimate(spectrum, method, references, *, region=DEFAULT_REGION,
              sigma=None, resamples=0, seed=0, **options):
     """
-    Estimate a composition by one named method. See :data:`METHODS`.
+    Estimate a composition by one named method. See ``METHODS``.
 
     Parameters
     ----------
     references : ReferenceSet
         Spectra of proteins whose structure is known, carrying that structure
-        with them -- from :func:`~spectroscopy.library.load_dichroweb_basis`,
-        :func:`~spectroscopy.library.load_basis`, or
-        :meth:`~spectroscopy.library.ReferenceSet.from_compositions`. A
+        with them -- from ``load_dichroweb_basis``,
+        ``load_basis``, or
+        ``from_compositions``. A
         structural basis and a set of reference proteins are the same type
         here; the second is the first with a table that is not one-hot.
     sigma : Spectrum or array_like, optional
         Per-wavelength standard error, as
-        :func:`uncertainty_from_replicates` returns from a set of repeat
+        ``uncertainty_from_replicates`` returns from a set of repeat
         scans. Given, the fit is **weighted** by ``1/sigma``: a wavelength
         known to ten times the precision of another counts for ten times as
         much, which is the right thing to do and not what an unweighted fit
@@ -341,7 +390,7 @@ def estimate(spectrum, method, references, *, region=DEFAULT_REGION,
         how much the answer moves for noise the size you actually measured,
         which no goodness-of-fit statistic can tell you.
 
-    Returns a :class:`~spectroscopy.processing.structure.Composition`; the
+    Returns a ``Composition``; the
     method's own diagnostics are in its ``quality``.
     """
     from spectroscopy.processing.structure import Composition  # noqa: PLC0415
@@ -420,11 +469,11 @@ def benchmark(references, methods=None, *, folds=10,
     Parameters
     ----------
     references : ReferenceSet
-        The reference set, as :func:`~spectroscopy.library.load_dichroweb_basis`
+        The reference set, as ``load_dichroweb_basis``
         returns it. Each protein's structure travels with its spectrum, so
         hiding a fold cannot separate the two.
     methods : sequence of str, optional
-        Which to compare. All of :data:`METHODS` by default.
+        Which to compare. All of ``METHODS`` by default.
     folds : int
         How many parts to split the set into. Ten means each round hides 10%
         and estimates it from the other 90%.
@@ -545,7 +594,7 @@ def _truncated_solutions(design, table, measured, limit):
 
 
 def _pseudo_inverse_solution(design, table, measured, keep):
-    """One truncation of :func:`_truncated_solutions`, for a single answer."""
+    """One truncation of ``_truncated_solutions``, for a single answer."""
     for _, fractions, weights in _truncated_solutions(design, table, measured,
                                                       max(1, int(keep))):
         result = (fractions, weights)
@@ -601,7 +650,7 @@ def _selcon(measured, design, table, *, min_references=5, max_references=None,
        that the number moves with an amplitude you have not pinned down. For a
        genuinely amplitude-blind estimate use ``ridge`` or ``nearest-shapes``,
        and convert with
-       :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`
+       ``to_mean_residue_ellipticity``
        when you can.
     """
     import warnings  # noqa: PLC0415

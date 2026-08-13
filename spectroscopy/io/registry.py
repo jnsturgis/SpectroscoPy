@@ -68,7 +68,7 @@ class FormatEntry:
     #: Separate from ``writer`` because writing one spectrum and writing a set
     #: are different operations even in a format that can hold either: a set
     #: has a name, a provenance and a licence of its own, and there is nowhere
-    #: to put them in a file that describes one spectrum (ADR-0004 section 5).
+    #: to put them in a file that describes one spectrum.
     collection_writer: Callable | None = None
     #: Opened in binary mode. Text formats sniff an encoding first; a
     #: binary one must not, and would be corrupted by the attempt.
@@ -78,10 +78,12 @@ class FormatEntry:
 
     @property
     def readable(self) -> bool:
+        """True if files of this format can be opened."""
         return self.reader is not None
 
     @property
     def writable(self) -> bool:
+        """True if spectra can be saved in this format."""
         return self.writer is not None
 
 
@@ -149,7 +151,7 @@ def known_types(readable=None, writable=None):
 
 
 def known_extensions():
-    """Map of lower-case extension -> format name."""
+    """Which format each file extension belongs to."""
     mapping = {}
     for entry in REGISTRY.values():
         for extension in entry.extensions:
@@ -225,7 +227,7 @@ def _open(path, encoding=None):
 
 def read_spectra(path, file_type=None, **kwargs):
     """
-    Read a file and return a :class:`SpectrumCollection`.
+    Read a file and return a ``SpectrumCollection``.
 
     Every format goes through here, including the single-spectrum ones -- a
     file holding one spectrum is just a collection of length 1. That matters
@@ -273,7 +275,7 @@ def read_spectrum(path, file_type=None, **kwargs):
     Read a file expected to hold a single spectrum.
 
     Raises if the file turns out to hold several, naming
-    :func:`read_spectra` -- silently returning the first would be the kind of
+    ``read_spectra`` -- silently returning the first would be the kind of
     quiet wrong this library exists to remove.
     """
     spectra = read_spectra(path, file_type, **kwargs)
@@ -291,7 +293,7 @@ def write_spectrum(spectrum, path, file_type=None, **kwargs):
 
     The format is resolved **before** the file is opened. ``open(..., 'w')``
     truncates immediately, so validating afterwards would already have
-    destroyed the target -- that was half of defect D5.
+    destroyed the target.
     """
     entry = _lookup(file_type, path, 'write')
     arguments = {**entry.defaults, **kwargs}
@@ -330,9 +332,9 @@ def write_collection(collection, path, file_type=None, **kwargs):
 
 def read_collection(path, file_type=None, **kwargs):
     """
-    Read a file as a :class:`SpectrumCollection`.
+    Read a file as a ``SpectrumCollection``.
 
-    An alias for :func:`read_spectra` under the name people reach for when
+    An alias for ``read_spectra`` under the name people reach for when
     what they saved was a set. Both work on either kind of file: a
     one-spectrum format loads as a collection of one, which is the honest
     answer rather than an error.

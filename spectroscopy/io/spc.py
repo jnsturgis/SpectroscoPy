@@ -4,7 +4,7 @@
 """
 Galactic / Thermo ``.spc`` files.
 
-Unlike OPUS (:mod:`spectroscopy.io.opus`), this format is **documented**:
+Unlike OPUS (``spectroscopy.io.opus``), this format is **documented**:
 Galactic published the "Universal Data Format Specification", which reproduces
 the ``SPC.H`` header in full. This reader was written from that specification
 and then checked against twelve files written by Galactic's own software.
@@ -299,9 +299,14 @@ def _modifications(fmods):
 
 def read_spc_blocks(source):
     """
-    Every spectrum in an SPC file, as ``(x, y, subheader, header)``.
+    Pull every spectrum out of an SPC file.
 
-    The low-level entry point; :func:`read_spc` is the one the registry uses.
+    An SPC file may hold one spectrum or a stack of them -- a time series, a
+    depth profile, a map. Each comes back with its two axes and the headers
+    that describe it, the file-wide one and the one belonging to that spectrum
+    alone.
+
+    The low-level entry point; ``read_spc`` is the one the registry uses.
 
     Notes
     -----
@@ -380,13 +385,13 @@ def read_spc_blocks(source):
                  binary=True)
 def read_spc(source):
     """
-    Read a ``.spc`` file into :class:`~spectroscopy.spectra.Spectrum`.
+    Read a ``.spc`` file into ``Spectrum``.
 
     Returns
     -------
     list of Spectrum
         Always a list -- this is a ``multi`` reader and the registry wraps the
-        result in a :class:`SpectrumCollection`. ``Spectrum.read()`` still
+        result in a ``SpectrumCollection``. ``Spectrum.read()`` still
         hands back a single spectrum when the file holds only one.
 
     Notes

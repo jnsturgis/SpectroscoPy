@@ -29,7 +29,7 @@ def looks_like_a_header(line, delimiter, usecols, decimal='.'):
 
     Used to decide whether the first row is column labels or data. Assuming a
     header unconditionally is what silently ate the first data point of every
-    headerless file -- the .csv sibling of defect D1.
+    headerless file.
     """
     fields = line.split(delimiter)
     try:

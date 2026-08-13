@@ -686,3 +686,63 @@ def test_malformed_guide_points_are_refused():
         common.poly_baseline(x, y, degree=1, points=[[[1, 2]]])
     with pytest.raises(ValueError, match="more than degree"):
         common.poly_baseline(x, y, degree=3, points=[(900, 0.1), (1800, 0.3)])
+
+
+# ---------------------------------------------------------------------------
+# resampling a spectrum onto new x values
+# ---------------------------------------------------------------------------
+
+def test_savgol_resampling_beats_a_spline_on_noisy_data():
+    """
+    A spline is forced through every point, so it reproduces the noise as
+    faithfully as the signal. Fitting a polynomial through a window averages
+    the noise down instead.
+    """
+    x = np.linspace(200.0, 300.0, 201)
+    clean = np.exp(-((x - 250.0) ** 2) / 50.0)
+    generator = np.random.default_rng(0)
+    noisy = Spectrum(x, clean + 0.02 * generator.normal(size=x.size),
+                         technique='UV-Vis')
+
+    grid = np.linspace(210.0, 290.0, 81)
+    truth = np.exp(-((grid - 250.0) ** 2) / 50.0)
+
+    spline = noisy.resample(grid).y
+    savgol = noisy.resample(grid, 'savgol', window=11, order=3).y
+
+    def error(values):
+        return float(np.sqrt(np.mean((values - truth) ** 2)))
+
+    assert error(savgol) < error(spline) / 1.5
+
+
+def test_savgol_resampling_will_not_guess_its_parameters():
+    """
+    The right window depends on how many points fall across a band -- the
+    sampling interval against the band width. Neither is recoverable from the
+    numbers, so it is asked for rather than invented.
+    """
+    x = np.linspace(200.0, 300.0, 201)
+    spectrum = Spectrum(x, np.exp(-((x - 250.0) ** 2) / 50.0),
+                            technique='UV-Vis')
+    with pytest.raises(ValueError, match='window and order'):
+        spectrum.resample(np.linspace(210.0, 290.0, 81), 'savgol')
+
+
+def test_the_resampling_method_is_recorded():
+    """Which method, and its settings, travel in the history."""
+    x = np.linspace(200.0, 300.0, 201)
+    spectrum = Spectrum(x, np.exp(-((x - 250.0) ** 2) / 50.0),
+                            technique='UV-Vis')
+    step = spectrum.resample(np.linspace(210.0, 290.0, 81), 'savgol',
+                             window=11, order=3).history[-1]
+    assert step.params['method'] == 'savgol'
+    assert step.params['window'] == 11 and step.params['order'] == 3
+
+
+def test_a_window_too_narrow_for_the_order_is_refused():
+    x = np.linspace(200.0, 300.0, 201)
+    spectrum = Spectrum(x, np.exp(-((x - 250.0) ** 2) / 50.0),
+                            technique='UV-Vis')
+    with pytest.raises(ValueError, match='cannot support a polynomial'):
+        spectrum.resample(x, 'savgol', window=3, order=5)

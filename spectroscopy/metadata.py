@@ -10,8 +10,8 @@ reads are part of the file format**, and they freeze when the format does. A
 key that is invented independently in three modules is three keys.
 
 Some of this had already happened by accident. ``path_length`` was introduced
-by :func:`~spectroscopy.processing.unmix.unmix` and read again by
-:mod:`~spectroscopy.processing.scattering` without ever being written down;
+by ``unmix`` and read again by
+``scattering`` without ever being written down;
 ``parameter`` arrived with continuous series. Circular dichroism needs
 concentration and a residue count for its central conversion, and a redox
 titration will want a temperature and a reference electrode. That is four
@@ -30,7 +30,7 @@ succeeds either way.
 **Known truth** -- what a *different* technique says the sample is. This is
 what makes a spectrum a reference rather than just a spectrum, and it is not a
 measurement condition: "this protein is 46 % helix" is not a fact about how
-the spectrum was recorded (ADR-0004 section 2.3).
+the spectrum was recorded.
 
 **Acquisition** -- instrument settings general enough to deserve a shared
 name rather than a per-reader one.
@@ -48,14 +48,13 @@ so that the reserved prefixes are known and readers do not collide.
    name for it, and making ``parameter`` sometimes a list would break every
    consumer that does arithmetic on it. Whether to reserve something like
    ``factors`` has to be decided before 1.0, because these names freeze with
-   the format. ADR-0004 section 7.
+   the format.
 
-   **Settled by ADR-0005**, and more broadly than the gap that prompted it: a
-   spectrum carries named *quantities* of declared space and unit, and which
-   role a quantity plays -- axis of the set, fixed condition, known truth -- is
-   assigned by the analysis rather than carried by the key. The groups below
-   are therefore a description of today's keys, not the shape the schema is
-   heading for. Scheduled for the September breaking-change window.
+   The agreed answer is that a spectrum carries named *quantities*, each with
+   a declared space and unit, and that which role a quantity plays -- the axis
+   a set varies along, a fixed condition, something known from elsewhere -- is
+   decided by the analysis rather than fixed by the key it lives under. The
+   groups below describe today's keys, not where they are heading.
 
 Nothing here is enforced. A missing key is normal and every consumer decides
 what to do about it -- but the rule for the sample conditions is that a
@@ -118,7 +117,7 @@ IDENTIFICATION = (
                             "measured at -- see Spectrum.set_parameter(). "
                             "One scalar: a designed set with several "
                             "categorical factors has no home here yet, and "
-                            "that is open -- ADR-0004 section 7."),
+                            "that is still open."),
     ('parameter_name', 'name', "What that number is: 'potential', "
                                "'temperature', 'concentration'."),
     ('parameter_unit', 'name', "What it is in: 'mV', 'C', 'uM'."),
@@ -137,7 +136,7 @@ IDENTIFICATION = (
 #: What another technique says the sample is. Stored **JSON-native**, because
 #: ``.spy`` serialises metadata as JSON and silently degrades anything else: a
 #: ``Category`` written here comes back as a bare ``str`` with its DSSP states
-#: gone (ADR-0004 section 2.5). So the stored form of a composition is a plain
+#: gone. So the stored form of a composition is a plain
 #: ``{name: fraction}`` dict and the stored form of a category is its name; the
 #: ``Category`` objects are rebuilt from the set's own declaration by
 #: :class:`~spectroscopy.library.ReferenceSet`.
@@ -202,7 +201,7 @@ PROVENANCE_PREFIXES = ('opus_', 'spc_', 'jcamp_', 'file_')
 #: The distinction is not tidiness. Stored per-item, a fact that is true of the
 #: set can disagree with itself -- two spectra of one melt labelled ``'C'`` and
 #: ``'K'`` gathered to a ``parameter_unit`` of ``None``, which reads as *not
-#: set* rather than as *contradicted* (ADR-0004 section 2.4).
+#: set* rather than as *contradicted*.
 SET_LEVEL = (
     ('parameter_name', 'name',
      "What the series parameter is: 'potential', 'temperature'."),

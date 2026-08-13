@@ -154,9 +154,13 @@ def _parameters(raw, offset, length):
 
 def read_opus_blocks(path):
     """
-    Every spectrum in an OPUS file, as ``(name, x, y, parameters)``.
+    Pull every spectrum out of an OPUS file.
 
-    The low-level entry point. :func:`read_opus` is the one the registry uses.
+    One OPUS file usually holds several: the sample, the background, and often
+    an interferogram. Each comes back with the block name it was stored under,
+    its two axes, and whatever acquisition settings the file recorded.
+
+    The low-level entry point. ``read_opus`` is the one the registry uses.
     """
     raw = _bytes_of(path)
     blocks = _directory(raw)
@@ -201,7 +205,7 @@ def read_opus_blocks(path):
                  binary=True)
 def read_opus(path, block=None):
     """
-    Read a native OPUS file into :class:`~spectroscopy.spectra.Spectrum`.
+    Read a native OPUS file into ``Spectrum``.
 
     Parameters
     ----------

@@ -195,12 +195,12 @@ class Spectrum:
 
         ``Spectrum(x, y, **options)``
             **From data.** ``x`` and ``y`` are sequences of equal length --
-            arrays, lists, anything :func:`numpy.asarray` accepts. See below
+            arrays, lists, anything ``numpy.asarray`` accepts. See below
             for the options.
 
         ``Spectrum(path)``
             Read a file, inferring the format from its extension. Prefer
-            :meth:`read`, which is explicit about doing I/O and takes the
+            ``read``, which is explicit about doing I/O and takes the
             format as a named argument.
 
         ``Spectrum(path, name)``
@@ -230,7 +230,7 @@ class Spectrum:
         x_quantity, x_unit, y_quantity, y_unit : str, optional
             Set explicitly, and take precedence over ``technique``. Passing
             any of them marks the units authoritative, so a later
-            :meth:`set_type` will not quietly relabel them.
+            ``set_type`` will not quietly relabel them.
         name : str, optional
             A label for the spectrum. Defaults to ``"unnamed"``.
         metadata : dict, optional
@@ -366,7 +366,7 @@ class Spectrum:
                         x_quantity=None, x_unit=None,
                         y_quantity=None, y_unit=None,
                         name=None, metadata=None, history=None) -> None:
-        """Populate from arrays. See :meth:`__init__` for the arguments."""
+        """Populate from arrays. See ``__init__`` for the arguments."""
         x = np.asarray(x, dtype=float)
         y = np.asarray(y, dtype=float)
         if x.ndim != 1 or y.ndim != 1:
@@ -516,19 +516,15 @@ class Spectrum:
     @property
     def technique(self):
         """
-        The technique, e.g. ``'ATR-FTIR'``. Assigning to it calls
-        :meth:`set_type`, so the axes follow.
+        What produced this spectrum: 'ATR-FTIR', 'UV-Vis', 'CD' and so on.
 
-        This is a property rather than a plain attribute because the obvious
-        line has to be the correct one. ``spectrum.technique = 'ATR-FTIR'``
-        used to assign a string and nothing else, leaving an infrared spectrum
-        labelled in nm with ``metadata['spec_type']`` unset -- and reading
-        ``.technique`` back reported exactly what had been asked for, so the
-        one check anybody would think to make passed. Every plot from such a
-        spectrum is wrong and :meth:`to` converts against the wrong axis.
+        Setting it does more than record the name -- the axis quantities and
+        units follow, so an infrared spectrum stops being labelled in
+        nanometres. That is why assigning to it is safe and why there is no
+        separate string to keep in step.
 
-        Use :meth:`set_type` where ``force_units=True`` is wanted; this is the
-        short form for the common case.
+        Use set_type when you want to force the units as well; this is the
+        short form for the ordinary case.
         """
         return self._technique
 
@@ -698,11 +694,11 @@ class Spectrum:
         Convert an ellipticity spectrum from millidegrees to **mean residue
         ellipticity**, ``deg cm^2 dmol^-1``.
 
-        This is the conversion :mod:`spectroscopy.units` cannot express, and
-        the reason it is a named method rather than a spelling of :meth:`to`:
+        This is the conversion ``spectroscopy.units`` cannot express, and
+        the reason it is a named method rather than a spelling of ``to``:
         every other y conversion is a function of ``y`` alone, and this one
         needs three facts about the sample that no spectrum carries in its
-        numbers (roadmap section 15.4)::
+        numbers::
 
             [theta] = theta_obs / (10 * l * C * n)
 
@@ -852,7 +848,7 @@ class Spectrum:
 
     def clip(self, region) -> "Spectrum":
         """
-        Deprecated alias for :meth:`crop` taking a boolean mask.
+        Deprecated alias for ``crop`` taking a boolean mask.
 
         The old version mutated in place and returned None, which made it
         impossible to record in history; it is now non-mutating like everything
@@ -934,9 +930,9 @@ class Spectrum:
         """
         Construct a baseline as a new Spectrum -- it is *not* subtracted.
 
-        Kept in this form deliberately (review section 5.3): it is useful to
+        Kept in this form deliberately: it is useful to
         plot a baseline next to the data, and ``spectrum - spectrum.baseline()``
-        reads well. Use :meth:`baseline_correct` when you want the corrected
+        reads well. Use ``baseline_correct`` when you want the corrected
         spectrum and a history entry describing the correction.
 
         Methods
@@ -996,7 +992,7 @@ class Spectrum:
         """
         Remove a baseline, returning the corrected spectrum.
 
-        Same arguments as :meth:`baseline`. This is the form that records the
+        Same arguments as ``baseline``. This is the form that records the
         *correction* in history -- doing ``s - s.baseline()`` by hand records
         only an anonymous subtraction, which would not replay.
 
@@ -1056,7 +1052,7 @@ class Spectrum:
     def find_peaks(self, method='second_derivative', *, troughs=None,
                    relative=False, **kwargs) -> PeakTable:
         """
-        Detect peaks and return a :class:`~spectroscopy.peaks.PeakTable`.
+        Detect peaks and return a ``PeakTable``.
 
         By default this works on the inverted second derivative, which is what
         every peak-picking cell in the notebooks does, so that shoulders on a
@@ -1079,7 +1075,7 @@ class Spectrum:
         rather than the band, so one band at 1100 cm-1 came back as a pair at
         1086 and 1114.
 
-        Unlike the old :meth:`peaks` stub, the result is a return value rather
+        Unlike the old ``peaks`` stub, the result is a return value rather
         than something written into ``metadata``: analysis results and
         acquisition facts do not belong in the same dictionary.
 
@@ -1087,7 +1083,7 @@ class Spectrum:
         which for the default method is the second derivative and so is orders
         of magnitude smaller than the spectrum. Pass ``relative=True`` to give
         them as fractions of that signal's range instead -- see
-        :func:`spectroscopy.processing.common.detect_peaks`.
+        ``spectroscopy.processing.common.detect_peaks``.
         """
         indices, properties = common.detect_peaks(
             self.x, self.y, method=method, troughs=troughs,
@@ -1111,7 +1107,7 @@ class Spectrum:
         """
         Decompose this spectrum into overlapping components.
 
-        :meth:`find_peaks` answers "where are the maxima". This answers the
+        ``find_peaks`` answers "where are the maxima". This answers the
         question a crowded band actually poses -- "how much of each overlapping
         component is in here" -- and it is the quantity that band-ratio and
         secondary-structure work report.
@@ -1120,17 +1116,17 @@ class Spectrum:
         ----------
         positions : array_like, optional
             Starting positions, one per component. When omitted they are found
-            with :meth:`find_peaks` using the second-derivative method, which
+            with ``find_peaks`` using the second-derivative method, which
             is the right default: overlapping bands have no maxima of their
             own, so detecting on the spectrum itself finds too few.
         model : {'voigt', 'gaussian', 'lorentzian'}, default 'voigt'
             Pseudo-Voigt by default: a fixed pure shape can be wrong by
             tens of percentage points in composition while still fitting
-            with R^2 > 0.97. See :func:`spectroscopy.fitting.fit_components`.
+            with R^2 > 0.97. See ``spectroscopy.fitting.fit_components``.
         n_peaks : int, optional
             With ``positions`` omitted, keep only the strongest this many.
         **kwargs
-            Passed to :func:`spectroscopy.fitting.fit_components` --
+            Passed to ``spectroscopy.fitting.fit_components`` --
             ``fwhm``, ``position_tolerance``, ``max_fwhm``, ``non_negative``.
 
         Returns
@@ -1198,7 +1194,7 @@ class Spectrum:
         """
         Plot on a matplotlib axes.
 
-        A thin delegator to :func:`spectroscopy.viz.plot`, which sets the axis
+        A thin delegator to ``spectroscopy.viz.plot``, which sets the axis
         labels from this spectrum and reverses x for the techniques that are
         quoted high-to-low. Keeping the drawing in the viz layer is review
         crossing C2; ``ax`` stays first and optional so existing notebook calls
@@ -1213,27 +1209,72 @@ class Spectrum:
 #
 ##=============================================================================
 
-    def resample(self, x_values) -> "Spectrum":
+    def resample(self, x_values, method='spline', window=None,
+                 order=None) -> "Spectrum":
         """
-        Estimate the spectrum at a new set of x positions.
+        Work out what the spectrum would read at a different set of x values.
 
-        Needed before arithmetic between spectra that were not sampled at the
-        same points -- different spectrometer settings, or different machines.
-        Arithmetic now raises a clear error pointing here rather than emitting a
-        raw numpy broadcast failure.
+        Needed before arithmetic between spectra that were not measured at the
+        same points -- different instrument settings, or different machines.
+        Arithmetic raises and points here rather than producing a numpy
+        broadcast error.
 
-        Uses a cubic spline, which extrapolates beyond the original range; be
-        wary of the result outside it.
+        Two ways of doing it, and which is right depends on your data.
+
+        ``'spline'`` (the default) fits a cubic spline through every point.
+        It reproduces the values you already have exactly, which also means it
+        reproduces the noise exactly, and it can overshoot between closely
+        spaced points on a steep edge.
+
+        ``'savgol'`` fits a polynomial of your chosen order through a window of
+        neighbouring points and reads the answer off that, so it smooths as it
+        interpolates. For a noisy spectrum this is usually the better choice.
+
+        You have to supply ``window`` and ``order`` yourself for savgol, and
+        this will not guess them. The right window depends on how many points
+        fall across one of your bands -- your sampling interval and your band
+        width, both of which you know and neither of which is recoverable from
+        the array. Too wide and the window flattens the band you are measuring;
+        too narrow and it does nothing a spline would not. A common starting
+        point is a window somewhat narrower than the narrowest band, with
+        order 3, or order 5 where the band shape matters more than the noise.
+
+        Both methods will happily return values outside the range you actually
+        measured, and both are guessing when they do. There is nothing there to
+        interpolate between.
         """
         x_values = np.asarray(x_values, dtype=float)
-        spline = CubicSpline(self.x, self.y)
+
+        if method == 'spline':
+            values = CubicSpline(self.x, self.y)(x_values)
+            recorded = {"method": "cubic_spline"}
+        elif method == 'savgol':
+            if window is None or order is None:
+                raise ValueError(
+                    "resample(method='savgol') needs window and order, and "
+                    "will not choose them: the right window depends on how "
+                    "many of your points fall across one band, which is your "
+                    "sampling interval against your band width. Neither is "
+                    "recoverable from the numbers. Try a window a little "
+                    "narrower than your narrowest band, with order=3."
+                )
+            values = common.local_polynomial(self.x, self.y, x_values,
+                                             int(window), int(order))
+            recorded = {"method": "savgol", "window": int(window),
+                        "order": int(order)}
+        else:
+            raise ValueError(
+                f"resample method must be 'spline' or 'savgol', got "
+                f"{method!r}"
+            )
+
         return self._derive(
-            x=x_values, y=spline(x_values),
+            x=x_values, y=values,
             step=ProcessingStep("resample", {
                 "n_points": int(len(x_values)),
                 "x_min": float(x_values.min()) if len(x_values) else None,
                 "x_max": float(x_values.max()) if len(x_values) else None,
-                "method": "cubic_spline",
+                **recorded,
             }),
         )
 
@@ -1280,7 +1321,7 @@ class Spectrum:
         ----------
         value : float
             The condition. Must be a real number -- that is the whole point of
-            this being separate from :meth:`set_sample`.
+            this being separate from ``set_sample``.
         name : str, optional
             What it is: ``'potential'``, ``'temperature'``, ``'concentration'``.
         unit : str, optional
@@ -1309,15 +1350,15 @@ class Spectrum:
     # people and code-writing assistants actually make.
 
     def get_info(self) -> str:
-        """Alias for :meth:`describe`."""
+        """Alias for ``describe``."""
         return self.describe()
 
     def normalise(self, method='max', window=None) -> "Spectrum":
-        """Alias for :meth:`normalize`, for British spelling."""
+        """Alias for ``normalize``, for British spelling."""
         return self.normalize(method, window)
 
     def write(self, filename, file_type='spy', **kwargs) -> None:
-        """Alias for :meth:`save_as`, symmetrical with :meth:`read`."""
+        """Alias for ``save_as``, symmetrical with ``read``."""
         return self.save_as(filename, file_type, **kwargs)
 
     def set_type( self, spec_type, force_units=False ) -> None:
@@ -1328,7 +1369,7 @@ class Spectrum:
         file that says ``##YUNITS=TRANSMITTANCE`` holds transmittance; calling
         ``set_type('FTIR')`` should not relabel it as absorbance just because
         absorbance is the usual FTIR ordinate. Getting that wrong mislabels a
-        figure and makes :meth:`to` silently do the wrong thing.
+        figure and makes ``to`` silently do the wrong thing.
 
         Pass ``force_units=True`` to override anyway -- useful when a file's
         own metadata is known to be wrong.
@@ -1352,7 +1393,7 @@ class Spectrum:
         """
         Information about the spectrum as a (multiline) string.
 
-        Named to sit beside :meth:`describe_history`; ``get_info`` remains as
+        Named to sit beside ``describe_history``; ``get_info`` remains as
         an alias.
         """
         spec_type = self.technique or self.metadata.get('spec_type')
@@ -1395,7 +1436,7 @@ class Spectrum:
         Load (or re-load) this spectrum from the file named in ``fileinfo``.
 
         Dispatch, encoding detection and the multi-spectrum question all live
-        in :mod:`spectroscopy.io.registry` now; this is a thin adapter that
+        in ``spectroscopy.io.registry`` now; this is a thin adapter that
         keeps the existing in-place semantics.
         """
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
@@ -1424,7 +1465,7 @@ class Spectrum:
 
         Extra keywords go to the writer, so the options a format offers are
         reachable from here rather than only from
-        :func:`spectroscopy.io.write_spectrum`::
+        ``spectroscopy.io.write_spectrum``::
 
             spectrum.save_as("pour_chloe.csv", "csv", decimal=',')
         """
@@ -1438,7 +1479,7 @@ class Spectrum:
 
         The registry resolves the format *before* opening the file, so an
         unwritable type raises instead of truncating the target to nothing --
-        the second half of defect D5.
+        destroying the file it was asked to write.
         """
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
         registry.write_spectrum(self, filename, self.fileinfo['TYPE'], **kwargs)

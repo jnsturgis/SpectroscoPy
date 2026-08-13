@@ -92,6 +92,35 @@ expectation. Fit quality is not validation.
 **Match the surrounding code.** Naming, comment density, docstring style. New
 code should be hard to pick out.
 
+### Docstrings have to be helpful in `help()`
+
+Most of the people using this are spectroscopists, not programmers, and they
+meet a docstring by typing `help(spectroscopy.collection)` at a prompt or `?`
+in a notebook. That is the audience and that is the medium, so:
+
+**Write plain English.** Say what the thing is for and when you would reach
+for it, in sentences. A list of method names is not an explanation — the
+reader can already see the method names.
+
+**No Sphinx markup in the prose.** `` :meth:`~spectroscopy.collection.SpectrumCollection.crop` ``
+renders as a link on the website and as unreadable punctuation at a prompt.
+Write `crop`, or `SpectrumCollection.crop` where it is not obvious which class.
+Double backticks around a literal value are fine; cross-reference roles are
+not. This costs some hyperlinks in the built documentation, deliberately.
+
+**No history.** Not what an earlier version did, not what date something was
+measured, not which review item or ADR prompted it. Somebody reading `help()`
+wants to use the function, and git, the ADRs and the roadmap already hold the
+rest. Reasoning that *changes how you call it* is not history and belongs in:
+"a path length that is absent means unknown, not 1" earns its place.
+
+**Show something that runs.** An example in a docstring is executed by the
+test suite, so it has to work. Mark a genuinely illustrative line — one
+needing data only the reader has — with `# doctest: +SKIP`.
+
+`tests/test_public_api.py` enforces what can be enforced mechanically. The
+plain-English part it cannot check, so that one is on review.
+
 ### Decisions that are hard to reverse
 
 Anything that changes the public API, the on-disk format, or a default that

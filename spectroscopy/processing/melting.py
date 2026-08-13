@@ -33,7 +33,7 @@ which reached R^2 = 0.999 while spreading the same protein over twenty
 percentage points.
 
 So two independent checks are provided, and they use information the fit does
-not: :func:`isodichroic_point` and :func:`two_state_rank`. Both look across
+not: ``isodichroic_point`` and ``two_state_rank``. Both look across
 the whole spectrum rather than at one wavelength, and both can fail while the
 fit still looks perfect. **Report them beside any Tm.**
 """
@@ -294,7 +294,7 @@ def _signal_from(collection, wavelength):
 
 def from_collection(collection, wavelength=None, **kwargs) -> MeltResult:
     """
-    Fit a melt from a :class:`~spectroscopy.collection.SpectrumCollection`
+    Fit a melt from a ``SpectrumCollection``
     whose parameter is temperature.
 
     ``wavelength=None`` uses the **whole spectrum** through its leading
@@ -426,7 +426,7 @@ def two_state_rank(collection, region=None):
         ``third_over_noise`` -- the third singular value in units of the noise
         floor, which is the number to read. Around 1 means two states; a value
         of several means a third species. ``is_two_state`` applies
-        :data:`THIRD_COMPONENT_THRESHOLD` to it. ``singular_values`` and
+        ``THIRD_COMPONENT_THRESHOLD`` to it. ``singular_values`` and
         ``noise_floor`` are given so the judgement can be made by eye.
 
     Examples

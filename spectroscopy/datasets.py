@@ -15,11 +15,11 @@ stop.
     >>> len(spectrum)
     3570
 
-Use :func:`available` to see what there is. These are a deliberately tiny
+Use ``available`` to see what there is. These are a deliberately tiny
 selection; the fuller collection lives in ``data/`` in the source repository
 and is not shipped in the wheel.
 
-:func:`reference_set` is the exception to "these are examples": SP175 and
+``reference_set`` is the exception to "these are examples": SP175 and
 SMP180 are the real published CD reference sets, shipped because their terms
 allow it, and are meant to be used for actual work rather than only for
 following a page.
@@ -105,7 +105,7 @@ def _root():
 
 
 def available():
-    """The names that can be passed to :func:`load`."""
+    """The names that can be passed to ``load``."""
     return tuple(sorted(DATASETS))
 
 
@@ -141,7 +141,7 @@ def load(name):
     Parameters
     ----------
     name : str
-        One of :func:`available`.
+        One of ``available``.
 
     Returns
     -------
@@ -232,7 +232,7 @@ def emission_series():
 def reference_set(name='smp180'):
     """
     A published CD reference set, as a
-    :class:`~spectroscopy.library.ReferenceSet`.
+    ``ReferenceSet``.
 
     ``'sp175'``
         71 soluble proteins, 175-240 nm. The standard set for a soluble
@@ -249,7 +249,7 @@ def reference_set(name='smp180'):
     data, so it travels with the set rather than living in a docstring.
 
     Deliberately **not** ``load()``: that returns one
-    :class:`~spectroscopy.spectra.Spectrum`, and a function whose return type
+    ``Spectrum``, and a function whose return type
     depends on the string you pass it is the kind of thing the guessability
     audit exists to remove.
 
@@ -283,7 +283,7 @@ def reference_set(name='smp180'):
 
 def load_pair():
     """
-    Two comparable UV-Vis spectra, as a :class:`SpectrumCollection`.
+    Two comparable UV-Vis spectra, as a ``SpectrumCollection``.
 
     Enough to demonstrate averaging, arithmetic and overlay plotting without
     needing a folder of your own replicates.

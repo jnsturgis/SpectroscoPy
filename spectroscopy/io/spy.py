@@ -30,8 +30,8 @@ and terminated by the ``# data`` marker.
 A collection: one format, not two
 ---------------------------------
 A set of spectra is the same file with a ``# collection`` block in front and
-the spectrum blocks repeated (James, 2026-08-13 -- one format that holds either,
-rather than a second format beside it)::
+the spectrum blocks repeated -- one format that holds either, rather than a
+second format beside it::
 
     # spy format 1.0
     # collection
@@ -52,23 +52,23 @@ exactly as it was before -- byte for byte. There is one function that writes a
 spectrum block and both paths call it, so the two cannot drift apart.
 
 **Why a set needs more than its spectra.** A collection has facts of its own
-and there was nowhere to put them (ADR-0004 section 5). A reference set fetched
+and there was nowhere to put them. A reference set fetched
 from DichroWebGit arrives under the MIT licence with a citation condition
 attached; saved as 128 separate files the obligation is smeared across 128
 copies of a string, or lost. A titration has a parameter that is *potential in
 mV*, which is true of the series and not of any one spectrum. Those live in
-``# collection``, once, and nothing is written twice -- a format that copied
-``licence`` onto every spectrum would reintroduce exactly the disagreement
-ADR-0004 removed.
+``# collection``, once, and nothing is written twice: a format that copied
+the licence onto every spectrum would put back exactly the disagreement that
+keeping the two levels apart avoids.
 
 No version bump. The version in the first line would not have protected anyone
 anyway: the reader accepts any ``1.x`` and would have parsed a ``1.1``
 collection as one spectrum with every block's numbers run together. What
 protects a caller is the marker, which is checked.
 
-Format 0.0 (legacy) is still read. It wrote name and axis labels but its reader
-never parsed them back, so a round trip silently lost the spectrum's identity
--- review defect D4. Such files now load with whatever they can supply.
+Format 0.0 files are still read. That version wrote a name and axis labels
+that its own reader never read back, so a round trip lost the spectrum's
+identity; such files now load with whatever they can supply.
 
 Writing always produces 1.0.
 """
@@ -146,7 +146,7 @@ def write_data(filehandle, spectrum):
 
 
 def read_data(data_lines):
-    """``(x, y)`` from a tab-separated block, skipping the label row."""
+    """Read the two columns of numbers, ignoring the row of column names."""
     xs, ys = [], []
     for line in data_lines:
         stripped = line.strip()
@@ -179,7 +179,7 @@ _SPECTRUM_MARKERS = ('header', 'spectrum')
 
 def _blocks(lines):
     """
-    Split a 1.x body into ``(marker, header_text, data_lines)`` triples.
+    Break the file into its blocks: what each one is, its header, its data.
 
     One pass, driven by the ``# collection`` / ``# spectrum`` / ``# header`` /
     ``# data`` markers. A block ends where the next begins.
@@ -209,7 +209,8 @@ def _blocks(lines):
 
 def _read_v1(lines):
     """
-    Parse a 1.x file into ``(spectra, collection_header)``.
+    Read a format 1.x file: the spectra in it, and what it says about the
+    set they belong to, if anything.
 
     Returns a list because a file may hold one spectrum or a hundred and
     twenty-eight, and the caller decides which it wanted.
@@ -283,8 +284,7 @@ def _read_v0(lines, my_spectrum):
 
 # -- the collection block ----------------------------------------------------
 #
-# ``info`` is stored as JSON, for the same reason ``metadata`` is (ADR-0004
-# section 2.5): what a format cannot represent, it degrades silently. The one
+# ``info`` is stored as JSON, for the same reason ``metadata`` is : what a format cannot represent, it degrades silently. The one
 # value in practice that JSON has no form for is a list of Category, and it is
 # also the one that must survive -- a category is a name *plus the DSSP states
 # it claims*, and 'helix' alone does not say whether it covers 3-10 and pi.
@@ -362,7 +362,7 @@ def read(filehandle, **kwargs):
 
     Every file is read as a set: one spectrum gives a set of one, which is the
     honest answer and is what lets a caller treat both the same way.
-    :func:`~spectroscopy.io.registry.read_spectrum` is the singular, and keeps
+    ``read_spectrum`` is the singular, and keeps
     its own contract of refusing a file that holds several.
 
     The version is detected from the file itself. A ``format`` keyword is
@@ -429,7 +429,7 @@ def write_collection(filehandle, collection, **kwargs):
     The set's own facts go in the ``# collection`` block, once. Per-spectrum
     data stays in the spectrum blocks. Nothing is written at both levels --
     duplicating ``licence`` onto every spectrum would put back exactly the
-    disagreement ADR-0004 removed.
+    disagreement that separating them removes.
     """
     _ = kwargs
     filehandle.write(f'# spy format {CURRENT_VERSION}\n')

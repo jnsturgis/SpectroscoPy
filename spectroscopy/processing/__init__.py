@@ -9,7 +9,7 @@ Processing and analysis algorithms.
     principled methods, and held-out validation to choose between them.
 ``common``
     Technique-agnostic: baseline, smoothing, normalisation, peak detection.
-    Every one is also a :class:`~spectroscopy.spectra.Spectrum` method.
+    Every one is also a ``Spectrum`` method.
 ``ftir``
     Amide I side-chain contributions and residual spectra.
 ``melting``
@@ -20,7 +20,7 @@ Processing and analysis algorithms.
 ``scattering``
     Removing a scattering background before anything is quantified.
 ``structure``
-    Secondary structure, as a :class:`~.structure.Composition`.
+    Secondary structure, as a ``Composition``.
 ``unmix``
     Supervised separation against known reference spectra.
 """

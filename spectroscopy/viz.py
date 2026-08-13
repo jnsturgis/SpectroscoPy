@@ -8,22 +8,22 @@ Plotting: one spectrum, several, or a whole decomposition.
     >>> from spectroscopy import viz
     >>> figure, axes = viz.plot(spc.datasets.load('ethanol'))   # doctest: +SKIP
 
-:meth:`Spectrum.plot <spectroscopy.spectra.Spectrum.plot>` and
-:meth:`SpectrumCollection.plot <spectroscopy.collection.SpectrumCollection.plot>`
+``Spectrum.plot`` and
+``SpectrumCollection.plot``
 delegate here, so matplotlib stays out of the data model and is imported only
 when something is actually drawn.
 
 ==========================  ==================================================
-:func:`plot`                one spectrum, with the axis labels and the reversed
+``plot``                one spectrum, with the axis labels and the reversed
                             x axis that FTIR and Raman want
-:func:`plot_collection`     several overlaid, with a legend
-:func:`stack`               offset traces, direct-labelled
-:func:`grid`                one panel per sample
-:func:`annotate_peaks`      peak positions marked and labelled
-:func:`annotate_bands`      ``{1650: "Amide I", ...}`` as marked assignments
-:func:`plot_baseline`       a spectrum with its baseline and the correction
-:func:`plot_decomposition`  NMF/PCA components, a fit, and the residuals
-:func:`plot_scores`         samples in component space
+``plot_collection``     several overlaid, with a legend
+``stack``               offset traces, direct-labelled
+``grid``                one panel per sample
+``annotate_peaks``      peak positions marked and labelled
+``annotate_bands``      ``{1650: "Amide I", ...}`` as marked assignments
+``plot_baseline``       a spectrum with its baseline and the correction
+``plot_decomposition``  NMF/PCA components, a fit, and the residuals
+``plot_scores``         samples in component space
 ==========================  ==================================================
 
 Colour
@@ -40,13 +40,13 @@ checked with a palette validator rather than by eye:
     contrast vs white   WARN  three hues below 3:1
 
 The contrast warning is why a legend is drawn whenever there is more than one
-series, and why :func:`stack` direct-labels its traces: identity is never
+series, and why ``stack`` direct-labels its traces: identity is never
 carried by colour alone. Okabe-Ito's yellow and black are deliberately excluded
 -- the yellow is too light against white and the black has no chroma.
 
 Beyond six series the colours repeat but the line style advances, so the
 (colour, style) pair stays unique to 24 traces. Past a handful of overlaid
-spectra :func:`stack` or :func:`grid` reads better than any palette.
+spectra ``stack`` or ``grid`` reads better than any palette.
 """
 
 from __future__ import annotations
@@ -105,7 +105,7 @@ def _merge_style(style, kwargs):
     """
     Per-series style, with anything the caller set winning.
 
-    The same alias problem as :func:`_default_style`, one level up: ``style``
+    The same alias problem as ``_default_style``, one level up: ``style``
     carries ``color`` and ``linestyle``, so a caller passing ``ls='--'`` to
     restyle a whole collection would otherwise be handed both spellings.
     """
@@ -132,7 +132,7 @@ def apply_axes(ax, spectrum, reverse=None, frame=None):
     ----------
     frame : bool, optional
         Draw a full box around the plot instead of only the left and bottom
-        spines. Defaults to :data:`FRAME_AXES`, which you can set once at the
+        spines. Defaults to ``FRAME_AXES``, which you can set once at the
         top of a session rather than passing this everywhere. Ticks are drawn
         inwards on all four sides when framed, which is the usual convention
         that goes with it.
@@ -167,7 +167,7 @@ def plot(spectrum, ax=None, *args, label=None, apply_labels=True, frame=None,
     """
     Plot one spectrum. Returns the matplotlib line list.
 
-    ``frame=True`` draws a full box around the plot; see :data:`FRAME_AXES` to
+    ``frame=True`` draws a full box around the plot; see ``FRAME_AXES`` to
     make that the default for a whole session.
     """
     ax = _axes(ax)
@@ -274,7 +274,7 @@ def grid(collection, key='sample', ncols=2, figsize=None, sharex=True,
     One panel per group -- the overview figure at the top of every notebook.
 
     ``key`` is a metadata field or a callable, as for
-    :meth:`SpectrumCollection.group_by`. Returns ``(figure, axes)``.
+    ``SpectrumCollection.group_by``. Returns ``(figure, axes)``.
     """
     plt = _pyplot()
     groups = collection.group_by(key)

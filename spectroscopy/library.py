@@ -70,15 +70,15 @@ class Coefficient:
 
     .. warning::
 
-       :attr:`value` is an **extinction coefficient**, so for the nucleic acid
+       ``value`` is an **extinction coefficient**, so for the nucleic acid
        rules it is the *reciprocal* of the number people quote. "An A260 of
        1.0 is 50 ug/mL" is stored as ``0.02 (ug/mL)^-1 cm^-1``. Concentration
-       is ``A / (value * l)`` -- use :meth:`concentration` or
-       :func:`concentration_from_absorbance` and let them do it. Multiplying
+       is ``A / (value * l)`` -- use ``concentration`` or
+       ``concentration_from_absorbance`` and let them do it. Multiplying
        instead of dividing gives an answer wrong by the square of the
        coefficient, and for dsDNA that is a factor of 2500.
 
-       :attr:`quoted_as` gives the familiar form, for reading and for
+       ``quoted_as`` gives the familiar form, for reading and for
        checking against a textbook.
     """
 
@@ -98,7 +98,7 @@ class Coefficient:
         """
         ``1 / value`` -- the concentration giving an absorbance of 1.0 in
         1 cm, which is how these are stated in the literature and on the
-        side of a kit box. 50.0 for dsDNA, where :attr:`value` is 0.02.
+        side of a kit box. 50.0 for dsDNA, where ``value`` is 0.02.
         """
         return 1.0 / self.value
 
@@ -214,8 +214,8 @@ def concentration_from_absorbance(absorbance, species, wavelength=None,
     Concentration from a single absorbance reading, via a published
     coefficient.
 
-    Convenience over :meth:`Coefficient.concentration`; the units are those of
-    the coefficient, which :func:`coefficient` will tell you.
+    Convenience over ``Coefficient.concentration``; the units are those of
+    the coefficient, which ``coefficient`` will tell you.
     """
     return coefficient(species, wavelength).concentration(absorbance,
                                                           path_length)
@@ -225,13 +225,13 @@ class ReferenceSet(SpectrumCollection):
     """
     Spectra of samples whose structure is already known by other means.
 
-    A reference set **is** a :class:`~spectroscopy.collection.SpectrumCollection`
+    A reference set **is** a ``SpectrumCollection``
     -- not a wrapper around one -- so it arrives with ``to_matrix``, ``select``,
     ``resample``, ``crop``, indexing and iteration already working, and stays a
-    ``ReferenceSet`` through all of them (ADR-0004).
+    ``ReferenceSet`` through all of them.
 
     What it adds is *gathered views* of each reference's known truth:
-    :attr:`compositions` and :attr:`categories`. The truth is stored in each
+    ``compositions`` and ``categories``. The truth is stored in each
     spectrum's own ``metadata``, and these read it back. That is the whole
     point of the class. The arrangement it replaces was two parallel lists,
     ``(spectra, compositions)``, passed around together:
@@ -243,7 +243,7 @@ class ReferenceSet(SpectrumCollection):
     answer, no complaint. With one list there is nothing to reverse.
 
     Set-level facts -- ``source``, ``citation``, ``licence``, ``accession``,
-    ``unit`` -- live in :attr:`~spectroscopy.collection.SpectrumCollection.info`
+    ``unit`` -- live in ``info``
     and survive slicing, so a five-protein subset of SP175 still carries
     SP175's citation condition.
 
@@ -252,7 +252,7 @@ class ReferenceSet(SpectrumCollection):
     A **reference-protein set** (SP175, SMP180) gives each spectrum a whole
     composition. A **structural basis** gives each spectrum one category, which
     is the same thing with a degenerate table -- all of one structure. Both
-    read back through :attr:`compositions`, which is why they no longer need
+    read back through ``compositions``, which is why they no longer need
     two code paths.
 
     A UV-Vis unmixing set has no known truth at all: a spectrum in epsilon
@@ -314,7 +314,7 @@ class ReferenceSet(SpectrumCollection):
         form of a composition is ``{name: fraction}`` and of a category is its
         name, since ``.spy`` serialises metadata as JSON and turns a
         ``Category`` into a bare string with its DSSP states gone. These are
-        what rebuild the objects (ADR-0004 section 2.5).
+        what rebuild the objects.
         """
         declared = self.info.get('categories')
         return list(declared) if declared else []
@@ -332,7 +332,7 @@ class ReferenceSet(SpectrumCollection):
         True for a basis of pure structures -- each spectrum *is* one category.
 
         The distinction matters to the reader of a result and not to the
-        arithmetic: :attr:`compositions` returns a one-hot composition either
+        arithmetic: ``compositions`` returns a one-hot composition either
         way, so nothing downstream has to branch on it.
         """
         return bool(self) and all('category' in s.metadata for s in self)
@@ -341,7 +341,7 @@ class ReferenceSet(SpectrumCollection):
     def compositions(self):
         """
         Each reference's known composition, in order, as
-        :class:`~spectroscopy.processing.structure.Composition` objects.
+        ``Composition`` objects.
 
         Computed on every access rather than cached, which keeps it impossible
         for the view to be stale. The sets in use are at most a few hundred
@@ -429,7 +429,7 @@ def _declared_categories(compositions):
 @dataclass
 class Reference:
     """
-    One entry in a :class:`Library`: a spectrum that stands for a species.
+    One entry in a ``Library``: a spectrum that stands for a species.
 
     Attributes
     ----------
@@ -440,13 +440,13 @@ class Reference:
         against wavelength, in which case unmixing returns concentrations
         directly. A reference in arbitrary units still works and still
         separates the components -- the coefficients are then relative, and
-        :attr:`is_absolute` says so.
+        ``is_absolute`` says so.
     unit : str
         Units of the y axis, e.g. ``'M^-1 cm^-1'``. Empty when relative.
     source : str
         Where it came from: a citation, or the measurement that produced it.
     uncertainty : ndarray, optional
-        Per-wavelength standard error, as :func:`from_series` produces.
+        Per-wavelength standard error, as ``from_series`` produces.
     """
 
     name: str
@@ -470,24 +470,24 @@ class Library:
     """
     A named set of reference spectra, keyed by species name, for unmixing.
 
-    The UV-Vis specialisation of :class:`ReferenceSet`, and the one case with
+    The UV-Vis specialisation of ``ReferenceSet``, and the one case with
     no known-truth table at all: a spectrum in epsilon units *is* its own
     property, and the fitted coefficient is the answer. That is why it holds
-    :class:`Reference` entries -- name, unit, uncertainty -- rather than bare
+    ``Reference`` entries -- name, unit, uncertainty -- rather than bare
     spectra, and why it is keyed rather than ordered.
 
     .. note::
 
-       ADR-0004 records this as a subclass of ``ReferenceSet``. It is not one
-       yet, deliberately: ``Library`` iterates over ``Reference`` objects and a
+       This should be a subclass of ``ReferenceSet`` and is not one yet,
+       deliberately: ``Library`` iterates over ``Reference`` objects and a
        collection iterates over ``Spectrum``, so inheriting would change what
        ``for reference in library`` yields -- and that is the loop inside
-       :func:`~spectroscopy.processing.unmix.unmix`, whose signature freezes at
+       ``unmix``, whose signature freezes at
        1.0. The unification is worth doing on its own, with the UV-Vis tests
        watching, and not as a side effect of the CD work.
 
     Deliberately thin. The useful operations are selecting a subset and
-    handing it to :func:`spectroscopy.processing.unmix.unmix`; anything
+    handing it to ``spectroscopy.processing.unmix.unmix``; anything
     cleverer belongs where the science is.
 
         >>> library = Library([water, dna], name='house')      # doctest: +SKIP
@@ -530,6 +530,7 @@ class Library:
 
     @property
     def names(self):
+        """The species in this library, in the order they were added."""
         return tuple(self._entries)
 
     def select(self, *names):
@@ -542,8 +543,7 @@ class Library:
 
     def on(self, x):
         """
-        Every reference resampled onto ``x``, as an ``(n_references, n_x)``
-        matrix.
+        Every reference read at the same wavelengths, ready to fit against.
 
         Unmixing needs the references on the sample's own wavelength grid, and
         a reference measured on a different instrument never is. Resampling
@@ -558,7 +558,7 @@ class Library:
 def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
                 unit='M^-1 cm^-1', source=''):
     """
-    Build a :class:`Reference` from spectra of known concentration.
+    Build a ``Reference`` from spectra of known concentration.
 
     This is Beer-Lambert used the other way round: instead of a concentration
     from an absorbance and a known epsilon, an **epsilon spectrum** from a set
@@ -590,7 +590,7 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
     Returns
     -------
     Reference
-        With :attr:`Reference.uncertainty` set per wavelength.
+        With ``Reference.uncertainty`` set per wavelength.
     """
     from spectroscopy.spectra import Spectrum  # noqa: PLC0415
 
@@ -677,7 +677,7 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
     sets, and this loads it. Nothing is redistributed by SpectroscoPy.
 
     That also makes this deliberately **not PCDDB-specific**. It reads whatever
-    :func:`spectroscopy.read` reads, so a basis measured in your own lab, one
+    ``spectroscopy.read`` reads, so a basis measured in your own lab, one
     exported from a supplier, and one downloaded from a public bank all load
     the same way.
 
@@ -691,7 +691,7 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
         ``category``
             For a **structural basis**: which category this spectrum is of --
             ``helix``, ``sheet``, ``turn``, ``other``. Matched by name against
-            :data:`~spectroscopy.processing.structure.DSSP_STATES`-backed
+            ``DSSP_STATES``-backed
             categories.
         ``helix``, ``sheet``, ``turn``, ``other`` (any subset)
             For a **reference-protein set**: this protein's known composition,
@@ -713,8 +713,8 @@ def load_basis(manifest, directory=None, file_type=None, **read_kwargs):
     -------
     ReferenceSet
         Either kind, as one type. A structural basis has
-        :attr:`~ReferenceSet.is_structural` true and its
-        :attr:`~ReferenceSet.compositions` read back as one-hot; a
+        ``is_structural`` true and its
+        ``compositions`` read back as one-hot; a
         reference-protein set carries whole compositions. Both go into
         ``cd.estimate(spectrum, method, references)`` unchanged.
 

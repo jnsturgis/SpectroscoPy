@@ -81,7 +81,7 @@ class ProcessingStep:
         return f"{self.name}({arguments})"
 
     def to_dict(self) -> dict[str, Any]:
-        """Serialise for .spy / JSON. Round-trips through :meth:`from_dict`."""
+        """Serialise for .spy / JSON. Round-trips through ``from_dict``."""
         return {
             "name": self.name,
             "params": dict(self.params),
@@ -90,7 +90,7 @@ class ProcessingStep:
 
     @classmethod
     def from_dict(cls, data: dict[str, Any]) -> ProcessingStep:
-        """Rebuild a step from :meth:`to_dict` output."""
+        """Rebuild a step from ``to_dict`` output."""
         return cls(
             name=data["name"],
             params=dict(data.get("params", {})),

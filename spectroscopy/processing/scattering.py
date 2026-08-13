@@ -12,7 +12,7 @@ the blue, so it sits underneath exactly the bands UV-Vis work depends on.
 
 This belongs **before** unmixing or any concentration estimate, not after. A
 scattering background is not one of the components, and
-:func:`~spectroscopy.processing.unmix.unmix` will otherwise spread it across
+``unmix`` will otherwise spread it across
 whichever references happen to slope the same way -- silently, and with an
 excellent R^2.
 
@@ -32,7 +32,7 @@ that is genuinely what the data wants.
 
 Measured backgrounds can be used instead, and are better when available: a
 blank of the same particles without the chromophore is the honest reference.
-See :func:`from_references`.
+See ``from_references``.
 
 The fit region
 --------------
@@ -126,10 +126,10 @@ def correct_scattering(spectrum, *, region=DEFAULT_REGION,
     """
     Subtract a fitted scattering background from a spectrum.
 
-    Returns the corrected :class:`~spectroscopy.spectra.Spectrum`, or
+    Returns the corrected ``Spectrum``, or
     ``(corrected, background)`` with ``return_background=True`` -- and looking
     at the background is worth the extra line, for the same reason
-    :func:`~spectroscopy.viz.plot_baseline` exists.
+    ``plot_baseline`` exists.
 
     Warns when the correction leaves the fit region substantially negative,
     which means the background was fitted through something that absorbs.
@@ -195,7 +195,7 @@ def from_references(spectrum, backgrounds, *, region=DEFAULT_REGION,
     backgrounds : sequence of Spectrum
         Measured scattering-only spectra. Resampled onto ``spectrum``.
     region : (float, float)
-        Where to fit them, as for :func:`scatter_baseline`.
+        Where to fit them, as for ``scatter_baseline``.
     """
     from spectroscopy.history import ProcessingStep  # noqa: PLC0415
     from spectroscopy.spectra import Spectrum  # noqa: PLC0415

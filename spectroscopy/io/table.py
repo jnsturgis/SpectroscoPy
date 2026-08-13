@@ -71,7 +71,7 @@ def _split(line, delimiter):
 
 def sniff_format(lines):
     """
-    Work out ``(delimiter, decimal)`` together.
+    Work out what separates the columns, and which mark is the decimal point.
 
     They cannot be decided separately. Given ``400,5;0,1234``, splitting on
     ``,`` finds two things that look like numbers -- ``400`` and ``1234`` --
@@ -80,7 +80,7 @@ def sniff_format(lines):
     the only way round it, and it is cheap: four separators by two decimals.
 
     Ties go to the dot, and then to the earlier separator in
-    :data:`CANDIDATE_DELIMITERS`, so an unambiguous file reads exactly as it
+    ``CANDIDATE_DELIMITERS``, so an unambiguous file reads exactly as it
     always did.
     """
     best, best_score = (',', '.'), -1e9

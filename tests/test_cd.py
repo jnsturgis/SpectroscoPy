@@ -1173,3 +1173,53 @@ def test_the_shipped_example_gives_the_documented_disagreement():
     assert abs(helix['nearest-shapes'] - helix['ridge']) > 0.15
     assert (abs(helix['ridge'] - crystal_helix)
             > abs(helix['nearest-shapes'] - crystal_helix))
+
+
+def test_the_answer_does_not_depend_on_where_the_scan_starts():
+    """
+    The wavelengths a fit uses come from the reference set, not from the
+    measurement. A scan starting at 196.2 nm and the same scan resampled to
+    whole nanometres describe the same protein, so they must give the same
+    answer -- and once did not: 0.705 against 0.633 in helix, which is a large
+    reply to a question about where a file begins.
+    """
+    references = spc.datasets.reference_set('smp180')
+    shipped = spc.datasets.load('aqpz')
+
+    # the same spectrum on a finer grid, offset from whole nanometres
+    offset_x = np.arange(196.2, 280.0, 0.1)
+    offset = spc.Spectrum(offset_x, np.interp(offset_x, shipped.x, shipped.y),
+                          technique='CD', name='finer, offset')
+
+    grids = [cdm.design_matrix(s, references, (190.0, 240.0))[0]
+             for s in (shipped, offset)]
+    assert np.allclose(grids[0], grids[1])
+    assert np.allclose(grids[0], np.arange(197.0, 240.5, 1.0))
+
+    for method in ('nearest-shapes', 'ridge'):
+        answers = [cdm.estimate(s, method, references).get('helix')
+                   for s in (shipped, offset)]
+        assert answers[0] == pytest.approx(answers[1], abs=1e-9), method
+
+
+def test_a_basis_that_disagrees_with_itself_falls_back_to_a_common_grid():
+    """
+    A basis assembled from several sources has no wavelengths they all hold,
+    so there is nothing to anchor on and everybody gets interpolated. That is
+    the compromise, and it should still produce a usable grid rather than
+    refusing.
+    """
+    a = np.arange(190.0, 250.5, 1.0)
+    b = np.arange(190.0, 250.25, 0.5)
+    spectra = [spc.Spectrum(a, _band(a, 208, 7, -30), technique='CD', name='a'),
+               spc.Spectrum(b, _band(b, 222, 9, -30), technique='CD', name='b')]
+    references = lib.ReferenceSet(
+        spectra, info={'categories': [HELIX, SHEET]})
+    for spectrum, category in zip(references, ('helix', 'sheet')):
+        spectrum.metadata['category'] = category
+
+    sample = spc.Spectrum(a, _band(a, 210, 8, -30), technique='CD')
+    grid, measured, design = cdm.design_matrix(sample, references,
+                                               (190.0, 240.0))
+    assert len(grid) > 5
+    assert design.shape == (len(grid), 2)

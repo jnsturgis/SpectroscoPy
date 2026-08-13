@@ -351,7 +351,7 @@ def fit_components(x, y, positions, *, model='voigt', fwhm=None,
         across the boundary between beta-sheet and aggregation. The fit warns
         when that happens; believe the warning.
     maxfev : int
-        Passed to :func:`scipy.optimize.curve_fit`.
+        Passed to ``scipy.optimize.curve_fit``.
 
     Returns
     -------

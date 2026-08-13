@@ -134,7 +134,7 @@ class Composition:
         cannot estimate this category* -- never zero, which would be a claim
         the method never made.
     method, technique : str
-        How, and from what. Both appear in :meth:`compare` output, because
+        How, and from what. Both appear in ``compare`` output, because
         the provenance of a disagreement is most of its meaning.
     quality : dict
         How much to trust it. Method-specific, but never empty: an estimate
@@ -280,7 +280,10 @@ class Comparison:
 
     @property
     def largest_disagreement(self):
-        """``(group, difference)`` for the group the two differ on most."""
+        """
+        Which kind of structure the two estimates disagree about most, and by
+        how much.
+        """
         if not self.groups:
             return None, 0.0
         name = max(self.groups,
@@ -433,7 +436,7 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
         Required. Currently ``'amide-i-curve-fit'``. Named rather than
         defaulted because which estimator was used is part of the result.
     bands : sequence of (Category, (low, high))
-        The assignment table. Defaults to :data:`AMIDE_I_BANDS`; the boundaries
+        The assignment table. Defaults to ``AMIDE_I_BANDS``; the boundaries
         differ between authors, so they are a parameter rather than a constant.
     positions : array_like, optional
         Starting positions for the components. Found from the second
@@ -451,7 +454,7 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
         II components are there to hold the baseline honest, and are reported
         in ``quality['outside_assignment']`` rather than silently dropped.
     model, derivative_weight, position_tolerance, **fit_kwargs
-        Passed to :meth:`spectroscopy.spectra.Spectrum.fit_peaks`.
+        Passed to ``spectroscopy.spectra.Spectrum.fit_peaks``.
 
     Returns
     -------
@@ -560,7 +563,7 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
 # ---------------------------------------------------------------------------
 
 #: The two kinds of CD standard, which have to be told apart because they
-#: answer with different things (ADR-0002 section 7.2).
+#: answer with different things.
 #:
 #: ``'basis-spectra'``
 #:     The basis is one spectrum per **structural category** -- pure helix,
@@ -578,10 +581,9 @@ def _reference_set(references):
     """
     Check that the standards arrived as a set that knows its own structures.
 
-    Taking spectra and their compositions as two arguments is what ADR-0004
-    removed: the lists can fall out of step, and the case that does not raise
-    -- same length, wrong order -- moved AqpZ's helix estimate from 0.464 to
-    0.307 without complaining.
+    Spectra and their compositions used to be two arguments. Two lists can
+    fall out of step, and the case that does not raise -- same length, wrong
+    order -- gives a plausible wrong answer in silence. One list cannot.
     """
     from spectroscopy.library import ReferenceSet  # noqa: PLC0415
 
@@ -676,14 +678,14 @@ def from_cd(spectrum, method=None, *, references=None,
     spectrum : Spectrum
         The measured CD spectrum. Any ellipticity unit.
     method : str
-        Required, one of :data:`CD_METHODS`. Named rather than defaulted
+        Required, one of ``CD_METHODS``. Named rather than defaulted
         because which kind of standard was used is most of what the answer
         means, and the two are not interchangeable.
     references : ReferenceSet
         The standards, carrying their own known structure -- from
-        :func:`~spectroscopy.library.load_basis`,
-        :func:`~spectroscopy.library.load_dichroweb_basis` or
-        :meth:`~spectroscopy.library.ReferenceSet.from_compositions`.
+        ``load_basis``,
+        ``load_dichroweb_basis`` or
+        ``from_compositions``.
 
         Both kinds of standard are one type. A **structural basis** gives each
         spectrum one category, so its known truth is one-hot and the fitted
@@ -691,7 +693,7 @@ def from_cd(spectrum, method=None, *, references=None,
         each spectrum a whole composition, and the answer is the same mixture
         of those. ``method`` must match which kind was supplied, and is checked
         against it: the two are not interchangeable and the result has to say
-        which was used (ADR-0002 section 7.2).
+        which was used.
     region : tuple, default (190, 250)
         Wavelength range to fit, nm. The default is the far-UV amide region.
         Below about 190 nm most instruments run out of light and the noise
@@ -704,15 +706,14 @@ def from_cd(spectrum, method=None, *, references=None,
 
     Notes
     -----
-    **No reference data ships with this package**, by decision (ADR-0002
-    section 9): the published sets have redistribution terms that have not been
+    **No reference data ships with this package**: the published sets have redistribution terms that have not been
     checked, and inventing a basis would make a decorative answer look like a
     measurement. You supply the basis; the package supplies the arithmetic.
 
     The arithmetic is tested against synthetic mixtures of a known basis, which
     proves it recovers what it is given. It does not prove that any particular
     basis describes your protein -- that depends entirely on the standards, and
-    the ``rmsd`` in :attr:`Composition.quality` is what tells you whether the
+    the ``rmsd`` in ``Composition.quality`` is what tells you whether the
     fit was able to reproduce your spectrum at all.
     """
     if method not in CD_METHODS:
@@ -725,7 +726,7 @@ def from_cd(spectrum, method=None, *, references=None,
     if not references:
         raise ValueError(
             "from_cd needs references: no reference spectra ship with this "
-            "package (ADR-0002 section 9). Pass references=... -- a "
+            "package. Pass references=... -- a "
             "library.ReferenceSet of pure-structure spectra for "
             "'basis-spectra', or of proteins of known structure for "
             "'reference-proteins'."
@@ -777,7 +778,7 @@ def from_cd(spectrum, method=None, *, references=None,
     # table, so this reduces to "the coefficients are the composition"; a
     # reference-protein set mixes whole compositions in the same proportions.
     # The third case really was the second with a degenerate table, which is
-    # the argument for it not having had its own code path (ADR-0004 section 3).
+    # the argument for it not having had its own code path.
     fractions = {}
     for composition, weight in zip(references.compositions, coefficients):
         for category, value in composition.fractions.items():
@@ -821,17 +822,17 @@ def helix_from_theta222(spectrum, residues=None) -> Composition:
     Helix fraction from the mean residue ellipticity at 222 nm.
 
     **This is not a decomposition and must not be read as one.** It estimates
-    one number from one wavelength. The returned :class:`Composition` fills
+    one number from one wavelength. The returned ``Composition`` fills
     ``helix`` and leaves every other category ``None`` -- which means *this
     method cannot estimate this*, and is deliberately not zero, because zero
     would be a claim about sheet content that a single wavelength at 222 nm is
-    in no position to make (ADR-0002 section 7.2).
+    in no position to make.
 
     Use it when the far-UV data does not reach low enough for a shape fit --
     below about 200 nm a detergent-containing or high-salt buffer often
     saturates the detector, and 222 nm survives that when 195 nm does not. It
     is a real answer from a compromised spectrum, not a second-best version of
-    :func:`from_cd`.
+    ``from_cd``.
 
     Parameters
     ----------
@@ -839,7 +840,7 @@ def helix_from_theta222(spectrum, residues=None) -> Composition:
         **In mean residue ellipticity.** Millidegrees are refused: the
         conversion needs a concentration, a path length and a residue count,
         and guessing any of them scales the answer silently. See
-        :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`.
+        ``to_mean_residue_ellipticity``.
     residues : int, optional
         Residues per chain, for the chain-length correction. Taken from
         ``metadata['n_residues']`` when omitted; without either, the
@@ -910,9 +911,9 @@ def cd_shape_descriptors(spectrum, region=None, edge_tolerance=1.0):
     usual reason two labs disagree about the same protein.
 
     Over-reliance on amplitude is a standing weakness of UV-CD analysis:
-    :func:`helix_from_theta222` is entirely an amplitude measurement, and it
+    ``helix_from_theta222`` is entirely an amplitude measurement, and it
     inherits every error in the three numbers its conversion needs. These
-    descriptors, and :func:`from_cd`, which is scale-free by construction, say
+    descriptors, and ``from_cd``, which is scale-free by construction, say
     what the *shape* supports on its own.
 
     Parameters
@@ -1027,7 +1028,7 @@ def nearest_references(spectrum, references, count=8, region=(190.0, 240.0)):
         The measured CD spectrum, any ellipticity unit.
     references : ReferenceSet
         Reference proteins. Where they carry their known structures -- as any
-        set built by :mod:`spectroscopy.library` does -- the result also
+        set built by ``spectroscopy.library`` does -- the result also
         carries a composition averaged over the neighbours, weighted by
         similarity. A set without them still ranks by shape.
     count : int

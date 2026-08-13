@@ -90,7 +90,7 @@ def _same(first, second) -> bool:
 
 def _parameter_reader(spec):
     """
-    Turn the ``parameter_from`` argument into ``f(path) -> float``.
+    Work out how to read the measured value out of each filename.
 
     A callable is used as given. A string is a regular expression with one
     capture group, searched against the whole path -- so a titration named
@@ -128,7 +128,7 @@ def _parameter_reader(spec):
 
 class SpectrumCollection(Sequence):
     """
-    An ordered collection of :class:`~spectroscopy.spectra.Spectrum`.
+    An ordered collection of ``Spectrum``.
 
     Parameters
     ----------
@@ -137,16 +137,16 @@ class SpectrumCollection(Sequence):
     info : dict, optional
         Facts about the **set** rather than about any spectrum in it: what the
         series parameter is called, where a reference set came from, the terms
-        it arrived under. See :data:`spectroscopy.metadata.SET_LEVEL`.
+        it arrived under. See ``spectroscopy.metadata.SET_LEVEL``.
 
         Per-item data belongs in that item's own ``metadata``, and the
-        collection offers *gathered views* of it -- :attr:`parameters`,
-        :attr:`samples`. That way there is only ever one list and it cannot
+        collection offers *gathered views* of it -- ``parameters``,
+        ``samples``. That way there is only ever one list and it cannot
         fall out of step with the spectra. Set-level data has the opposite
         problem: stored per item it can disagree with itself, and the
-        disagreement is invisible. Hence two homes (ADR-0004).
+        disagreement is invisible. Hence two homes.
 
-        ``info`` survives :meth:`crop`, :meth:`select`, :meth:`map` and
+        ``info`` survives ``crop``, ``select``, ``map`` and
         slicing, exactly as ``name`` does -- a subset of SP175 is still SP175
         data, and still carries SP175's citation condition.
     """
@@ -168,7 +168,7 @@ class SpectrumCollection(Sequence):
         ``info``.
 
         Every operation that returns a collection goes through here, so a
-        subclass -- :class:`~spectroscopy.library.ReferenceSet` -- stays itself
+        subclass -- ``ReferenceSet`` -- stays itself
         through ``select``, ``crop`` and slicing rather than degrading to a
         plain collection and losing its provenance on the way.
         """
@@ -241,9 +241,9 @@ class SpectrumCollection(Sequence):
                     "titration/*.dpt", parameter_from=r'(-?\\d+)mV',
                     parameter_name='potential', parameter_unit='mV')
 
-            See :meth:`~spectroscopy.spectra.Spectrum.set_parameter` for why
-            this is not just another ``sample``. Use
-            :meth:`sorted_by_parameter` afterwards: ``sort=True`` orders the
+            See ``Spectrum.set_parameter`` for why this is not just another
+            ``sample``. Use ``sorted_by_parameter`` afterwards, because
+            ``sort=True`` orders the
             files as *text*, which puts ``-120mV`` before ``-20mV``.
         parameter_name, parameter_unit : str, optional
             Labels for the parameter, for axes and reports.
@@ -292,7 +292,7 @@ class SpectrumCollection(Sequence):
     def save_as(self, filename, file_type='spy', **kwargs) -> None:
         """
         Write the whole collection to one file. The partner of
-        :func:`spectroscopy.io.read_spectra`, which reads it back.
+        ``spectroscopy.io.read_spectra``, which reads it back.
 
         ``.spy`` holds either one spectrum or a set, and only it has room for
         what is true of the *set* -- its name, where it came from, the terms it
@@ -415,15 +415,15 @@ class SpectrumCollection(Sequence):
     # audit, 2026-08-05.
 
     def groupby(self, key='sample'):
-        """Alias for :meth:`group_by`, which is how pandas spells it."""
+        """Alias for ``group_by``, which is how pandas spells it."""
         return self.group_by(key)
 
     def filter(self, predicate) -> SpectrumCollection:
-        """Alias for :meth:`select`."""
+        """Alias for ``select``."""
         return self.select(predicate)
 
     def normalise(self, method='max', window=None):
-        """Alias for :meth:`normalize`, for British spelling."""
+        """Alias for ``normalize``, for British spelling."""
         return self.normalize(method, window)
 
     # -- interop -----------------------------------------------------------
@@ -467,7 +467,7 @@ class SpectrumCollection(Sequence):
         """
         The continuous parameter of each spectrum, in order, as an array.
 
-        ``nan`` where a spectrum has none -- unlike :meth:`to_matrix`, which
+        ``nan`` where a spectrum has none -- unlike ``to_matrix``, which
         refuses. Reading the values is a reasonable thing to do on a
         part-labelled collection; fitting them is not.
         """
@@ -488,8 +488,8 @@ class SpectrumCollection(Sequence):
         """
         From ``info``, falling back to the per-spectrum copies.
 
-        The fallback is the pre-ADR-0004 arrangement, kept working until 1.0
-        for collections assembled by hand. It is the reason this is not simply
+        The fallback is how this used to work, kept going for collections
+        assembled by hand. It is the reason this is not simply
         ``self.info.get(key)``: a spectrum labelled by ``set_parameter`` still
         carries its own copy, and dropping the fallback would lose the label
         of every collection built that way.
@@ -572,7 +572,7 @@ class SpectrumCollection(Sequence):
     def to_dataframe(self, orientation='wide'):
         """
         As a pandas DataFrame. Requires pandas, deliberately not a dependency
-        (review section 5.6).
+       .
 
         ``orientation='wide'`` gives one column per spectrum indexed by x;
         ``'long'`` gives tidy (sample, x, y) rows.
@@ -597,8 +597,8 @@ class SpectrumCollection(Sequence):
         """
         Overlay every spectrum on one axes, with a legend.
 
-        See also :func:`spectroscopy.viz.stack` for offset traces and
-        :func:`spectroscopy.viz.grid` for one panel per sample, which read
+        See also ``spectroscopy.viz.stack`` for offset traces and
+        ``spectroscopy.viz.grid`` for one panel per sample, which read
         better than an overlay past a handful of spectra.
         """
         from spectroscopy import viz  # pylint: disable=C0415

@@ -169,14 +169,14 @@ def is_extinction(unit) -> bool:
     """
     True for an extinction-coefficient unit -- ``M^-1 cm^-1`` and friends.
 
-    Deliberately **not** a member of :data:`Y_UNITS`. That table means "can be
+    Deliberately **not** a member of ``Y_UNITS``. That table means "can be
     converted to transmittance", and epsilon cannot: going from epsilon to
     absorbance is ``A = eps * c * l``, which needs a concentration and a path
     length that are not properties of the spectrum. It is a different
     quantity, not another spelling of absorbance.
 
     It is absorbance-*shaped* though -- bands point up -- which is why it
-    appears in :data:`BAND_DIRECTION`.
+    appears in ``BAND_DIRECTION``.
     """
     if unit in EXTINCTION_UNITS:
         return True
@@ -187,7 +187,7 @@ def band_direction(unit) -> str:
     """
     ``'up'``, ``'down'``, ``'both'`` or ``'unknown'`` for a y unit.
 
-    ``'both'`` is for the **signed** quantities of :data:`BIPOLAR_UNITS` --
+    ``'both'`` is for the **signed** quantities of ``BIPOLAR_UNITS`` --
     dichroism, anisotropy, an explicitly labelled difference spectrum -- where
     maxima and minima are equally real and a caller looking for one of them
     will miss half the spectrum.
@@ -217,7 +217,7 @@ def is_valley_pointing(unit) -> bool:
     Beer-Lambert applies to absorbance, so a band ratio taken on ``%T`` is not
     a ratio of anything. Callers doing quantitative work should convert.
 
-    False for the signed units of :data:`BIPOLAR_UNITS`, and correctly so on
+    False for the signed units of ``BIPOLAR_UNITS``, and correctly so on
     both counts: their bands are not *exclusively* minima, and a dichroism
     signal is linear in concentration in the way ``%T`` is not.
     """

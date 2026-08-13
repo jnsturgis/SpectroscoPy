@@ -4,9 +4,9 @@
 """
 Technique-agnostic algorithms, as plain functions over numpy arrays.
 
-Nothing here knows about :class:`~spectroscopy.spectra.Spectrum`: these take
+Nothing here knows about ``Spectrum``: these take
 ``x`` and ``y`` and return arrays. The Spectrum methods are thin wrappers that
-call these and record a :class:`~spectroscopy.history.ProcessingStep`. Keeping
+call these and record a ``ProcessingStep``. Keeping
 the split means the numerics can be tested against synthetic ground truth
 without constructing objects, and that ``processing`` never imports ``core``.
 """
@@ -74,12 +74,12 @@ def rubberband_baseline(x, y, return_points=False, side='lower'):
         hull of a transmittance spectrum traces the tips of the absorption
         bands and is meaningless.
 
-        :meth:`~spectroscopy.spectra.Spectrum.baseline` picks this from the
+        ``baseline`` picks this from the
         spectrum's y unit, so it is usually not something to think about.
     return_points : bool
         Also return the (x, y) anchor points the baseline passes through, so
         they can be inspected, plotted, adjusted by eye, and fed back to
-        :func:`poly_baseline` as explicit guide points.
+        ``poly_baseline`` as explicit guide points.
     """
     if side not in ('lower', 'upper'):
         raise ValueError(f"side must be 'lower' or 'upper', not {side!r}")
@@ -134,7 +134,7 @@ def poly_baseline(x, y, degree=3, points=None, coefficients=None, halfwidth=0):
     """
     Polynomial baseline, from guide points or from known coefficients.
 
-    Guide points are the intended everyday form (review section 5.4): give the
+    Guide points are the intended everyday form: give the
     x positions where the spectrum is known to be baseline, and a polynomial of
     ``degree`` is least-squares fitted through the spectrum's own y values
     there.
@@ -377,14 +377,14 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=None,
                  window_length=11, polyorder=3, relative=False, y_unit=None,
                  **kwargs):
     """
-    Locate peaks and return ``(indices, properties)``.
+    Find the peaks, and say how strong and how wide each one is.
 
     ``method='second_derivative'`` (the default, and what every notebook does)
     finds peaks in the inverted second derivative, so shoulders on a broad band
     are found as well as maxima. ``method='direct'`` runs scipy's find_peaks on
     the signal itself.
 
-    Extra keyword arguments go straight to :func:`scipy.signal.find_peaks`
+    Extra keyword arguments go straight to ``scipy.signal.find_peaks``
     (``height``, ``distance``, ``prominence``, ``width`` ...).
 
     Parameters
@@ -402,7 +402,7 @@ def detect_peaks(x, y, method='second_derivative', *, troughs=None,
         right answer for a signed quantity -- circular or linear dichroism,
         fluorescence anisotropy, a difference spectrum -- where a band pointing
         down is not a failure to point up. Units known to be signed
-        (:data:`~spectroscopy.units.BIPOLAR_UNITS`) select it on their own; a
+        (``BIPOLAR_UNITS``) select it on their own; a
         difference spectrum in plain ``absorbance`` cannot be recognised and
         has to say so here.
 
@@ -513,3 +513,50 @@ def _find_both_ways(signal, **kwargs):
         except ValueError:                                   # noqa: PERF203
             continue
     return indices[order], merged, sign[order]
+
+
+def local_polynomial(x, y, targets, window, order):
+    """
+    Read a curve at new positions by fitting a polynomial to nearby points.
+
+    The Savitzky-Golay idea used for interpolation rather than for smoothing:
+    around each position wanted, take the ``window`` nearest measured points,
+    fit a polynomial of degree ``order`` through them by least squares, and
+    evaluate it there. Because the polynomial is fitted rather than forced
+    through every point, noise is averaged down instead of reproduced.
+
+    ``window`` and ``order`` are the caller's to choose. The useful window is
+    set by how many measured points fall across one band -- sampling interval
+    against band width -- and a window wider than the band flattens it.
+    """
+    x = np.asarray(x, dtype=float)
+    y = np.asarray(y, dtype=float)
+    targets = np.asarray(targets, dtype=float)
+
+    order = int(order)
+    window = int(window)
+    if window <= order:
+        raise ValueError(
+            f"a window of {window} points cannot support a polynomial of "
+            f"order {order}; it needs at least {order + 1}"
+        )
+    window = min(window, len(x))
+    if window <= order:
+        raise ValueError(
+            f"only {len(x)} points available, which cannot support a "
+            f"polynomial of order {order}"
+        )
+
+    order_x = np.argsort(x)
+    x, y = x[order_x], y[order_x]
+    half = window // 2
+    out = np.empty(targets.shape, dtype=float)
+    for index, target in enumerate(np.ravel(targets)):
+        centre = int(np.searchsorted(x, target))
+        start = min(max(centre - half, 0), len(x) - window)
+        piece = slice(start, start + window)
+        # Fit about the target so the constant term is the answer, which keeps
+        # the conditioning sane whatever the absolute wavelengths are.
+        coefficients = np.polyfit(x[piece] - target, y[piece], order)
+        out.ravel()[index] = coefficients[-1]
+    return out

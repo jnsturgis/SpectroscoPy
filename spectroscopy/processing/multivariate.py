@@ -6,19 +6,19 @@ Decomposition of a set of spectra: PCA, NMF, ICA -- with stability testing.
 
 Ask a set of spectra how many things are varying in it and what they look
 like, without saying in advance what to look for -- the unsupervised
-counterpart of :mod:`spectroscopy.processing.unmix`.
+counterpart of ``spectroscopy.processing.unmix``.
 
 Two things it adds beyond wrapping scikit-learn:
 
 * **Components come back as spectra.** An NMF component *is* a spectrum, so it
-  arrives as a :class:`~spectroscopy.spectra.Spectrum` with the collection's x
+  arrives as a ``Spectrum`` with the collection's x
   axis and units, and can be peak-picked, plotted and saved like any other.
 * **Stability is a first-class question.** NMF has no unique solution; a
   k-component fit that moves under reseeding or resampling is not a finding.
-  :func:`stability` answers that in one call.
+  ``stability`` answers that in one call.
 
 scikit-learn is an optional dependency -- ``pip install spectroscopy[multivariate]``
-(review section 5.6). It is imported lazily so the rest of the library does not
+It is imported lazily so the rest of the library does not
 require it.
 """
 
@@ -281,7 +281,7 @@ def decompose(source, method='nmf', n_components=3, random_state=0, **kwargs):
     random_state : int or None
         Fixed by default, because NMF and ICA are seed-dependent and a result
         that changes between runs is not one you can put in a paper. Use
-        :func:`stability` to find out how much it depends on the seed.
+        ``stability`` to find out how much it depends on the seed.
 
     Returns
     -------

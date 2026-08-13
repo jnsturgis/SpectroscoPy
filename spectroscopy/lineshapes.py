@@ -40,7 +40,7 @@ def spec_comp( x_values, posn:float, fwhh:float, ext: float, fg: float ):
     .. note::
 
        Until 0.1.1 the Lorentzian half was multiplied by ``ext`` twice --
-       :func:`lorentz` already scales by it -- so the peak height was
+       ``lorentz`` already scales by it -- so the peak height was
        ``fg * ext + (1 - fg) * ext**2``. That is only ``ext`` when ``fg`` is 1
        or ``ext`` is 1, so every mixed component was wrong by a factor of
        ``ext``, and the error vanished in exactly the test case (a unit-height

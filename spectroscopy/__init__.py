@@ -57,12 +57,9 @@ def read(path, file_type=None, **kwargs):
     check their own magic value rather than trusting the extension -- so
     ``file_type`` is only needed to override that.
 
-    This exists because it is what everybody types first. An empirical run on
-    2026-08-05 gave four spectroscopy tasks to cold assistants: eight of the
-    nine wrong API calls they made were guesses at a top-level reader,
-    ``spectroscopy.read``, ``spectroscopy.load``, ``spectroscopy.io.read`` and
-    ``Spectrum.from_file``, none of which existed. Opening a file is the first
-    thing anybody does and it was the hardest thing to find.
+    This is what most people type first, so it is what the package offers
+    first: one function, any supported format, no need to know which reader
+    handles what.
 
     Parameters
     ----------
@@ -81,7 +78,7 @@ def read(path, file_type=None, **kwargs):
     ------
     ValueError
         If the file holds several spectra, naming
-        :func:`spectroscopy.io.read_spectra`, which returns them all. Handing
+        ``spectroscopy.io.read_spectra``, which returns them all. Handing
         back the first of three silently would be worse than failing.
 
     See also
@@ -93,7 +90,7 @@ def read(path, file_type=None, **kwargs):
     Notes
     -----
     There is deliberately no ``spc.load``. Two of the agents guessed it, but
-    ``load`` already means something else here -- :func:`datasets.load` fetches
+    ``load`` already means something else here -- ``datasets.load`` fetches
     a bundled example by name -- and one word cannot mean both "open this
     path" and "fetch that example" without becoming a coin toss.
     """
@@ -106,7 +103,7 @@ def read(path, file_type=None, **kwargs):
 
 
 def __getattr__(name):
-    """Import :mod:`spectroscopy.viz` on first use rather than at import time.
+    """Import ``spectroscopy.viz`` on first use rather than at import time.
 
     ``viz`` pulls in matplotlib, which costs about 350 ms -- most of a second
     added to every ``import spectroscopy``, including the ones that only read a

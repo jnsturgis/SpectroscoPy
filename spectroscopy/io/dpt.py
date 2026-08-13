@@ -20,7 +20,7 @@ not as uniform as it looks:
 So the separator is sniffed per file rather than assumed. Reading these as
 ``'tsv'`` -- which is what every notebook did -- silently dropped the first
 data point of every file (the csv reader's ``skiprows=1`` default consumed it
-as a header) and failed outright on the comma-separated ones. That is defect D1
+as a header) and failed outright on the comma-separated ones. That was the defect
 in SpectroscoPy_Codebase_Review.md.
 
 Files are also almost universally CRLF, being written on Windows.

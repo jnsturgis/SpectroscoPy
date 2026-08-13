@@ -4,7 +4,7 @@
 """
 Separating a spectrum into known components.
 
-The supervised counterpart of :mod:`spectroscopy.processing.multivariate`.
+The supervised counterpart of ``spectroscopy.processing.multivariate``.
 That module asks "how many things are varying here and what do they look
 like"; this one asks "given that I know what these components look like, how
 much of each is present". Both are useful and they answer different questions
@@ -18,13 +18,13 @@ happily return one. When it does, the number is not a small negative
 concentration -- it is the fit compensating for a component that is missing
 from the reference set, or for a background that was not removed. Constraining
 the coefficients to be non-negative does not hide that; it pushes the problem
-into the **residual**, where it is visible. See :attr:`UnmixResult.residual`.
+into the **residual**, where it is visible. See ``UnmixResult.residual``.
 
 The A260/A280 case
 ------------------
 Splitting a sample into nucleic acid and protein is the two-component case of
-exactly this, and :func:`nucleic_acid_and_protein` is a thin wrapper that says
-so. The ratio itself is in :func:`absorbance_ratio`, with what it is and is
+exactly this, and ``nucleic_acid_and_protein`` is a thin wrapper that says
+so. The ratio itself is in ``absorbance_ratio``, with what it is and is
 not good for written down beside it.
 """
 
@@ -128,10 +128,10 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
         What it may be made of. References are resampled onto the spectrum's
         own wavelength grid.
 
-        A :class:`~spectroscopy.library.ReferenceSet` works here too, which is
+        A ``ReferenceSet`` works here too, which is
         the point of it being one type: a set of measured extinction spectra
         is the same kind of object as a CD reference set, differing only in
-        having no known-truth table (ADR-0004 section 3). Its ``info['unit']``
+        having no known-truth table. Its ``info['unit']``
         becomes the references' unit, and so decides whether the amounts come
         back as concentrations or as relative numbers.
     path_length : float, optional
@@ -153,7 +153,7 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
         was lost rather than gained.
     wavelengths : sequence of float, optional
         Fit at these wavelengths only, rather than the whole spectrum. See
-        :func:`best_wavelengths` for choosing them, and note that using the
+        ``best_wavelengths`` for choosing them, and note that using the
         whole spectrum is usually better -- restricting to a few points throws
         away exactly the information that would have revealed a missing
         component.
@@ -337,7 +337,7 @@ def absorbance_ratio(spectrum, numerator=260.0, denominator=280.0):
     contaminated can still sit near 1.8. Two numbers from a spectrum of
     hundreds of points cannot say more than that.
 
-    :func:`nucleic_acid_and_protein` uses the whole spectrum instead, and its
+    ``nucleic_acid_and_protein`` uses the whole spectrum instead, and its
     residual will tell you when neither component fits -- which the ratio
     never can.
     """
@@ -354,11 +354,11 @@ def absorbance_ratio(spectrum, numerator=260.0, denominator=280.0):
 
 def nucleic_acid_and_protein(spectrum, nucleic_acid, protein, **kwargs):
     """
-    The two-component case of :func:`unmix`, named for what it is usually for.
+    The two-component case of ``unmix``, named for what it is usually for.
 
     ``nucleic_acid`` and ``protein`` are References -- extinction spectra if
     the amounts are to be concentrations. There is nothing here that
-    :func:`unmix` does not do; it exists so the common case reads clearly and
+    ``unmix`` does not do; it exists so the common case reads clearly and
     so the docstring has somewhere to say that this is strictly better than
     the ratio, because it uses every wavelength and shows you a residual.
     """

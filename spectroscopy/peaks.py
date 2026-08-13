@@ -50,7 +50,7 @@ class PeakTable:
         minima are equally real and one table holds both.
     sign : ndarray or None
         ``+1`` for a maximum, ``-1`` for a minimum, per peak. Always populated
-        for a table from :meth:`~spectroscopy.spectra.Spectrum.find_peaks`;
+        for a table from ``find_peaks``;
         the only way to tell the two apart when ``kind`` is ``'both'``, since
         a positive band sitting on a negative offset still has a negative
         height.
@@ -135,10 +135,10 @@ class PeakTable:
         The ``count`` strongest peaks, **strongest first**.
 
         Ranked by prominence where scipy supplied it, otherwise by height.
-        Call :meth:`sorted_by_position` afterwards for a spectrum-order list;
+        Call ``sorted_by_position`` afterwards for a spectrum-order list;
         the tutorials do exactly that.
 
-        Until 2026-08-05 this returned them in *position* order despite the
+        Returns them in prominence order despite the
         name, so ``strongest(3)`` gave the right three peaks in the wrong
         order and anything reading ``position[0]`` as "the strongest" was
         quietly wrong.
@@ -167,7 +167,7 @@ class PeakTable:
     def to_dataframe(self):
         """
         As a pandas DataFrame. Requires pandas, which is deliberately not a
-        dependency -- see review section 5.6.
+        dependency.
         """
         import pandas as pd  # pylint: disable=C0415
 
@@ -183,7 +183,7 @@ class PeakTable:
         """
         Mark and label these peaks on a matplotlib axes.
 
-        Delegates to :func:`spectroscopy.viz.annotate_peaks`; replaces the
+        Delegates to ``spectroscopy.viz.annotate_peaks``; replaces the
         six-line label loop copy-pasted into about ten notebooks.
         """
         from spectroscopy import viz  # pylint: disable=C0415

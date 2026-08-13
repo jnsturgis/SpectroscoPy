@@ -449,3 +449,90 @@ def test_every_docstring_example_runs():
 
     assert attempted > 20, f"only {attempted} doctests found -- did they move?"
     assert not failures, f"docstring examples failing in: {', '.join(broken)}"
+
+
+# ---------------------------------------------------------------------------
+# docstrings, as read through help()
+#
+# The audience is spectroscopists at a prompt, not readers of the rendered
+# website, so what matters is how a docstring looks with no renderer between
+# it and the reader. CONTRIBUTING.md states the rule; this enforces the part
+# of it a machine can see.
+# ---------------------------------------------------------------------------
+
+def _public_docstrings():
+    """
+    Every docstring in the package, with where it came from.
+
+    Private helpers are included deliberately. They do not reach ``help()``,
+    but a contributor reading the source meets them, and "turn the
+    parameter_from argument into f(path) -> float" is no clearer there than
+    anywhere else.
+    """
+    import ast
+    import pathlib
+
+    root = pathlib.Path(__file__).resolve().parent.parent / 'spectroscopy'
+    for path in sorted(root.rglob('*.py')):
+        if 'gui' in path.parts:          # a scratch snippet, not shipped
+            continue
+        tree = ast.parse(path.read_text(), filename=str(path))
+        relative = path.relative_to(root.parent)
+
+        def walk(body, prefix=''):
+            for node in body:
+                if isinstance(node, (ast.ClassDef, ast.FunctionDef,
+                                     ast.AsyncFunctionDef)):
+                    text = ast.get_docstring(node)
+                    if text:
+                        yield f"{relative}:{prefix}{node.name}", text
+                    if isinstance(node, ast.ClassDef):
+                        yield from walk(node.body, node.name + '.')
+
+        module = ast.get_docstring(tree)
+        if module:
+            yield f"{relative}:<module>", module
+        yield from walk(tree.body)
+
+
+def test_no_sphinx_markup_in_docstrings():
+    """
+    Cross-reference roles render as links on the website and as punctuation
+    at a prompt, which is where these are actually read.
+    """
+    import re
+
+    role = re.compile(r':(?:class|meth|func|attr|mod|data|obj|doc|ref|cite):`')
+    offenders = [where for where, text in _public_docstrings()
+                 if role.search(text)]
+    assert not offenders, (
+        "Sphinx roles in docstrings, which read as punctuation in help(): "
+        + ", ".join(sorted(set(offenders)))
+    )
+
+
+def test_no_dates_in_docstrings():
+    """When something was measured is history; git and the roadmap hold it."""
+    import re
+
+    offenders = [where for where, text in _public_docstrings()
+                 if re.search(r'\b20\d\d-\d\d-\d\d\b', text)]
+    assert not offenders, f"dates in docstrings: {', '.join(sorted(offenders))}"
+
+
+def test_docstrings_do_not_cite_internal_planning_documents():
+    """
+    "roadmap section 15.4" means nothing to somebody at a prompt trying to use
+    the function, and the document it points at is not installed with it.
+    """
+    import re
+
+    internal = re.compile(
+        r'roadmap (section|§)|review (section|item|crossing)|ADR-\d|'
+        r'defect [A-Z]\d|CD_Branch_Plan|friction item', re.I)
+    offenders = [where for where, text in _public_docstrings()
+                 if internal.search(text)]
+    assert not offenders, (
+        "docstrings citing internal planning documents: "
+        + ", ".join(sorted(set(offenders)))
+    )
