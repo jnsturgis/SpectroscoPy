@@ -1196,10 +1196,15 @@ def test_the_answer_does_not_depend_on_where_the_scan_starts():
     assert np.allclose(grids[0], grids[1])
     assert np.allclose(grids[0], np.arange(197.0, 240.5, 1.0))
 
+    # Not bit-identical: resampling fits a window of neighbouring points, and
+    # five points spans 0.4 nm of the fine scan against 4 nm of the coarse one.
+    # What matters is that the answer no longer turns on where the file began,
+    # and 0.0001 is not that -- it was 0.07 before the wavelengths were
+    # anchored on the reference set.
     for method in ('nearest-shapes', 'ridge'):
         answers = [cdm.estimate(s, method, references).get('helix')
                    for s in (shipped, offset)]
-        assert answers[0] == pytest.approx(answers[1], abs=1e-9), method
+        assert answers[0] == pytest.approx(answers[1], abs=0.002), method
 
 
 def test_a_basis_that_disagrees_with_itself_falls_back_to_a_common_grid():
@@ -1223,3 +1228,22 @@ def test_a_basis_that_disagrees_with_itself_falls_back_to_a_common_grid():
                                                (190.0, 240.0))
     assert len(grid) > 5
     assert design.shape == (len(grid), 2)
+
+
+def test_the_near_native_scans_ship_and_give_a_wavelength_dependent_error():
+    """
+    The error bar that is measured rather than assumed. Also pins the caveat:
+    these are scans below a transition rather than true repeats, so the error
+    at 222 nm -- where unfolding shows first -- comes out larger than at 215,
+    which the detector alone would not produce.
+    """
+    repeats = spc.datasets.aqpz_near_native()
+    assert len(repeats) == 4
+    assert repeats.parameter_unit == 'C'
+
+    sigma = cdm.uncertainty_from_replicates(repeats)
+    at = {w: float(sigma.y[int(np.argmin(np.abs(sigma.x - w)))])
+          for w in (215.0, 222.0, 240.0)}
+
+    assert at[240.0] < at[215.0]          # the detector works hardest in the blue
+    assert at[222.0] > at[215.0]          # ... and the transition shows at 222

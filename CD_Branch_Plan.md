@@ -853,6 +853,15 @@ CD is recorded as accumulations, so the per-wavelength error is a
 AqpZ scans the standard error is 0.45 mdeg at 215 nm against 0.16 at 240,
 because the detector is working hardest at the blue end.
 
+> **These figures do not reproduce (checked 2026-08-13).** From the four
+> sub-transition scans of the 4 µM file the standard error is 0.131 mdeg at
+> 215 nm and 0.079 at 240; from the eighteen of the 20 µM file, 0.240 and
+> 0.078. Neither is 0.45/0.16, and no other selection of those files was found
+> that gives them. The direction holds -- noisier towards the blue -- but the
+> magnitudes here should be treated as unverified. What ships as
+> `datasets.aqpz_near_native()` is the 4 µM set, and the tutorial quotes what
+> it computes.
+
 `cd.uncertainty_from_replicates(collection)` returns it, `estimate(sigma=...)`
 weights each wavelength by `1/sigma`, and `resamples=` refits on the spectrum
 perturbed by its own noise and reports the spread. That last is the honest

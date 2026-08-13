@@ -165,6 +165,35 @@ def load(name):
     return spectrum
 
 
+def aqpz_near_native():
+    """
+    Four AqpZ-W14A scans recorded below its unfolding transition.
+
+    Enough to work out the error at each wavelength, which for circular
+    dichroism is a measurement rather than an assumption: the detector works
+    hardest at the blue end, so the noise there is several times what it is at
+    250 nm, and an unweighted fit treats both alike.
+
+    These are **not true replicates**. They are the 30, 40, 50 and 60 C scans
+    of a melt whose midpoint is above 80 C, so the protein is folded in all
+    four -- but any real change with temperature below the transition is
+    counted as noise. That inflates the estimate most at 222 nm, which is
+    exactly where unfolding shows first, and the shape of the result says so:
+    the error at 222 nm comes out larger than at 215, which the physics of the
+    detector alone would not produce.
+
+    Returns
+    -------
+    SpectrumCollection
+    """
+    from spectroscopy.io import registry  # pylint: disable=C0415
+
+    path_ = os.path.join(_root(), 'cd_spectra', 'aqpz_w14a_native.spy')
+    if not os.path.exists(path_):
+        raise FileNotFoundError(f"The AqpZ near-native scans are missing ({path_})")
+    return registry.read_spectra(path_)
+
+
 def replicate_directory():
     """
     Folder holding the ATR-FTIR replicate files, for glob-based loading.

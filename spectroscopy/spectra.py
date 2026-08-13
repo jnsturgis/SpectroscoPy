@@ -173,6 +173,30 @@ def _looks_like_data(args):
     )
 
 
+def _matching_indices(have, wanted):
+    """
+    Where to find each wanted x among the ones measured, or None.
+
+    Returns None as soon as any wanted position was not measured, because the
+    point of asking is to find out whether anything needs estimating at all.
+    """
+    have = np.asarray(have, dtype=float)
+    wanted = np.asarray(wanted, dtype=float)
+    if not len(wanted) or not len(have):
+        return None
+
+    order = np.argsort(have)
+    ordered = have[order]
+    nearest = np.clip(np.searchsorted(ordered, wanted), 0, len(ordered) - 1)
+    below = np.clip(nearest - 1, 0, len(ordered) - 1)
+    pick = np.where(np.abs(ordered[nearest] - wanted)
+                    <= np.abs(ordered[below] - wanted), nearest, below)
+    scale = max(float(np.max(np.abs(have))), 1.0)
+    if not np.all(np.abs(ordered[pick] - wanted) <= 1e-9 * scale):
+        return None
+    return order[pick]
+
+
 def compose_label(quantity, unit):
     """Build an axis label from a quantity and a unit, e.g. 'Wavenumber (cm^-1)'."""
     rendered = UNIT_LABELS.get(unit, unit)
@@ -1209,64 +1233,86 @@ class Spectrum:
 #
 ##=============================================================================
 
-    def resample(self, x_values, method='spline', window=None,
-                 order=None) -> "Spectrum":
+    def resample(self, x_values, method='savgol', window=5, order=3) -> "Spectrum":
         """
         Work out what the spectrum would read at a different set of x values.
 
         Needed before arithmetic between spectra that were not measured at the
-        same points -- different instrument settings, or different machines.
-        Arithmetic raises and points here rather than producing a numpy
-        broadcast error.
+        same points -- different instrument settings, or different machines --
+        and done for you by anything that fits one spectrum against another.
 
-        Two ways of doing it, and which is right depends on your data.
+        By default it fits a cubic through the five nearest measured points and
+        reads the answer off that. Five points is the smallest window a cubic
+        can use, so it is the least this can do while still being a fit rather
+        than a curve threaded through every point.
 
-        ``'spline'`` (the default) fits a cubic spline through every point.
-        It reproduces the values you already have exactly, which also means it
-        reproduces the noise exactly, and it can overshoot between closely
-        spaced points on a steep edge.
+        That matters mostly when your data is worse than you think. A spline is
+        obliged to pass through every value it is given, so a cosmic ray, or two
+        x values that round to nearly the same number with different y, force it
+        into an excursion that carries into the neighbouring region. On a real
+        pathology -- three points 0.002 nm apart in data bounded by 1.02 -- a
+        spline returned 1.46 and this returns 1.00. Nobody inspects their file
+        for near-duplicate x values first, which is the argument for the safer
+        default rather than the more accurate one.
 
-        ``'savgol'`` fits a polynomial of your chosen order through a window of
-        neighbouring points and reads the answer off that, so it smooths as it
-        interpolates. For a noisy spectrum this is usually the better choice.
+        ``method='spline'`` gives the cubic spline through every point, which
+        reproduces your measured values exactly. Use it when you know the data
+        is clean and you want the values you have returned untouched.
 
-        You have to supply ``window`` and ``order`` yourself for savgol, and
-        this will not guess them. The right window depends on how many points
-        fall across one of your bands -- your sampling interval and your band
-        width, both of which you know and neither of which is recoverable from
-        the array. Too wide and the window flattens the band you are measuring;
-        too narrow and it does nothing a spline would not. A common starting
-        point is a window somewhat narrower than the narrowest band, with
-        order 3, or order 5 where the band shape matters more than the noise.
+        Widening ``window`` rejects more noise, and a five-point window rejects
+        very little -- five points fitting four coefficients leaves one degree
+        of freedom to average with, worth about a fifth of the error whatever
+        the noise level. Real noise rejection wants one to four times the number
+        of points across one of your bands, wider when noisier. That number is
+        yours to supply: it depends on your sampling interval against your band
+        width, and neither is recoverable from an array of numbers. If noise
+        reduction is what you are after, ``smooth`` is the honest place to ask
+        for it.
 
-        Both methods will happily return values outside the range you actually
-        measured, and both are guessing when they do. There is nothing there to
-        interpolate between.
+        Both methods will return values outside the range you measured, and both
+        are guessing when they do.
         """
         x_values = np.asarray(x_values, dtype=float)
+
+        if method not in ('savgol', 'spline'):
+            raise ValueError(
+                f"resample method must be 'savgol' or 'spline', got {method!r}"
+            )
+        if method == 'savgol' and int(window) <= int(order):
+            raise ValueError(
+                f"a window of {window} points cannot support a polynomial of "
+                f"order {order}; it needs at least {int(order) + 1}"
+            )
+
+        # Asked only for values it already has -- the same axis, or a stretch
+        # of it, which is what putting two spectra on a common axis usually
+        # amounts to. Nothing needs working out, and a method that answered by
+        # fitting would return something slightly different from what was
+        # measured for no reason at all. Estimating is for the points that
+        # were not measured.
+        taken = _matching_indices(self.x, x_values)
+        if taken is not None:
+            return self._derive(
+                x=np.array(x_values), y=np.asarray(self.y)[taken],
+                step=ProcessingStep("resample", {
+                    "n_points": int(len(x_values)),
+                    "x_min": float(x_values.min()) if len(x_values) else None,
+                    "x_max": float(x_values.max()) if len(x_values) else None,
+                    "method": "measured",
+                }),
+            )
 
         if method == 'spline':
             values = CubicSpline(self.x, self.y)(x_values)
             recorded = {"method": "cubic_spline"}
-        elif method == 'savgol':
-            if window is None or order is None:
-                raise ValueError(
-                    "resample(method='savgol') needs window and order, and "
-                    "will not choose them: the right window depends on how "
-                    "many of your points fall across one band, which is your "
-                    "sampling interval against your band width. Neither is "
-                    "recoverable from the numbers. Try a window a little "
-                    "narrower than your narrowest band, with order=3."
-                )
-            values = common.local_polynomial(self.x, self.y, x_values,
-                                             int(window), int(order))
-            recorded = {"method": "savgol", "window": int(window),
-                        "order": int(order)}
         else:
-            raise ValueError(
-                f"resample method must be 'spline' or 'savgol', got "
-                f"{method!r}"
-            )
+            # A short spectrum is not a mistake, so the order drops to what the
+            # points can carry rather than refusing.
+            fitted_order = min(int(order), max(1, len(self) - 1))
+            values = common.local_polynomial(self.x, self.y, x_values,
+                                             int(window), fitted_order)
+            recorded = {"method": "savgol", "window": int(window),
+                        "order": fitted_order}
 
         return self._derive(
             x=x_values, y=values,

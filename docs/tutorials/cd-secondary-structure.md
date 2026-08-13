@@ -263,18 +263,49 @@ print(answers['ridge'].quality['method'], '/',
       answers['ridge'].quality['n_references'], 'references')
 ```
 
-If you have replicate scans, there is a better error bar available than any
-goodness-of-fit statistic, because CD noise is *measured* rather than assumed
-and is strongly wavelength-dependent:
+### The error bar worth having
 
-```python
-sigma = cd.uncertainty_from_replicates(my_repeat_scans)
-result = cd.estimate(spectrum, 'ridge', references, sigma=sigma, resamples=200)
-print(result.quality['uncertainty'])
+Repeat scans give a better error bar than any goodness-of-fit statistic,
+because the noise is then *measured*. Four AqpZ scans recorded below the
+unfolding transition ship with the package:
+
+```{code-cell} ipython3
+repeats = spc.datasets.aqpz_near_native()
+sigma = cd.uncertainty_from_replicates(repeats)
+
+for wavelength in (215.0, 222.0, 240.0):
+    index = int(np.argmin(np.abs(sigma.x - wavelength)))
+    print(f"{wavelength:.0f} nm:  {sigma.y[index]:.3f} mdeg")
 ```
 
-That refits on the spectrum perturbed by its own noise and reports how far the
-answer moves — which is the question an error bar should answer.
+The error is far from uniform, and it is worst where the detector is working
+hardest. An unweighted fit treats a wavelength known to three times the
+precision of another as though they were equally good; `sigma=` weights each
+by how well it is known.
+
+```{code-cell} ipython3
+weighted = cd.estimate(protein, 'ridge', membrane, sigma=sigma, resamples=200)
+print(f"helix {weighted.get('helix'):.3f}")
+print("moved by, under the measured noise:",
+      {k: round(v, 3) for k, v in weighted.quality['uncertainty'].items()})
+```
+
+`resamples` refits on the spectrum perturbed by its own noise and reports how
+far the answer moves — which is the question an error bar should answer, and
+one no residual can.
+
+:::{admonition} These are not true replicates, and the numbers say so
+:class: warning
+
+They are the 30, 40, 50 and 60 °C scans of a melt with a midpoint above 80 °C,
+so the protein is folded in all four — but any real change with temperature
+below the transition is being counted as noise. Look at the shape of the
+result: the error at 222 nm comes out *larger* than at 215 nm, which the
+detector alone would not do, because 222 nm is exactly where unfolding shows
+first. So this overestimates the error, and overestimates it most at the
+wavelength you care about. Genuine repeats of one sample at one temperature
+would be better, and are what to record if you are planning the experiment.
+:::
 
 ## Your own spectrum
 

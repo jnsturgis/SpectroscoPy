@@ -704,10 +704,10 @@ def test_savgol_resampling_beats_a_spline_on_noisy_data():
     noisy = Spectrum(x, clean + 0.02 * generator.normal(size=x.size),
                          technique='UV-Vis')
 
-    grid = np.linspace(210.0, 290.0, 81)
+    grid = np.linspace(210.25, 289.75, 160)      # between the measured points
     truth = np.exp(-((grid - 250.0) ** 2) / 50.0)
 
-    spline = noisy.resample(grid).y
+    spline = noisy.resample(grid, 'spline').y
     savgol = noisy.resample(grid, 'savgol', window=11, order=3).y
 
     def error(values):
@@ -716,17 +716,40 @@ def test_savgol_resampling_beats_a_spline_on_noisy_data():
     assert error(savgol) < error(spline) / 1.5
 
 
-def test_savgol_resampling_will_not_guess_its_parameters():
+def test_the_default_is_the_smallest_window_a_cubic_can_use():
     """
-    The right window depends on how many points fall across a band -- the
-    sampling interval against the band width. Neither is recoverable from the
-    numbers, so it is asked for rather than invented.
+    Five points and order three: the least this can do while still being a fit
+    rather than a curve threaded through every point. Widening it rejects more
+    noise and is the caller's decision, because the useful width depends on
+    their sampling interval against their band width.
     """
     x = np.linspace(200.0, 300.0, 201)
     spectrum = Spectrum(x, np.exp(-((x - 250.0) ** 2) / 50.0),
-                            technique='UV-Vis')
-    with pytest.raises(ValueError, match='window and order'):
-        spectrum.resample(np.linspace(210.0, 290.0, 81), 'savgol')
+                        technique='UV-Vis')
+    step = spectrum.resample(np.linspace(210.25, 289.75, 160)).history[-1]
+    assert step.params['method'] == 'savgol'
+    assert step.params['window'] == 5 and step.params['order'] == 3
+
+
+def test_a_spline_overshoots_where_a_fit_does_not():
+    """
+    The reason the default is a fit. Near-duplicate x values with different y
+    -- rounded wavelengths, or two scan ranges joined -- force a spline into an
+    excursion well outside the data, and nobody checks their file for that
+    first.
+    """
+    generator = np.random.default_rng(0)
+    x = np.sort(np.concatenate([np.linspace(200.0, 300.0, 60),
+                                250.0 + np.array([-0.002, 0.0, 0.002])]))
+    y = np.exp(-((x - 250.0) ** 2) / 50.0) + 0.01 * generator.normal(size=x.size)
+    spectrum = Spectrum(x, y, technique='UV-Vis')
+    grid = np.linspace(245.0, 255.0, 201)
+
+    spline = spectrum.resample(grid, 'spline').y
+    fitted = spectrum.resample(grid).y
+
+    assert spline.max() > 1.4                  # the data never exceeds 1.02
+    assert fitted.max() < 1.05
 
 
 def test_the_resampling_method_is_recorded():
@@ -734,7 +757,7 @@ def test_the_resampling_method_is_recorded():
     x = np.linspace(200.0, 300.0, 201)
     spectrum = Spectrum(x, np.exp(-((x - 250.0) ** 2) / 50.0),
                             technique='UV-Vis')
-    step = spectrum.resample(np.linspace(210.0, 290.0, 81), 'savgol',
+    step = spectrum.resample(np.linspace(210.25, 289.75, 160), 'savgol',
                              window=11, order=3).history[-1]
     assert step.params['method'] == 'savgol'
     assert step.params['window'] == 11 and step.params['order'] == 3
@@ -746,3 +769,28 @@ def test_a_window_too_narrow_for_the_order_is_refused():
                             technique='UV-Vis')
     with pytest.raises(ValueError, match='cannot support a polynomial'):
         spectrum.resample(x, 'savgol', window=3, order=5)
+
+
+def test_asking_for_values_that_were_measured_returns_them():
+    """
+    Putting two spectra on a common axis usually means asking for points one
+    of them already holds. Nothing needs estimating there, and a method that
+    answered by fitting would hand back something slightly different from the
+    measurement for no reason.
+    """
+    x = np.linspace(200.0, 300.0, 201)
+    y = np.exp(-((x - 250.0) ** 2) / 50.0)
+    spectrum = Spectrum(x, y, technique='UV-Vis')
+
+    same = spectrum.resample(x)
+    assert np.array_equal(same.y, y)
+    assert same.history[-1].params['method'] == 'measured'
+
+    stretch = x[(x >= 230.0) & (x <= 270.0)]
+    part = spectrum.resample(stretch)
+    assert np.array_equal(part.y, y[(x >= 230.0) & (x <= 270.0)])
+    assert part.history[-1].params['method'] == 'measured'
+
+    # one position that was not measured is enough to make it a real estimate
+    mixed = np.append(stretch, 250.25)
+    assert spectrum.resample(mixed).history[-1].params['method'] == 'savgol'

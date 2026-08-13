@@ -544,7 +544,8 @@ def local_polynomial(x, y, targets, window, order):
     if window <= order:
         raise ValueError(
             f"only {len(x)} points available, which cannot support a "
-            f"polynomial of order {order}"
+            f"polynomial of order {order}. Reduce the order, or resample "
+            f"with method='spline'."
         )
 
     order_x = np.argsort(x)
