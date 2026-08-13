@@ -1,35 +1,48 @@
 # This Source Code Form is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
-"""Spectra structure to hold a spectrum and associated metadata.
+"""
+One spectrum: its numbers, what they are, where they came from, and what has
+been done to them.
 
-The spectrum structure
-The metadata associated with the spectrum and default values:
+    >>> import spectroscopy as spc
+    >>> spectrum = spc.datasets.load('ethanol')
+    >>> spectrum.technique
+    'FTIR'
+    >>> processed = spectrum.crop(1000, 1800).baseline_correct('rubberband')
+    >>> [step.name for step in processed.history]
+    ['crop', 'baseline_correct']
 
-name	 a name for the spectrum initially derived from the filename.
-filename the name of the file the spectrum came from.
-x_labels a list of 2 tuples giving (label, units) for each x dimension.
-y_label  a 2 tuple describing the y data (name, units)
+Making one
+    ``Spectrum(x, y, technique='CD', name=...)`` from arrays, or
+    :func:`spectroscopy.read` from a file. The string forms
+    ``Spectrum(directory, filename)`` still work.
 
-x        a numpy array of x values ordered along all axes
-y        a numpy array of y values at positions given by the x values
+The data
+    ``x`` and ``y`` are numpy arrays. ``x_unit``, ``y_unit``, ``x_quantity``
+    and ``y_quantity`` say what they are, and ``technique`` sets sensible
+    defaults for all four -- a file that states its own units overrides them.
+    :meth:`Spectrum.to` converts between units, including the transforms that
+    are not scalings, such as absorbance to transmittance.
 
-         Renamed from x_data/y_data in 0.1 (roadmap section 2.5). They are
-         plain attributes for now; Phase 1 makes them properties so that the
-         backing store can change without breaking callers.
+    Assigning to ``x`` or ``y`` directly works and bypasses the history. That
+    is the escape hatch, not the route.
 
-Acquisition metadata - for original untreated data it is interesting to have
-information on the acquisition parameters.
+``metadata``
+    A plain dict; anything may go in it. The keys this library reads *by name*
+    are agreed in :mod:`spectroscopy.metadata`, because ``.spy`` serialises
+    the dictionary verbatim, which makes those names part of the file format.
 
-Treatment metadata - is it interesting to have the history? Certainly not
-for the moment.
+``history``
+    A list of :class:`~spectroscopy.history.ProcessingStep`, appended to by
+    every processing method and carried through ``.spy``. It is what lets a
+    figure say how its spectrum was made a year later, including the
+    hand-chosen numbers -- the factor a water subtraction used, and why that
+    matters, being the whole point.
 
-Todo:
-    Should define functions for jcamp required info and use it.
-    Should make sanity checks and die gracefully
-
--------------------------------------------------------------
-
+Processing methods return a **new** spectrum and leave the original alone, so
+they chain. Arithmetic (``+``, ``-``, ``*``, ``/``) works between spectra on a
+common axis and against scalars.
 """
 
 # pylint: disable=W0511, W0107

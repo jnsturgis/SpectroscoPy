@@ -2,7 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-sidechain - this module caclulates the ir-spectra of protein sidechains.
+Infrared spectra of protein side chains, and what they contribute to amide I.
+
+    >>> from spectroscopy.processing import ftir
+    >>> spectrum = ftir.ftir_sidechain(composition, pH=7.0)   # doctest: +SKIP
+
+Side chains absorb in the amide I region, so a secondary-structure estimate
+that ignores them is fitting somebody else's bands. Given a composition and a
+pH this returns the spectrum they account for, which can then be subtracted.
 
 The code is based on that of Joëlle De Meutter and Eric Goormaghtigh 2021 (Eur
 Biophys J 50: 641–651) and the parameters in that article which in turn are based

@@ -411,3 +411,41 @@ def test_there_is_deliberately_no_top_level_load():
     """`load` already means "fetch a bundled example" -- datasets.load(name)."""
     assert not hasattr(spc, 'load')
     assert callable(spc.datasets.load)
+
+
+# ---------------------------------------------------------------------------
+# the examples in the docstrings
+# ---------------------------------------------------------------------------
+
+def test_every_docstring_example_runs():
+    """
+    A docstring that shows you what to type has to show something that works.
+
+    Nothing ran these before, and one had been wrong since it was written --
+    which is the argument for the test rather than against the examples. A
+    genuinely illustrative line (one that needs data the reader supplies) is
+    marked ``# doctest: +SKIP`` and is not run.
+    """
+    import doctest
+    import importlib
+    import pkgutil
+
+    import spectroscopy
+
+    failures, attempted, broken = 0, 0, []
+    modules = [spectroscopy]
+    for found in pkgutil.walk_packages(spectroscopy.__path__, 'spectroscopy.'):
+        try:
+            modules.append(importlib.import_module(found.name))
+        except Exception:                                    # noqa: BLE001
+            continue                                  # optional dependency
+
+    for module in modules:
+        result = doctest.testmod(module, verbose=False, report=False)
+        attempted += result.attempted
+        failures += result.failed
+        if result.failed:
+            broken.append(module.__name__)
+
+    assert attempted > 20, f"only {attempted} doctests found -- did they move?"
+    assert not failures, f"docstring examples failing in: {', '.join(broken)}"

@@ -9,10 +9,6 @@ Nothing here knows about :class:`~spectroscopy.spectra.Spectrum`: these take
 call these and record a :class:`~spectroscopy.history.ProcessingStep`. Keeping
 the split means the numerics can be tested against synthetic ground truth
 without constructing objects, and that ``processing`` never imports ``core``.
-
-Priorities follow the notebook inventory (review section 1.3): rubberband
-baseline and second-derivative peak detection first, because between them they
-were copy-pasted into a dozen notebooks.
 """
 
 from __future__ import annotations

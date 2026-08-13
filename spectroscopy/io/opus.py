@@ -6,9 +6,8 @@ Bruker OPUS native files -- ``sample.0``, ``sample.1``, ...
 
 OPUS is proprietary and undocumented; this reader was written against 41 real
 files that also had ``.dpt`` exports of the same measurement, so every spectrum
-it produces can be checked against what OPUS itself wrote out. That pairing is
-the only reason it is trustworthy, and it is why roadmap section 15.2 asked for
-the files before the code.
+it produces was checked against what OPUS itself wrote out. That pairing is the
+only reason it is trustworthy.
 
 Structure, as far as is needed here::
 

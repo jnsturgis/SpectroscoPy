@@ -9,13 +9,8 @@ Fitting answers the harder question -- "this envelope is several overlapping
 bands; how much of each?" -- which is what amide I secondary structure, band
 area ratios and any quantitative deconvolution actually need.
 
-The return type is a dataclass over numpy arrays rather than a DataFrame, for
-the reason in review section 5.6: a pandas return type obliges every caller to
-install pandas to do anything with the result.
-
-ADR-0001 section 6.2 deferred this until there was a real caller to design it
-against, on the grounds that a return type shaped by an imagined use fits real
-ones badly. Secondary structure analysis is that caller.
+The return type is a dataclass over numpy arrays rather than a DataFrame, so
+that reading a result does not oblige you to install pandas.
 """
 
 from __future__ import annotations

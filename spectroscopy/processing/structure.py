@@ -4,10 +4,19 @@
 """
 Protein secondary structure, from spectra.
 
-One output type, several inputs. :func:`from_ftir` is the first estimator;
-circular dichroism follows on its own branch, and a structure from a PDB file
-is a third. They return the same :class:`Composition` against the same
-vocabulary, which is what makes two estimates of the same sample comparable.
+    >>> from spectroscopy.processing import structure
+
+One output type, several inputs. :func:`from_ftir` estimates from an amide I
+band, :func:`from_cd` from a far-UV CD spectrum against reference proteins,
+and :func:`helix_from_theta222` from a single CD ordinate. All return the same
+:class:`Composition` against the same vocabulary, which is what makes two
+estimates of one sample comparable -- :meth:`Composition.compare` does that
+comparison on the categories both methods can express.
+
+:func:`nearest_references` answers a different and often better question: not
+"what is this made of" but "what does it most look like, and what are those".
+:func:`cd_shape_descriptors` reports band positions and ratios, which are
+amplitude-free and need no reference set at all.
 
 **DSSP is the baseline vocabulary** (ADR-0002). Every category is declared as
 the set of DSSP states it claims, so comparing two methods is an operation on
@@ -456,7 +465,8 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
 
     Examples
     --------
-    >>> composition = from_ftir(spectrum, method='amide-i-curve-fit')
+    >>> composition = from_ftir(spectrum,                    # doctest: +SKIP
+    ...                         method='amide-i-curve-fit')
     >>> composition.get('helix')                             # doctest: +SKIP
     0.38
     """

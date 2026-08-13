@@ -4,10 +4,10 @@
 """
 Generic delimited-text reader: many spectra from one wide file.
 
-Roadmap section 3 calls a configurable delimited reader "high value early,
-since it unblocks 'weird format my colleague sent me' cases without a
-dedicated parser". Three real files in the notebooks need exactly this, and
-each defeats a plain two-column reader in a different way:
+For the file a colleague sent that no dedicated reader handles. Reached as
+``spc.read(path, 'table', ...)``; the keywords say how the columns are laid
+out. Three real layouts, each of which defeats a plain two-column reader in a
+different way:
 
 ===============================  =========================================
 ``J_Peri.csv`` (Chloe)           173 columns as (x, y) **pairs** -- an

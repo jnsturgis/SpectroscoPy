@@ -2,24 +2,57 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-SpectrumCollection -- an ordered set of spectra with batch operations.
+Many spectra at once: load them, group them, average them, process them.
 
-This is the answer to friction item #1 in the review: replicate averaging done
-by hard-coded index. Across the notebooks that is written as
+A :class:`SpectrumCollection` is an ordered set of
+:class:`~spectroscopy.spectra.Spectrum`. It is a ``Sequence``, so indexing,
+slicing, ``len`` and iteration all work; every operation that returns a
+collection returns a new one and leaves the original alone.
 
-    PG_coli   = (spectra[0] + spectra[1] + spectra[2]) / 3.0
-    Glucose   = (spectra[32] + spectra[33] + ... + spectra[37]) / 6.0
-    Cellulose = (spectra[23] + spectra[24] + ... + spectra[27]) / 5.0
+    >>> import spectroscopy as spc
+    >>> folder = spc.datasets.replicate_directory()
+    >>> spectra = spc.SpectrumCollection.from_files(folder + "/*.dpt")
+    >>> len(spectra)
+    9
+    >>> averages = {name: group.mean()
+    ...             for name, group in spectra.group_by('sample').items()}
+    >>> sorted(averages)
+    ['CelluloseX', 'Glucose', 'H2O']
 
-which breaks silently the moment a file is added, and which the notebooks
-themselves flag: *"This should be simpler and neater call"* and *"Should be
-based on sample name and list of numbers"*. With a collection it is
+Loading
+    :meth:`SpectrumCollection.from_files` takes globs, names each spectrum
+    from its filename, and can read a measured parameter out of the path.
+    :func:`spectroscopy.io.read_spectra` reads one file that holds many.
 
-    averages = collection.group_by('sample').mean()
+Grouping and reducing
+    :meth:`~SpectrumCollection.group_by` returns ``{value: collection}``;
+    :meth:`~SpectrumCollection.mean`, ``std``, ``sem`` and ``median`` reduce a
+    collection to one spectrum.
 
-``to_matrix()`` is the bridge to the multivariate work: it returns plain numpy,
-which is what scikit-learn wants, without pandas entering the core (review
-section 5.6).
+Batch processing
+    :meth:`~SpectrumCollection.crop`, ``baseline_correct``, ``normalize``,
+    ``smooth``, ``resample`` and ``subtract_reference`` apply to every
+    spectrum. :meth:`~SpectrumCollection.map` applies anything else.
+
+Handing over
+    :meth:`~SpectrumCollection.to_matrix` returns ``(x, X)`` as plain numpy,
+    which is what scikit-learn wants; :meth:`~SpectrumCollection.to_dataframe`
+    needs pandas, which is not a dependency.
+
+Two things worth knowing before you rely on them:
+
+**A collection knows about a continuous parameter.** Where the spectra of a
+series were measured at a temperature, a potential or a concentration,
+:attr:`~SpectrumCollection.parameters` gathers those values and
+:meth:`~SpectrumCollection.sorted_by_parameter` puts the series in order --
+worth doing explicitly, because ``from_files`` sorts paths as *text* and
+``-120mV`` sorts before ``-20mV``.
+
+**Facts about the set live in** :attr:`~SpectrumCollection.info`, not on each
+spectrum: what the parameter is called and what it is in, and for a reference
+set where it came from and under what terms. ``info`` survives cropping,
+selection and slicing. Per-spectrum data stays in each spectrum's ``metadata``
+and the collection gathers it, so the two cannot fall out of step (ADR-0004).
 """
 
 from __future__ import annotations

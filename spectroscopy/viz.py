@@ -2,21 +2,24 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Plotting -- the figure cells of the notebooks, as functions.
+Plotting: one spectrum, several, or a whole decomposition.
 
-This is the ``viz`` layer of the roadmap's io -> core -> processing -> viz
-split. ``Spectrum.plot`` used to put matplotlib inside the data model (review
-crossing C2); it now delegates here.
+    >>> import spectroscopy as spc
+    >>> from spectroscopy import viz
+    >>> figure, axes = viz.plot(spc.datasets.load('ethanol'))   # doctest: +SKIP
 
-What is here is what the notebooks actually draw, repeatedly and by hand:
+:meth:`Spectrum.plot <spectroscopy.spectra.Spectrum.plot>` and
+:meth:`SpectrumCollection.plot <spectroscopy.collection.SpectrumCollection.plot>`
+delegate here, so matplotlib stays out of the data model and is imported only
+when something is actually drawn.
 
 ==========================  ==================================================
 :func:`plot`                one spectrum, with the axis labels and the reversed
                             x axis that FTIR and Raman want
 :func:`plot_collection`     several overlaid, with a legend
-:func:`stack`               offset traces -- the Figure S5 panel A layout
+:func:`stack`               offset traces, direct-labelled
 :func:`grid`                one panel per sample
-:func:`annotate_peaks`      the six-line label loop from ~10 notebooks
+:func:`annotate_peaks`      peak positions marked and labelled
 :func:`annotate_bands`      ``{1650: "Amide I", ...}`` as marked assignments
 :func:`plot_baseline`       a spectrum with its baseline and the correction
 :func:`plot_decomposition`  NMF/PCA components, a fit, and the residuals

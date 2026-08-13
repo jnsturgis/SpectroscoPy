@@ -4,10 +4,14 @@
 """
 PeakTable -- the result type for peak detection.
 
-A dataclass over numpy arrays, not a DataFrame (review section 5.6): a pandas
-return type would oblige every caller to have pandas installed to do anything
-with the result. :meth:`PeakTable.to_dataframe` is the opt-in escape hatch and
-imports pandas inside the method.
+What :meth:`Spectrum.find_peaks <spectroscopy.spectra.Spectrum.find_peaks>`
+returns: positions, heights, prominences and widths as numpy arrays, plus
+``kind`` saying whether they are maxima, minima or both.
+
+:meth:`PeakTable.maxima` and :meth:`PeakTable.minima` select one sign --
+useful for CD, where a helix has bands of both. :meth:`PeakTable.to_dataframe`
+is the opt-in route to pandas, which is not a dependency, and imports it
+inside the method.
 """
 
 from __future__ import annotations

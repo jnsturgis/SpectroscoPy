@@ -2,29 +2,39 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Axis unit conversion.
+Axis units: what a spectrum is in, and converting between them.
 
-Roadmap section 2.2 asks for ``spectrum.to("nm")`` as a first-class, tested
-operation, on the grounds that nm-vs-cm^-1 and absorbance-vs-%T confusion is
-exactly the kind of bug that erodes trust in a shared tool.
+    >>> import spectroscopy as spc
+    >>> spectrum = spc.datasets.load('ethanol')
+    >>> in_nm = spectrum.to('nm')
+    >>> in_nm.x_unit
+    'nm'
 
-Why not pint
-------------
-The roadmap suggests pint. Implemented natively instead, for two reasons that
-only became clear once the conversions were written down:
+Reached through :meth:`~spectroscopy.spectra.Spectrum.to`; the functions here
+are for when you have bare numbers rather than a spectrum.
 
-1. **Half of what is needed is not a unit conversion at all.** Absorbance to
-   transmittance is ``T = 10**-A``, a functional transform between two
-   dimensionless quantities. pint does not do that; it would need custom code
-   regardless.
-2. **The x-axis conversions are reciprocal**, not scalar. nm to cm^-1 is
-   ``1e7 / nm``. pint handles this only through its ``spectroscopy`` context,
-   so the call site is no simpler than the formula.
+**x axis** -- ``nm``, ``um``, ``cm^-1``, ``eV``, ``THz``. These are
+*reciprocal*, not scaled: nm to cm^-1 is ``1e7 / nm``, so the axis reverses and
+an evenly spaced grid stops being evenly spaced.
 
-The unit space here is small and closed, so a native table is exact,
-dependency-free, and covers the y axis too. If the unit space grows -- path
-lengths, concentrations, per-unit-time intensities -- revisit this: at that
-point pint earns its place. See also review section 5.6 on dependency policy.
+**y axis** -- ``absorbance``, ``transmittance``, ``%T``, ``reflectance``, and
+the CD ordinates ``mdeg``, ``deg``, ``deg cm^2 dmol^-1``, ``delta epsilon``.
+Absorbance to transmittance is ``T = 10**-A``: a transform between two
+dimensionless quantities rather than a unit conversion, which is why this is a
+table of functions and not a table of factors.
+
+:func:`band_direction` says which way a band points in a given ordinate --
+``'up'``, ``'down'``, ``'unknown'``, or ``'both'`` for the CD ordinates, where
+a helix is negative at 222 nm and positive at 193 in the one spectrum. Peak
+finding reads it, so it decides whether maxima, minima or both are returned.
+
+.. note::
+
+   Getting from millidegrees to mean residue ellipticity is **not** here, and
+   cannot be: it needs a concentration, a path length and a residue count,
+   which no unit table can supply. See
+   :meth:`~spectroscopy.spectra.Spectrum.to_mean_residue_ellipticity`, which
+   asks for all three and refuses to guess.
 """
 
 from __future__ import annotations

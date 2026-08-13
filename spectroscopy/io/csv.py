@@ -2,12 +2,12 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Created on Wed Feb 19 2025
+Comma- and semicolon-separated text, read and written.
 
-@author: James STURGIS
-
-This file implements import and export of spectra with CSV format files
-for my spectroscopy programmes and utilities.
+Registered as the ``csv`` format, so it is reached through ``spc.read()``
+rather than called directly. The separator and the decimal mark are sniffed
+from the file, which is what makes a French export -- semicolons, commas for
+decimals -- read without being told.
 
 """
 

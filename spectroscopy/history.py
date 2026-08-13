@@ -7,7 +7,7 @@ Processing provenance: what was done to a spectrum, with which parameters.
 Every operation that returns a new Spectrum appends a :class:`ProcessingStep`.
 Steps record a **structured** (name, params) pair rather than a human-readable
 sentence, because that is what lets an interactively-built chain be turned back
-into a runnable Pipeline later (roadmap section 2.3):
+into a runnable pipeline later:
 
     ProcessingStep("baseline_correct", {"method": "als", "lam": 1e5, "p": 0.01})
 

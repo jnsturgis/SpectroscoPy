@@ -2,79 +2,54 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Secondary structure from a CD spectrum: several methods, and a way to compare
-them.
+Secondary structure from a far-UV CD spectrum.
 
-Estimating structure from a far-UV CD spectrum means writing the measured
-spectrum as a combination of reference spectra whose structures are known, and
-reading the composition off the combination. Every published method does that;
-they differ in *how they cope with there being more references than the data
-can distinguish*, which is the whole difficulty.
+    >>> import spectroscopy as spc
+    >>> from spectroscopy.processing import cd
+    >>> protein = spc.datasets.load('aqpz')
+    >>> references = spc.datasets.reference_set('smp180')
+    >>> answer = cd.estimate(protein, 'ridge', references)
+    >>> round(answer.get('helix'), 2)
+    0.45
 
-A typical reference set has 70-130 proteins. A measurement from 190 to 240 nm
-carries about 50 independent numbers. Fitting 130 unknowns to 50 equations has
-infinitely many exact solutions, and picking one by least squares gives an
-excellent residual and an arbitrary answer. The methods below are four
-different answers to that.
+:func:`estimate` returns a
+:class:`~spectroscopy.processing.structure.Composition`. The method is named
+rather than defaulted, because which one you used is most of what the answer
+means. :func:`benchmark` measures a method against a reference set by holding
+proteins out, and :func:`uncertainty_from_replicates` turns repeat scans into
+the per-wavelength error that ``sigma=`` weights the fit by.
 
 The methods
 -----------
-``all-references``
-    Plain non-negative least squares against every reference. Correct only
-    when the data can actually determine them, and this refuses when it
-    cannot. Included as the honest baseline rather than as a recommendation.
+``all-references``  every reference at once, and **refuses** when the data
+                    cannot determine them. The honest baseline.
+``nearest-shapes``  rank references by shape, average the closest few. Nothing
+                    is inverted, so nothing is arbitrary.
+``subset-average``  fit many small random subsets, average those that pass a
+                    consistency test. The idea behind CDSSTR.
+``selcon``          the self-consistent method with variable selection: the
+                    unknown joins the basis carrying a guess at its own
+                    structure, which is iterated to a fixed point.
+``ridge``           penalised least squares over the whole set. The standard
+                    treatment of an underdetermined system.
 
-``nearest-shapes``
-    Do not invert anything. Rank the references by how much the *shape*
-    resembles the measurement -- cosine similarity on unit-normalised spectra
-    -- and average the known structures of the closest few, weighted by
-    similarity. There is no underdetermined system, so there is no arbitrary
-    solution to pick.
+The one thing that decides which you can use
+--------------------------------------------
+A reference set is in Δε per residue; your spectrum is in millidegrees until
+you supply a concentration, a path length and a residue count. **``selcon``
+always needs them** -- its self-consistent step puts your spectrum into the
+basis beside the references, so the amplitude is part of the model, and
+``ignore_sum_rule=True`` produces a number without making it scale-free.
+``subset-average`` needs them only with ``sum_to_one=True``. The rest work on
+shape alone.
 
-``subset-average``
-    The idea behind CDSSTR (Johnson 1999; see docs/references.md): repeatedly fit small
-    random subsets of references, keep the solutions that pass a
-    self-consistency test, and average them. Small subsets are determined by
-    the data even when the whole set is not.
+Getting a path length wrong by ten is easy and silent, and moves any
+amplitude-dependent answer by ten while the spectrum still looks normal.
 
-``ridge``
-    Tikhonov-regularised non-negative least squares over every reference. The
-    standard statistical treatment of an underdetermined system: penalise the
-    size of the coefficients so that one solution is preferred among the many
-    that fit.
-
-Which needs matched units, and why it matters
----------------------------------------------
-A reference set is in delta epsilon per residue. A measurement is in
-millidegrees until somebody supplies a concentration, a path length and a
-residue count. Methods that constrain the fitted weights to sum to one -- the
-classical self-consistency test -- are comparing an amplitude, so they need
-those three numbers to be right. Methods that normalise instead are blind to
-amplitude and work on the shape alone.
-
-============================  ==================  ==========================
-method                        needs the amplitude  what it is sensitive to
-============================  ==================  ==========================
-``all-references``            no                   conditioning
-``nearest-shapes``            no                   how well the set covers
-                                                   the fold
-``subset-average``            only with            the acceptance threshold
-                              ``sum_to_one=True``
-``ridge``                     no                   the penalty
-============================  ==================  ==========================
-
-That table is not a detail. Getting a path length wrong by a factor of ten is
-easy and silent, and it moves any amplitude-dependent answer by the same
-factor while leaving the spectrum looking entirely normal.
-
-Choosing between them
----------------------
-By held-out validation, not by which one agrees with a protein you already
-know. :func:`benchmark` hides a fraction of the reference set, estimates those
-proteins from the rest, and compares with their known structures. Run it on
-your own set before trusting any of these on your own protein --
-:doc:`the guide </guide/cd-methods>` reports what it gives on SP175 and
-SMP180.
+Which to use, what each is sensitive to, and the measured accuracy of all five
+on SP175 and SMP180 are in :doc:`the guide </guide/cd-methods>`. Choose there,
+not by which method agrees with a protein you already know -- any of them will
+agree with something.
 """
 
 from __future__ import annotations

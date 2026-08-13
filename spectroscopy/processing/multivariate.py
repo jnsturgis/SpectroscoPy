@@ -4,12 +4,9 @@
 """
 Decomposition of a set of spectra: PCA, NMF, ICA -- with stability testing.
 
-This is the analysis in ``Biofilm_CK_241125`` / ``Figure_CK_111225`` /
-``Figures_CK``, which was the newest and most developed work in the notebooks
-and lived entirely outside the library, operating on numpy matrices assembled
-by hand. The stability testing in particular -- repeated fits, bootstrap
-resampling, and Hungarian matching of components between runs -- is a genuinely
-reusable piece of method work that was trapped in one notebook.
+Ask a set of spectra how many things are varying in it and what they look
+like, without saying in advance what to look for -- the unsupervised
+counterpart of :mod:`spectroscopy.processing.unmix`.
 
 Two things it adds beyond wrapping scikit-learn:
 

@@ -2,19 +2,33 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Reference spectra and extinction coefficients.
+Reference spectra of known things, to identify or quantify an unknown against.
 
-Roadmap section 13.3 ranks "library/reference lookup *and* decomposition"
-first among the things the paper needs, on the grounds that the pairing is the
-novelty: other packages match a spectrum against a library, and other packages
-decompose, but identifying what a decomposition pulled out by matching it
-against references is the step normally done by eye.
+    >>> import spectroscopy as spc
+    >>> from spectroscopy import library
+    >>> references = spc.datasets.reference_set('sp175')
+    >>> len(references)
+    71
+    >>> library.coefficient('dsDNA').unit
+    '(ug/mL)^-1 cm^-1'
 
-This module is the reference half. :mod:`spectroscopy.processing.unmix` is the
-decomposition half.
+:class:`ReferenceSet` is the container: an ordered set of spectra that carry
+their own known properties, so a fit can report a composition or a
+concentration without a second list to keep in step. Build one with
+:meth:`ReferenceSet.from_compositions`, or load one with :func:`load_basis`
+(your own, from a small CSV manifest) or :func:`load_dichroweb_basis` (the
+published CD sets).
+
+:class:`Library` is the UV-Vis specialisation, keyed by species name and
+holding :class:`Reference` entries with units and uncertainties.
+:func:`from_series` builds one from a concentration series -- Beer-Lambert run
+backwards -- and :mod:`spectroscopy.processing.unmix` consumes it.
 
 What is and is not shipped
 --------------------------
+**The published CD reference sets ship** -- SP175 and SMP180, via
+:func:`spectroscopy.datasets.reference_set` -- because their terms allow it.
+
 **Scalar extinction coefficients are shipped**, because they are published,
 citable numbers that everyone doing UV-Vis on protein or nucleic acid already
 uses. They live in :data:`COEFFICIENTS` with their source recorded.

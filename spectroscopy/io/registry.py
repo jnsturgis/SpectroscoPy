@@ -2,16 +2,14 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Format registry -- readers and writers register themselves here.
+Format registry: one table of what can be read and written.
 
-Roadmap section 3 asks for "a registry of format readers, not a chain of
-if/elif on file extension". Before this there were four places that had to be
-kept in step by hand: ``FILE_EXTS``, ``KNOWNFILETYPES``, and the ``match``
-statements in ``Spectrum.reload()`` and ``Spectrum.save()``. They had already
-drifted apart -- that was defect D5, and it cost a silently truncated file.
-Now there is one table and everything else is derived from it.
+Everything else is derived from it -- which extensions map to which format,
+what :func:`spectroscopy.read` accepts, and what
+:func:`describe_formats` prints. Users go through ``spc.read()``; this module
+is for adding a format.
 
-Adding a format is a decorator::
+Adding one is a decorator::
 
     @register_reader('dpt', extensions=['.dpt'], description='Bruker OPUS')
     def read(handle, spectrum, **kwargs):

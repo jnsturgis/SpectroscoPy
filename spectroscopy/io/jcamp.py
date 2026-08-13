@@ -2,12 +2,11 @@
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Created on Wed Apr 24 10:08:22 2024
+JCAMP-DX (``.jdx``, ``.dx``, ``.jcamp``), read and written.
 
-@author: James STURGIS
-
-This file implements import and export of spectra with JCAMP DX format files
-for my spectroscopy programmes and utilities.
+Registered as the ``jcamp`` format, so it is reached through ``spc.read()``
+rather than called directly. JCAMP files state their own units and axis
+labels, and those are kept in preference to any technique default.
 
 Much of the code comes from Nathan Hagen and is used under the MIT/X11 Licence
 the original code can be found here: https://github.com/nzhagen/jcamp

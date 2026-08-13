@@ -11,8 +11,6 @@ much of each is present". Both are useful and they answer different questions
 -- a blind decomposition finds components nobody can name, and this names
 components nobody has to find.
 
-Roadmap section 13.3 puts the pairing first among the things the paper needs.
-
 Why non-negative least squares
 ------------------------------
 A concentration cannot be negative, and an ordinary least-squares fit will
