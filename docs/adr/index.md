@@ -15,4 +15,5 @@ record is added instead, so the trail of reasoning stays readable.
 0002-secondary-structure
 0003-band-direction
 0004-reference-sets
+0005-per-member-quantities
 ```

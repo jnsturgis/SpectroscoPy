@@ -536,11 +536,16 @@ making `parameter` sometimes a list would break `sorted_by_parameter`, the
 van 't Hoff fit and `library.from_series`, which all do arithmetic on it.
 
 Metadata keys freeze with the format, so this is the same shape of problem as
-D2: reserving something like `factors` costs an afternoon now and a migration
-later. **Deciding not to have one is also a decision and also has to be made**,
-rather than arrived at by November passing. Not built — there is no such
-dataset in hand, and the working agreement is that the code comes after the
-data. ADR-0004 §7.
+D2. **Settled the same day, and larger than it looked: ADR-0005.** James's
+argument was that a redox potential is externally determined exactly as a
+secondary structure breakdown is, and differs only in dimensionality — so a
+spectrum carries *quantities* of declared space and unit, and the role a
+quantity plays is assigned by the analysis rather than carried by the key.
+`concentration` is a fixed condition in a CD scan and the regression variable
+in a dilution series, which is what proves it. The decision freezes a namespace
+(`metadata['quantities']`, `info['quantities']`) and nothing else; the
+machinery is additive and can ship in 1.1. Implementation belongs in the
+September window — not before, since the testers get 0.1.0 on 20 August.
 
 ### 14.3 Sequence, backwards from early November
 

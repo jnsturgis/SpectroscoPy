@@ -50,6 +50,13 @@ so that the reserved prefixes are known and readers do not collide.
    ``factors`` has to be decided before 1.0, because these names freeze with
    the format. ADR-0004 section 7.
 
+   **Settled by ADR-0005**, and more broadly than the gap that prompted it: a
+   spectrum carries named *quantities* of declared space and unit, and which
+   role a quantity plays -- axis of the set, fixed condition, known truth -- is
+   assigned by the analysis rather than carried by the key. The groups below
+   are therefore a description of today's keys, not the shape the schema is
+   heading for. Scheduled for the September breaking-change window.
+
 Nothing here is enforced. A missing key is normal and every consumer decides
 what to do about it -- but the rule for the sample conditions is that a
 consumer **states its assumption or refuses**, never silently supplies a

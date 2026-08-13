@@ -5,6 +5,13 @@
 Ad hoc — this records what the structure should be instead. Section 5 was left
 open and was resolved on 2026-08-13; section 6 records what was built and the
 one thing that was deliberately deferred.
+**Partly superseded by ADR-0005** (2026-08-13): section 2.3's split of
+per-item metadata into conditions and known truth does not hold — role is
+assigned by the analysis, not carried by the key — and section 6's rule for
+what earns its own class stops selecting `ReferenceSet` once the base class
+interprets declared quantities. The section 2.2 argument for one list, and the
+section 2.4 argument for set-level declaration, both survive and are carried
+forward.
 **Depends on** ADR-0001 (the core data model) and the metadata schema added
 for roadmap D2.
 **Affects** `library`, `processing.cd`, `processing.unmix`,
@@ -294,6 +301,13 @@ call site. The inheritance is worth finishing on its own, with the UV-Vis
 tests watching.
 
 ## 7. Open — the abstractions may not all be right yet (James, 2026-08-13)
+
+**Answered by ADR-0005**, written the same day: the panel below is not a
+special case needing a `factors` key, it is one instance of a per-member
+quantity whose space happens to be a pair of categoricals. The analysis below
+stands as the worked example that produced that conclusion; the recommendation
+at the end of it — a `factors` key beside `parameter` — is the option ADR-0005
+section 5 rejects.
 
 **To be resolved before the format freezes.** Raised while reviewing the above:
 imagine a panel of double mutants, two sites varying — AA, AC, AS, CA, CC, CS,
