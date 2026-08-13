@@ -393,3 +393,91 @@ def test_extinction_units_are_recognised_but_not_convertible():
     assert not units.is_extinction('cm^-1')
     assert not units.is_extinction('absorbance')
     assert not units.is_extinction('')
+
+
+# ---------------------------------------------------------------------------
+# a reference says nothing outside where it was measured
+# ---------------------------------------------------------------------------
+
+def _narrow_library():
+    """Two references measured 250-350 nm, with values between 0 and 1."""
+    from spectroscopy import library as lib
+
+    x = np.linspace(250.0, 350.0, 101)
+    first = Spectrum(x, np.exp(-((x - 280.0) ** 2) / 200.0),
+                     technique='UV-Vis', name='first')
+    second = Spectrum(x, np.exp(-((x - 320.0) ** 2) / 300.0),
+                      technique='UV-Vis', name='second')
+    return lib.Library([lib.Reference('first', first, unit='M^-1 cm^-1'),
+                        lib.Reference('second', second, unit='M^-1 cm^-1')])
+
+
+def test_a_library_knows_what_it_covers():
+    library = _narrow_library()
+    assert library.covered == (250.0, 350.0)
+
+
+def test_asking_a_reference_beyond_its_range_is_refused():
+    """
+    A curve followed past its last measured point does not decay away, it
+    accelerates. This library's values lie between 0 and 1, and extrapolating
+    to 200 nm once returned -4.16 -- a negative extinction coefficient, which
+    is not inaccurate but impossible, and which went into the design matrix
+    without a murmur.
+    """
+    library = _narrow_library()
+    with pytest.raises(ValueError, match='outside what these references cover'):
+        library.on(np.linspace(200.0, 400.0, 201))
+
+
+def test_unmixing_fits_where_the_references_exist():
+    """
+    The ordinary case: the sample was scanned over a wider range than the
+    references were measured over. The fit uses the overlap, says that it did,
+    and recovers the right amounts.
+    """
+    library = _narrow_library()
+    reference_x = np.linspace(250.0, 350.0, 101)
+    first = library['first'].spectrum
+    second = library['second'].spectrum
+
+    x = np.linspace(200.0, 400.0, 201)
+    sample = Spectrum(x,
+                      2.0 * np.interp(x, reference_x, first.y)
+                      + 0.5 * np.interp(x, reference_x, second.y),
+                      technique='UV-Vis', name='mixture')
+
+    with pytest.warns(UserWarning, match='leaving out'):
+        result = unmix(sample, library)
+
+    assert result.amounts[0] == pytest.approx(2.0, abs=1e-6)
+    assert result.amounts[1] == pytest.approx(0.5, abs=1e-6)
+    assert result.metadata['region'] == (250.0, 350.0)
+    # and the residual is reported only where the model has something to say
+    assert result.residual.x.min() >= 250.0
+    assert result.residual.x.max() <= 350.0
+
+
+def test_references_with_no_overlap_are_refused():
+    from spectroscopy import library as lib
+
+    low = np.linspace(200.0, 250.0, 51)
+    high = np.linspace(300.0, 350.0, 51)
+    library = lib.Library([
+        lib.Reference('low', Spectrum(low, np.ones_like(low), technique='UV-Vis')),
+        lib.Reference('high', Spectrum(high, np.ones_like(high), technique='UV-Vis')),
+    ])
+    assert library.covered is None
+
+    x = np.linspace(200.0, 350.0, 151)
+    sample = Spectrum(x, np.ones_like(x), technique='UV-Vis')
+    with pytest.raises(ValueError, match='no wavelengths in common'):
+        unmix(sample, library)
+
+
+def test_a_sample_outside_the_references_entirely_is_refused():
+    library = _narrow_library()
+    x = np.linspace(400.0, 500.0, 101)
+    sample = Spectrum(x, np.ones_like(x), technique='UV-Vis')
+    with pytest.raises(ValueError, match='do not overlap'):
+        unmix(sample, library)

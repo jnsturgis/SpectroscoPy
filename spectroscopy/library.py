@@ -84,7 +84,7 @@ class Coefficient:
 
     #: Wavelength, nm.
     wavelength: float
-    #: Value in :attr:`unit`.
+    #: Value in ``unit``.
     value: float
     #: ``'M^-1 cm^-1'``, or a mass form such as ``'(mg/mL)^-1 cm^-1'``.
     unit: str
@@ -541,16 +541,60 @@ class Library:
         where = f" {self.name!r}" if self.name else ""
         return f"<Library{where}: {len(self)} references: {', '.join(self.names)}>"
 
+    @property
+    def covered(self):
+        """
+        The stretch of x that every reference in the library covers.
+
+        Outside it at least one reference was never measured, so there is
+        nothing to fit against there. ``(low, high)``, or ``None`` when the
+        references have no overlap at all.
+        """
+        if not len(self):
+            return None
+        low = max(float(np.min(r.spectrum.x)) for r in self)
+        high = min(float(np.max(r.spectrum.x)) for r in self)
+        return (low, high) if high > low else None
+
     def on(self, x):
         """
         Every reference read at the same wavelengths, ready to fit against.
 
-        Unmixing needs the references on the sample's own wavelength grid, and
-        a reference measured on a different instrument never is. Resampling
-        the references rather than the sample keeps the data being explained
-        untouched.
+        Unmixing needs the references at the sample's own wavelengths, and a
+        reference measured on another instrument never is, so they are read at
+        the positions asked for.
+
+        Asking outside the range a reference was measured over is refused. A
+        curve fitted to the measured points and then followed past the last of
+        them does not decay to nothing, it accelerates: a reference measured
+        250-350 nm, whose values lie between 0 and 1, was asked for at 200 nm
+        and answered -4.16. As an extinction coefficient that is not merely
+        inaccurate, it is impossible, and it went into the fit without a
+        murmur. Where a reference was not measured, nothing is known -- which
+        is different from zero, and different from whatever the curve was
+        doing when the measurement stopped.
+
+        Use ``covered`` to find the wavelengths worth asking for.
         """
         x = np.asarray(x, dtype=float)
+        outside = []
+        for reference in self:
+            low = float(np.min(reference.spectrum.x))
+            high = float(np.max(reference.spectrum.x))
+            if len(x) and (x.min() < low - 1e-9 or x.max() > high + 1e-9):
+                outside.append(f"{reference.name} ({low:g}-{high:g})")
+        if outside:
+            covered = self.covered
+            raise ValueError(
+                f"asked for {x.min():g}-{x.max():g}, which is outside what "
+                f"these references cover: {', '.join(outside)}. Extrapolating "
+                f"a reference gives values that are not merely wrong but "
+                f"impossible -- negative extinction coefficients -- and the "
+                f"fit cannot tell. Crop to "
+                + (f"{covered[0]:g}-{covered[1]:g}" if covered
+                   else "a range they share, of which there is none")
+                + ", which is library.covered."
+            )
         return np.vstack([reference.spectrum.resample(x).y
                           for reference in self])
 

@@ -30,6 +30,7 @@ not good for written down beside it.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -192,6 +193,38 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
     else:
         fit_x, fit_y = x, y
 
+    # Fit only where every reference was actually measured. Beyond that a
+    # reference has nothing to say, and a curve followed past its last point
+    # says something confident and false -- a negative extinction coefficient,
+    # which the fit then distributes among the components that do overlap it.
+    covered = library.covered
+    if covered is None:
+        raise ValueError(
+            "these references have no wavelengths in common, so there is no "
+            "range over which they can be compared: "
+            + ", ".join(f"{r.name} "
+                        f"({np.min(r.spectrum.x):g}-{np.max(r.spectrum.x):g})"
+                        for r in library)
+        )
+    usable = (fit_x >= covered[0] - 1e-9) & (fit_x <= covered[1] + 1e-9)
+    if not usable.any():
+        raise ValueError(
+            f"the spectrum covers {fit_x.min():g}-{fit_x.max():g} and the "
+            f"references cover {covered[0]:g}-{covered[1]:g}; they do not "
+            f"overlap, so there is nothing to fit"
+        )
+    dropped = int((~usable).sum())
+    if dropped:
+        warnings.warn(
+            f"fitting over {covered[0]:g}-{covered[1]:g}, where all "
+            f"{len(library)} references were measured, and leaving out "
+            f"{dropped} of {len(fit_x)} wavelengths of the spectrum. The "
+            f"amounts describe that range; a component absorbing only outside "
+            f"it is invisible here.",
+            stacklevel=2,
+        )
+    fit_x, fit_y = fit_x[usable], fit_y[usable]
+
     design = library.on(fit_x).T                    # (n_points, n_components)
     if design.shape[0] < design.shape[1]:
         raise ValueError(
@@ -228,19 +261,24 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
     if absolute:
         stderr = stderr / path_length          # scales with the amounts
 
-    # Reconstruct across the whole axis even when the fit used a few points,
-    # so the residual shows what the model does everywhere and not only where
-    # it was asked to agree.
-    full = library.on(x).T @ amounts
-    total = float(np.sum((y - np.mean(y)) ** 2))
-    r_squared = 1.0 - float(np.sum((y - full) ** 2)) / total if total else 0.0
+    # Reconstruct across every wavelength the references cover, not only the
+    # few the fit may have used, so the residual shows what the model does
+    # where it was not asked to agree. It stops where the references do:
+    # beyond that the model has nothing to say, and saying it anyway is the
+    # mistake this guards against.
+    shown = (x >= covered[0] - 1e-9) & (x <= covered[1] + 1e-9)
+    show_x, show_y = x[shown], y[shown]
+    full = library.on(show_x).T @ amounts
+    total = float(np.sum((show_y - np.mean(show_y)) ** 2))
+    r_squared = (1.0 - float(np.sum((show_y - full) ** 2)) / total
+                 if total else 0.0)
 
-    reconstruction = Spectrum(x, full, x_quantity=spectrum.x_quantity,
+    reconstruction = Spectrum(show_x, full, x_quantity=spectrum.x_quantity,
                               x_unit=spectrum.x_unit,
                               y_quantity=spectrum.y_quantity,
                               y_unit=spectrum.y_unit)
     reconstruction.name = f"{spectrum.name} (reconstruction)"
-    residual = Spectrum(x, y - full, x_quantity=spectrum.x_quantity,
+    residual = Spectrum(show_x, show_y - full, x_quantity=spectrum.x_quantity,
                         x_unit=spectrum.x_unit,
                         y_quantity=f"Residual {spectrum.y_quantity}",
                         y_unit=spectrum.y_unit)
@@ -257,6 +295,8 @@ def unmix(spectrum, library, *, path_length=None, non_negative=True,
         metadata={'non_negative': non_negative,
                   'n_points': len(fit_y),
                   'absolute': absolute,
+                  'region': (float(show_x.min()), float(show_x.max()))
+                  if len(show_x) else None,
                   'wavelengths': None if wavelengths is None
                   else list(np.asarray(fit_x))},
     )
