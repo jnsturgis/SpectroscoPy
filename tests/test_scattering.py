@@ -148,3 +148,60 @@ def test_a_clean_spectrum_is_left_almost_alone(references):
         warnings.simplefilter('ignore')
         corrected = correct_scattering(clean)
     assert np.max(np.abs(corrected.y - clean.y)) < 0.02
+
+
+# ---------------------------------------------------------------------------
+# a blank says nothing outside where it was measured
+# ---------------------------------------------------------------------------
+
+def test_a_blank_is_not_followed_past_its_own_range():
+    """
+    Scattering only ever adds signal, so a negative background is not a small
+    error but a contradiction. Extrapolating a blank measured 250-350 nm out
+    to 200 gave -4.04 on a sample spanning 0.5 to 0.501 -- four absorbance
+    units of invented band, waiting to be subtracted.
+    """
+    sample_x = np.linspace(200.0, 400.0, 201)
+    sample = Spectrum(sample_x, 0.5 + 1e6 * sample_x ** -4.0,
+                      technique='UV-Vis', name='turbid')
+    blank_x = np.linspace(250.0, 350.0, 101)
+    blank = Spectrum(blank_x, 1e6 * blank_x ** -4.0, technique='UV-Vis',
+                     name='blank')
+
+    with pytest.warns(UserWarning, match='returned uncorrected'):
+        corrected, background = from_references(
+            sample, [blank], region=(300.0, 350.0), return_background=True)
+
+    assert background.y.min() >= 0.0
+
+
+def test_the_spectrum_keeps_its_full_length_and_is_left_alone_outside():
+    """
+    No cropping: what cannot be corrected is returned as it arrived, rather
+    than removed. Declining to correct is honest; inventing a background to
+    subtract is not.
+    """
+    sample_x = np.linspace(200.0, 400.0, 201)
+    sample = Spectrum(sample_x, 0.5 + 1e6 * sample_x ** -4.0,
+                      technique='UV-Vis', name='turbid')
+    blank_x = np.linspace(250.0, 350.0, 101)
+    blank = Spectrum(blank_x, 1e6 * blank_x ** -4.0, technique='UV-Vis')
+
+    with pytest.warns(UserWarning):
+        corrected = from_references(sample, [blank],
+                                               region=(300.0, 350.0))
+
+    assert len(corrected) == len(sample)
+    outside = (corrected.x < 250.0) | (corrected.x > 350.0)
+    assert np.allclose(corrected.y[outside], sample.y[outside])
+    assert corrected.history[-1].params['corrected_over'] == (250.0, 350.0)
+
+
+def test_backgrounds_that_share_no_wavelengths_are_refused():
+    x = np.linspace(200.0, 400.0, 201)
+    sample = Spectrum(x, np.ones_like(x), technique='UV-Vis')
+    low_x, high_x = np.linspace(200.0, 240.0, 41), np.linspace(300.0, 400.0, 101)
+    with pytest.raises(ValueError, match='no wavelengths in common'):
+        from_references(
+            sample, [Spectrum(low_x, np.ones_like(low_x), technique='UV-Vis'),
+                     Spectrum(high_x, np.ones_like(high_x), technique='UV-Vis')])

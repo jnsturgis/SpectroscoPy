@@ -481,3 +481,23 @@ def test_a_sample_outside_the_references_entirely_is_refused():
     sample = Spectrum(x, np.ones_like(x), technique='UV-Vis')
     with pytest.raises(ValueError, match='do not overlap'):
         unmix(sample, library)
+
+
+def test_a_calibration_series_is_built_only_where_all_of_it_was_measured():
+    """
+    Members of a concentration series are not always scanned over the same
+    range across a day's work. Following each past its own last point built an
+    extinction spectrum reaching -0.4, which no substance has.
+    """
+    wide = Spectrum(np.linspace(200.0, 400.0, 201), np.linspace(0.0, 1.0, 201),
+                    technique='UV-Vis')
+    narrow = Spectrum(np.linspace(250.0, 350.0, 101), np.linspace(0.0, 2.0, 101),
+                      technique='UV-Vis')
+    series = SpectrumCollection([wide, narrow])
+
+    with pytest.warns(UserWarning, match='not all scanned over the same range'):
+        reference = from_series(series, [1.0, 2.0], name='thing')
+
+    assert reference.spectrum.x.min() >= 250.0
+    assert reference.spectrum.x.max() <= 350.0
+    assert reference.spectrum.y.min() >= 0.0

@@ -48,6 +48,7 @@ get a library of the things your lab actually works with.
 
 from __future__ import annotations
 
+import warnings
 from dataclasses import dataclass, field
 
 import numpy as np
@@ -668,7 +669,31 @@ def from_series(collection, concentrations=None, name=None, *, path_length=1.0,
             "that the response is not linear"
         )
 
+    # Only where every spectrum in the series was actually measured. Beyond
+    # that a member has nothing to say, and a curve followed past its last
+    # point says something confident and false -- on a series whose members
+    # were scanned over different ranges this produced an extinction spectrum
+    # reaching -0.4, which no substance has.
+    low = max(float(np.min(s.x)) for s in collection)
+    high = min(float(np.max(s.x)) for s in collection)
+    if high <= low:
+        raise ValueError(
+            "the spectra in this series have no wavelengths in common, so "
+            "there is nothing to fit a coefficient against: "
+            + ", ".join(f"{np.min(s.x):g}-{np.max(s.x):g}" for s in collection)
+        )
+
     x = np.asarray(collection[0].x, dtype=float)
+    keep = (x >= low - 1e-9) & (x <= high + 1e-9)
+    if not keep.all():
+        warnings.warn(
+            f"building the coefficient over {low:g}-{high:g}, where every "
+            f"spectrum in the series was measured, and leaving out "
+            f"{int((~keep).sum())} of {len(x)} wavelengths. The series members "
+            f"were not all scanned over the same range.",
+            stacklevel=2,
+        )
+    x = x[keep]
     absorbance = np.vstack([spectrum.resample(x).y for spectrum in collection])
 
     # Least squares through the origin, per wavelength: eps = sum(cA)/sum(c^2).

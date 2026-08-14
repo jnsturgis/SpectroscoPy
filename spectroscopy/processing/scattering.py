@@ -205,18 +205,57 @@ def from_references(spectrum, backgrounds, *, region=DEFAULT_REGION,
         raise ValueError("no scattering backgrounds given")
 
     x = np.asarray(spectrum.x, dtype=float)
-    matrix = np.vstack([b.resample(x).y for b in backgrounds]).T
+
+    # A blank says nothing outside where it was measured, and a curve followed
+    # past its last point does not flatten out, it runs away: a blank measured
+    # 250-350 nm, extrapolated to 200, gave a background of -4.04 on a sample
+    # spanning 0.5 to 0.501. Scattering only ever adds signal, so a negative
+    # background is not a small error but a contradiction -- and subtracting it
+    # would have added four absorbance units of invented band.
+    covered_low = max(float(np.min(b.x)) for b in backgrounds)
+    covered_high = min(float(np.max(b.x)) for b in backgrounds)
+    if covered_high <= covered_low:
+        raise ValueError(
+            "these backgrounds have no wavelengths in common: "
+            + ", ".join(f"{np.min(b.x):g}-{np.max(b.x):g}" for b in backgrounds)
+        )
+    measured = (x >= covered_low - 1e-9) & (x <= covered_high + 1e-9)
+    if not measured.any():
+        raise ValueError(
+            f"the spectrum covers {x.min():g}-{x.max():g} and the backgrounds "
+            f"cover {covered_low:g}-{covered_high:g}; they do not overlap, so "
+            f"there is no scattering to fit"
+        )
+
+    matrix = np.zeros((len(x), len(backgrounds)))
+    matrix[measured] = np.vstack(
+        [b.resample(x[measured]).y for b in backgrounds]).T
 
     low, high = sorted(region)
-    inside = (x >= low) & (x <= high)
+    inside = measured & (x >= low) & (x <= high)
     if inside.sum() < len(backgrounds) + 1:
         raise ValueError(
             f"the fit region {low:g}-{high:g} holds {int(inside.sum())} points "
-            f"for {len(backgrounds)} backgrounds; widen it or use fewer"
+            f"where all {len(backgrounds)} backgrounds were measured "
+            f"({covered_low:g}-{covered_high:g}); widen it, or use fewer "
+            f"backgrounds"
         )
 
     coefficients, _ = nnls(matrix[inside], np.asarray(spectrum.y)[inside])
+    # Zero outside the blanks, so the spectrum keeps its full length and is
+    # simply left uncorrected there. Declining to correct is honest; inventing
+    # a background to subtract is not.
     background = matrix @ coefficients
+    if not measured.all():
+        warnings.warn(
+            f"scattering corrected over {covered_low:g}-{covered_high:g}, "
+            f"where all {len(backgrounds)} backgrounds were measured. The "
+            f"other {int((~measured).sum())} of {len(x)} wavelengths are "
+            f"returned uncorrected, because a blank extrapolated beyond its "
+            f"own range gives a background that is not merely wrong but "
+            f"negative.",
+            stacklevel=2,
+        )
 
     corrected = spectrum._derive(
         y=np.asarray(spectrum.y, dtype=float) - background,
@@ -224,7 +263,8 @@ def from_references(spectrum, backgrounds, *, region=DEFAULT_REGION,
             'method': 'measured backgrounds',
             'n_backgrounds': len(backgrounds),
             'weights': [round(float(c), 6) for c in coefficients],
-            'region': (low, high)}))
+            'region': (low, high),
+            'corrected_over': (covered_low, covered_high)}))
 
     if return_background:
         background_spectrum = Spectrum(
