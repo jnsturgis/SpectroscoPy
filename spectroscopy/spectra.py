@@ -57,9 +57,8 @@ import numpy as np
 from scipy.interpolate import CubicSpline
 
 import spectroscopy.messages
-from spectroscopy import units
+import spectroscopy.units as units
 from spectroscopy.history import ProcessingStep, describe_operand
-from spectroscopy.io import registry
 from spectroscopy.peaks import PeakTable
 from spectroscopy.processing import common
 
@@ -82,18 +81,20 @@ __all__ = ['Spectrum']
 #: hand-kept tables (these two plus the match statements in reload() and
 #: save()); they drifted apart, which is what defect D5 was. Registering a
 #: reader is now the only step needed to teach Spectrum a new format.
+#:
+#: The registry is imported inside each function rather than at the top of this
+#: module, and that placement is structural: ``io.registry`` imports Spectrum
+#: and SpectrumCollection at *its* top, because reading a file means building
+#: them. A module-level import here would close that loop and the package would
+#: stop importing. Every use of the registry below is deferred for that reason.
 def _file_exts():
+    from spectroscopy.io import registry  # noqa: PLC0415
     return registry.known_extensions()
 
 
 def _known_file_types():
+    from spectroscopy.io import registry  # noqa: PLC0415
     return registry.known_types()
-
-
-#: Kept as module attributes for backwards compatibility -- some notebooks
-#: inspect them. They are snapshots; call the registry for the live view.
-FILE_EXTS = registry.known_extensions()
-KNOWNFILETYPES = registry.known_types()
 #: Rendering of each unit for a matplotlib axis label. An empty string means
 #: dimensionless, so the label is just the quantity with no parentheses.
 UNIT_LABELS = {
@@ -204,6 +205,7 @@ def compose_label(quantity, unit):
 
 def _infer_file_type( name ):
     """Work out if possible from the file extension the possible file types."""
+    from spectroscopy.io import registry  # noqa: PLC0415
     return registry.infer_file_type(name)
 
 class Spectrum:
@@ -346,11 +348,13 @@ class Spectrum:
                 self.fileinfo['NAME'] = args[0]
                 self.fileinfo['TYPE'] = _infer_file_type(args[0])
 
-            # Now read the file according to type. Ask the registry, do not
-            # consult KNOWNFILETYPES: that is a snapshot taken when this module
-            # was imported, so a format registered afterwards -- which is the
-            # whole point of register_reader being a decorator anyone can use --
-            # would be inferred correctly and then rejected here.
+            # Now read the file according to type, asking the registry each
+            # time rather than a table captured at import. A format registered
+            # afterwards -- which is the whole point of register_reader being a
+            # decorator anyone can use -- would otherwise be inferred correctly
+            # and then rejected here. Two module-level snapshots, FILE_EXTS and
+            # KNOWNFILETYPES, used to sit at the top of this module and had
+            # exactly that fault; they were removed with the import cycle.
             if self.fileinfo['TYPE'] in _known_file_types():
                 self.reload()
             else:
@@ -1485,6 +1489,8 @@ class Spectrum:
         in ``spectroscopy.io.registry`` now; this is a thin adapter that
         keeps the existing in-place semantics.
         """
+        from spectroscopy.io import registry  # noqa: PLC0415
+
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
         spectra = registry.read_spectra(filename, self.fileinfo['TYPE'])
 
@@ -1527,5 +1533,7 @@ class Spectrum:
         unwritable type raises instead of truncating the target to nothing --
         destroying the file it was asked to write.
         """
+        from spectroscopy.io import registry  # noqa: PLC0415
+
         filename = os.path.join(self.fileinfo['PATH'], self.fileinfo['NAME'])
         registry.write_spectrum(self, filename, self.fileinfo['TYPE'], **kwargs)

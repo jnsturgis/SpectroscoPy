@@ -103,7 +103,8 @@ protein given the sequence.
 
 import numpy as np
 
-from spectroscopy import lineshapes, messages
+import spectroscopy.lineshapes as lineshapes
+import spectroscopy.messages as messages
 from spectroscopy.spectra import Spectrum
 
 SideChainData = {

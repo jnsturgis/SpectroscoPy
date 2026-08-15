@@ -206,12 +206,14 @@ def test_a_format_registered_after_import_is_usable(tmp_path):
     """
     The registry must be consulted live, not snapshotted.
 
-    ``spectra.KNOWNFILETYPES`` is filled in when the module is imported. A
-    format registered after that -- which is the normal case, since
-    ``register_reader`` is a decorator anyone can apply in their own code --
-    was inferred correctly from the extension and then rejected by the
+    ``spectra.KNOWNFILETYPES`` used to be filled in when the module was
+    imported. A format registered after that -- which is the normal case,
+    since ``register_reader`` is a decorator anyone can apply in their own
+    code -- was inferred correctly from the extension and then rejected by the
     Spectrum constructor as an unknown type. The documented promise that one
-    decorator is enough was not true.
+    decorator is enough was not true. The snapshot was removed outright when
+    the io/core import cycle went; this test is what stops it coming back in
+    another form.
     """
     import numpy as np
 

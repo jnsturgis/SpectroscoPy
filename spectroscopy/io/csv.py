@@ -1,4 +1,4 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
+# This Source Code is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
@@ -141,10 +141,8 @@ def write( filehandle, my_spectrum, **kwargs):
     Notes
     -----
     Asking for a comma decimal changes the default separator to ``';'``,
-    because a comma cannot be both at once: ``400,5,0,1234`` is four fields
-    or two, and nothing can tell which. Setting both to a comma explicitly
-    raises rather than writing a file no reader could ever get right --
-    including this one.
+    because a comma cannot be both at once. Setting both to a comma explicitly
+    raises a ValueError rather than writing a file no reader could ever get right.
     """
     options = {
         'delimiter': None,
@@ -163,9 +161,9 @@ def write( filehandle, my_spectrum, **kwargs):
         delimiter = ';' if decimal == ',' else ','
     elif delimiter == decimal:
         raise ValueError(
-            f"cannot use {delimiter!r} as both the field separator and the "
-            f"decimal point: '400,5,0,1234' cannot be read back. Use "
-            f"delimiter=';' with decimal=','."
+            f"cannot use {delimiter!r} as both the field separator and the " +
+             "decimal point: '400,5,0,1234' cannot be read back. Use " +
+             "delimiter=';' with decimal=','."
         )
 
     def field(value, places):

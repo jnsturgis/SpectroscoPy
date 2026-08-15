@@ -19,10 +19,12 @@ and that is the whole job -- nothing else has to be told. Formats that hold
 several spectra in one file say so, and formats that also carry facts about the
 set as a whole register a second writer for it.
 
-One rule for anyone adding a reader: do not import the Spectrum class at the
-top of your module. Readers sit underneath the data model, not beside it, and
-importing upwards creates a loop. Where a reader needs to build a Spectrum, it
-imports inside the function.
+Reading a file means building a Spectrum, so this module imports the data model
+at the top like any other dependency. That was not always so: Spectrum used to
+import the registry back, and the loop was held open only by keeping these two
+imports inside a function -- a constraint nothing enforced and nothing declared
+at the point where breaking it would break the package. The dependency now runs
+one way, io -> core, and a reader may import Spectrum wherever it likes.
 """
 
 from __future__ import annotations
@@ -30,6 +32,9 @@ from __future__ import annotations
 import os
 from collections.abc import Callable
 from dataclasses import dataclass, field
+
+from spectroscopy.collection import SpectrumCollection
+from spectroscopy.spectra import Spectrum
 
 __all__ = [
     'FormatEntry', 'register_reader', 'register_writer',
@@ -234,9 +239,6 @@ def read_spectra(path, file_type=None, **kwargs):
     because several real formats hold many: Chloe's excitation-emission export
     is 173 columns, and a JCAMP compound file has children.
     """
-    from spectroscopy.collection import SpectrumCollection  # pylint: disable=C0415
-    from spectroscopy.spectra import Spectrum  # pylint: disable=C0415
-
     entry = _lookup(file_type, path, 'read')
     arguments = {**entry.defaults, **kwargs}
     encoding = arguments.pop('encoding', None)

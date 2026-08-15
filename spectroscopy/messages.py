@@ -1,4 +1,4 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
+# This Source Code is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """ Module containing the different messages given by the program
@@ -17,9 +17,9 @@ SPEC_MATH_ERR = "Unsupported type for spectrum maths."
 
 # Error messages from processing.ftir
 
-WN_RANGE_ERR  = "wn_range must be a 2-tuple (start_freq, end_freq)"
+WN_RANGE_ERR  = "Wavenumber range (wn_range) must be a 2-tuple (start, end)"
 PH_FLOAT_ERR  = "pH must be a float"
-RES_FLOAT_ERR = "res (spectrum resolution) must be a float"
+RES_FLOAT_ERR = "Spectrum resolution (res) must be a float"
 D2O_BOOL_ERR  = "D2O must be a boolean"
 ADDN_BOOL_ERR = "addN must be a boolean"
 ADDC_BOOL_ERR = "addC must be a boolean"

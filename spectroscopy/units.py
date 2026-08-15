@@ -1,28 +1,28 @@
-# This Source Code Form is subject to the terms of the Mozilla Public
+# This Source Code is subject to the terms of the Mozilla Public
 # License, v. 2.0. If a copy of the MPL was not distributed with this
 # file, You can obtain one at https://mozilla.org/MPL/2.0/.
 """
-Axis units, and converting between them.
+Units used by the spectroscopy package, and converting between them.
 
 Spectroscopists write the same measurement several ways, and confusing them is
-easy and expensive. This module holds what each unit means and how to get from
-one to another; you normally reach it through a spectrum, with .to().
+easy. This module holds what each unit means and how to convert from one
+unit to another; you normally reach it through a spectrum, with .to().
 
     >>> import spectroscopy as spc
     >>> spectrum = spc.datasets.load('ethanol')
     >>> spectrum.to('nm').x_unit
     'nm'
 
-On the x axis it knows nanometres, micrometres, wavenumbers, electron volts
-and terahertz. These are reciprocal rather than scaled -- nanometres to
-wavenumbers is 1e7 divided by the wavelength -- so converting reverses the
-axis, and an evenly spaced grid does not stay evenly spaced. That is worth
-knowing before you compare two spectra point by point.
+On the energy or wavelength axis it knows nanometres, micrometres, wavenumbers,
+electron volts and terahertz. These are reciprocal rather than scaled --
+nanometres to wavenumbers is 1e7 divided by the wavelength -- so converting
+reverses the axis, and an evenly spaced grid does not stay evenly spaced.
 
-On the y axis it knows absorbance, transmittance, percent transmittance and
-reflectance, and the circular dichroism ordinates: millidegrees, degrees, mean
-residue ellipticity and delta epsilon. Absorbance and transmittance are not
-two units for one quantity -- one is the logarithm of the other -- which is why
+On the for absorption spectroscopy it knows absorbance, transmittance, percent
+transmittance and reflectance, while for circular dichroism ordinates:
+millidegrees, degrees, mean residue ellipticity and delta epsilon.
+Absorbance
+and transmittance are nottwo units for one quantity -- one is the logarithm of the other -- which is why
 these are conversions rather than a table of factors.
 
 It also knows which way a band points in each ordinate. That matters because

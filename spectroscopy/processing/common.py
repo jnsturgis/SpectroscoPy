@@ -18,7 +18,7 @@ from scipy.signal import find_peaks as _find_peaks
 from scipy.signal import savgol_filter
 from scipy.spatial import ConvexHull, QhullError
 
-from spectroscopy import units
+import spectroscopy.units as units
 
 __all__ = [
     'als_baseline', 'poly_baseline', 'rubberband_baseline',
