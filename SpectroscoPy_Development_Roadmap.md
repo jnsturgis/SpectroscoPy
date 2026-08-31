@@ -59,7 +59,7 @@ so there is only one place to keep current.
 | Comparison pages (baselines, normalisation…) | 📋 | review §14.2 |
 | UV-Vis component separation | ✅ | library, unmixing, calibration — §23 |
 | UV-Vis scattering correction | ✅ | power-law basis and measured blanks — §23.4 |
-| Real UV-Vis reference spectra | 📋 | **a day in the lab** — `Reference_Spectra_Wanted.md` |
+| Real UV-Vis reference spectra | 📋 | **26–27/10, a day in the lab**; stock ordered 01–02/10. Gates `paper.md`, not 1.0.0 — §23.5 |
 | `parameter_from=` on collections | ✅ | built on `SpectrumCollection.read` — §16.3 |
 | Amide I diagnosis | 📋 | **late October, James in the lab** — off the freeze month, §20 |
 | FTIR secondary structure validated | ⏸️ | on §20 |
@@ -1423,8 +1423,51 @@ instrument. `Reference_Spectra_Wanted.md` is the measurement list that would
 fix it — a day's work, ordered so each section supplies the next, with the
 short-day priority marked.
 
-**§16.3 would make calibration read better.** `from_series()` takes
-concentrations as a parallel list because a collection cannot yet carry a
-continuous parameter per spectrum. With `parameter_from=` it would read
-`from_series(series, series.parameter('concentration'), ...)`. Not blocking,
-but this is now the second caller that wants it.
+**✅ §16.3 landed, and calibration reads better for it.** `from_series()` took
+concentrations as a parallel list because a collection could not carry a
+continuous parameter per spectrum. `parameter_from=` is now built, and
+`from_series` defaults its concentrations to the collection's parameter — this
+was the second caller waiting on it.
+
+---
+
+### 23.5 The measurement day, and what it does and does not gate (2026-08-31)
+
+Raised by James, and it had fallen through both the OpenProject build and the
+proposal this session sent: `Reference_Spectra_Wanted.md` is a whole document
+titled "a day in the lab" and it had no owner anywhere in the task tree. A
+📋 row in §0 is not an owner. It is now three work packages in `farandole`:
+order the stock (01–02/10), measure (26–27/10, the same week as the §20
+diagnosis — one trip, two jobs), and fold the files into tests, docs and
+`data/uvvis/`.
+
+**Does it block 1.0.0? No. Does it block `paper.md`? Yes.**
+
+Not the release, because §14.1 is the whole reason the schedule is credible:
+1.0.0 is a promise not to break things, and no reference spectrum changes a
+signature. Making validation data a release blocker is exactly the leak §14.1
+warns about, in the month reserved for not building. And if the day slips there
+is already a settled, cheap answer — the one taken for the estimators in
+§20.3: ship it, mark the validation state honestly, promise only the contract.
+`unmix` and `scattering` would say "validated against synthetic mixtures" and
+that would be true.
+
+The paper is the other case, because the paper is where the claim gets *made*.
+"Validated against data we invented" is an acceptable docstring and a thin
+answer to a JOSS reviewer asking how the methods were checked. So the fold-in
+task is a predecessor of `paper.md`, not of the tag. The relation costs nothing
+as scheduled — files in hand end of October, paper written in November — and if
+something slips it forces the honest outcome rather than the convenient one:
+write the paper after the evidence exists, or claim less in it.
+
+This is the same correction, one scale down, as putting the PyPI name decision
+in front of `paper.md` rather than beside the milestone. Gate the document that
+makes the claim, not the tag.
+
+**Section 4 of the list gets collected if the day allows.** The melt (4.1) feeds
+§16's titration work, which has been "waiting on a dataset" since 2 August;
+`processing.titration` being unbuilt is a reason not to *analyse* it yet, not a
+reason to skip a measurement on a day the instrument is already set up. Measuring
+and analysing are separable, and the cheapest dataset §16 will ever get is the
+one taken on a day already paid for. The same goes for 4.2–4.4, which are test
+fixtures rather than science and cost minutes each.
