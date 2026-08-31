@@ -1521,6 +1521,14 @@ the cause is an unverified email address with a still-verified GitHub account
 attached — which reads as recoverable. If nothing has moved by **2026-09-15**,
 ask him how it is going rather than escalating; the delay is not his doing.
 
+**Still nothing, 2026-08-31 (James).** Probably the season — a PyPI support
+issue filed in August sits in a volunteer queue over the summer. Nobody here is
+at fault and nobody here can hurry it, which is exactly why waiting needs an
+end: **decide on Friday 2026-11-13** whether 1.0.0 ships as `spectroscopy` or as
+`pyspectroscopy`, so that `paper.md` names a package that will still be called
+that. See roadmap §14.3. The two commitments made to Joey below stand either
+way — the acknowledgement is owed for the offer, not for the outcome.
+
 **Two commitments made in return, and recorded so they do not depend on
 memory:** his version 0.10 stays on PyPI, so anything pinned to
 `spectroscopy==0.10` keeps working and our first release under the name goes

@@ -9,7 +9,7 @@
 
 ## 0. ✅🔨📋 Status at a glance
 
-**Updated 2026-08-03.** This table is the authoritative status; the markers on
+**Updated 2026-08-31.** This table is the authoritative status; the markers on
 the section headings mirror it. Nothing else in this document states a status,
 so there is only one place to keep current.
 
@@ -33,8 +33,8 @@ so there is only one place to keep current.
 | 4. Processing + multivariate | ✅ | including bootstrap stability |
 | 4b. viz | ✅ | |
 | 5. Docs & tutorials | ✅ | **published at jnsturgis.github.io/SpectroscoPy** |
-| 6. API freeze candidate | 🔨 | surface cut to ten names, ADR-0001 written; shims and `.x`/`.y` outstanding — §14.2 |
-| 7. Technique-specific | 🔨 | FTIR secondary structure built but **not usable** — §19 |
+| 6. API freeze candidate | 🔨 | surface cut to ten names, ADR-0001 written, shims gone; `.x`/`.y` outstanding — §14.2 |
+| 7. Technique-specific | 🔨 | FTIR **and** CD secondary structure built; both experimental, FTIR **not usable** — §19 |
 | 8. GUI MVP | 📋 | pulled forward for the paper — §13 |
 | 9. Packaging & public release | 🔨 | fallback name secured, so no longer hard-blocked — review §16 |
 | 10. Post-1.0 | 📋 | |
@@ -45,30 +45,31 @@ so there is only one place to keep current.
 |---|---|---|
 | Public surface cut and pinned | ✅ | — |
 | ADR-0001, core data model | ✅ | revisit after tester feedback |
-| ADR-0002, secondary structure | ✅ | design only; CD half unbuilt |
+| ADR-0002, secondary structure | ✅ | both halves built; both marked experimental — ADR-0002 §10 |
 | Constructor `Spectrum(x, y, …)` | ✅ | — |
 | `fit_peaks` / `FitResult` | ✅ | — |
 | Documentation published | ✅ | — |
 | Literature references | 🔨 | three ⚠ entries left to verify — review §14.6 |
-| Tester emails | ⏸️ | **send late August**; drafts ready |
-| Deprecated shims removed | 📋 | before the freeze — §14.2 item 5 |
+| Tester emails | 📋 | **overdue — not sent.** Both drafts ready; send by **Friday 2026-09-11** — §14.3 |
+| Deprecated shims removed | ✅ | `calc`, `formats`, `tools_spc` gone 2026-08-13; import cycles 08-15 |
 | `.x` / `.y` writability decided | 📋 | ADR-0001 §7.3 |
-| `CONTRIBUTING`, `CODE_OF_CONDUCT`, `CITATION.cff` | 📋 | JOSS checks these by name |
-| `paper.md` | 📋 | October — README "Why" is the statement of need |
+| `CONTRIBUTING`, `CODE_OF_CONDUCT`, `CITATION.cff` | ✅ | all three written, 3–13 August |
+| `paper.md` | 📋 | November — README "Why" is the statement of need |
 | Documentation traps (execute the guide, doctests) | 📋 | review §14.4 |
 | Comparison pages (baselines, normalisation…) | 📋 | review §14.2 |
 | UV-Vis component separation | ✅ | library, unmixing, calibration — §23 |
 | UV-Vis scattering correction | ✅ | power-law basis and measured blanks — §23.4 |
 | Real UV-Vis reference spectra | 📋 | **a day in the lab** — `Reference_Spectra_Wanted.md` |
-| `parameter_from=` on collections | 📋 | **unblocked and useful now** — §16.3 |
-| Amide I diagnosis | 📋 | **early September, James in the lab** — §20 |
+| `parameter_from=` on collections | ✅ | built on `SpectrumCollection.read` — §16.3 |
+| Amide I diagnosis | 📋 | **late October, James in the lab** — off the freeze month, §20 |
 | FTIR secondary structure validated | ⏸️ | on §20 |
-| CD deconvolution | ⏸️ | own branch, after JOSS — §17 |
+| CD deconvolution | ✅ | four methods; branch merged to `main` 2026-08-13 — `CD_Branch_Plan.md` |
 | OPUS binary reader | ✅ | written against 43 real files — §21 |
 | `.spc` reader | ✅ | built from the published spec, validated against 12 vendor files — §15.3 |
 | Redox titration | ⏸️ | waiting on a dataset — §16 |
-| PyPI name | 🔨 | **owner agreed 2026-08-04**; waiting on his PyPI account recovery, chase 2026-09-15. PEP 541 no longer needed — review §16 |
-| JOSS submission | 📋 | November |
+| PyPI name | 🔨 | **owner agreed 2026-08-04**; his recovery request has not moved — chase 2026-09-15, decide **Friday 2026-11-13** whether to ship as `pyspectroscopy` — review §16 |
+| JOSS submission | 📋 | **early December 2026**, was November — §14.3 |
+| Combined CD + FTIR estimate | 📋 | after 1.0, as scheduled — §17 |
 | Domain paper (biofilms) | 📋 | after the GUI — §13, §17 |
 
 ---
@@ -547,7 +548,56 @@ in a dilution series, which is what proves it. The decision freezes a namespace
 machinery is additive and can ship in 1.1. Implementation belongs in the
 September window — not before, since the testers get 0.1.0 on 20 August.
 
-### 14.3 Sequence, backwards from early November
+### 14.3 Sequence, backwards from the submission date
+
+:::warning
+**The 20 August send did not happen (recorded 2026-08-31).** The tag exists,
+both emails are written, the documentation is published — and nothing was sent.
+The table below is therefore not a record of what happened; the chain it
+describes never started. §14.4 named the testers as the one dependency this
+schedule does not control, and then the schedule was broken by the one part of
+it that *was* controlled.
+
+**Rescheduled, with James, 2026-08-31: JOSS submission moves to early December
+2026**, mid-January as declared slack. September belongs to the ANR resubmission
+and has about four days of float in it, so the freeze month moves rather than
+competing. The revised chain, and what it now hangs off:
+
+| When | What |
+|---|---|
+| **by Friday 11 September** | **Send Emails A and B.** One hour. Still the whole critical path |
+| now, in parallel | The public surface — since done: `__all__` at both levels, shims gone |
+| early October | Chase, rather than wait politely (§14.4's mitigation, unchanged) |
+| ~20 October | Feedback in hand |
+| late Oct – November | Every breaking change; ADR-0001 updated with what the feedback showed |
+| November | `paper.md`; the §14.4 documentation traps; the comparison pages |
+| **early December** | Tag **1.0.0**, Zenodo DOI, submit to JOSS |
+
+**The name is the one thing here waiting on somebody else, and it has now
+slipped too** (James, 2026-08-31 — the summer, most likely: `pypi/support#11748`
+is a volunteer queue in August). It is not a hard block, because the fallback
+`pyspectroscopy` is registered and cannot be taken. But it cannot stay an open
+wait either, because the name has to be final before `paper.md` names it —
+§13.4: a paper naming a package that later gets renamed is a citation that stops
+resolving.
+
+So it gets a cutoff rather than a hope:
+
+| | |
+|---|---|
+| **2026-09-15** | Ask Joey Goodknight how the recovery is going. Ask, not escalate — the delay is not his doing |
+| **Friday 2026-11-13** | **Decide.** If the transfer has not completed, `paper.md` and 1.0.0 go out as `pyspectroscopy` and the question is closed. `paper.md` does not start until this is answered |
+
+Two weeks of margin before the December submission, and the decision is cheap
+in one direction and irreversible in the other, which is the right way round.
+
+Both dates are Fridays on purpose. A deadline that lands on a Saturday is not a
+deadline — it is read as the Monday, which is late, or as the Friday, which is
+what a person would have done anyway. Write the Friday.
+
+The table below is kept as written, because the reasoning in its third column
+is still the reasoning — only the months are wrong.
+:::
 
 | When | What | Why then |
 |---|---|---|
