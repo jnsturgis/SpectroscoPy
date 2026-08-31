@@ -59,7 +59,7 @@ so there is only one place to keep current.
 | Comparison pages (baselines, normalisation…) | 📋 | review §14.2 |
 | UV-Vis component separation | ✅ | library, unmixing, calibration — §23 |
 | UV-Vis scattering correction | ✅ | power-law basis and measured blanks — §23.4 |
-| Real UV-Vis reference spectra | 📋 | **26–27/10, a day in the lab**; stock ordered 01–02/10. Gates `paper.md`, not 1.0.0 — §23.5 |
+| Real UV-Vis reference spectra | 📋 | **26–27/10, a day in the lab**; stock 01–02/10. **A 1.0.0 release criterion** (James, 31/08) — §23.5 |
 | `parameter_from=` on collections | ✅ | built on `SpectrumCollection.read` — §16.3 |
 | Amide I diagnosis | 📋 | **late October, James in the lab** — off the freeze month, §20 |
 | FTIR secondary structure validated | ⏸️ | on §20 |
@@ -631,6 +631,17 @@ gap between sending and the mid-September deadline is now under four weeks. The
 two capabilities §15 wanted before the testers — secondary structure, and OPUS
 and `.spc` input — are all shipped (§21, §22), so nothing but the calendar is
 holding the emails.
+
+**A second uncontrolled dependency, added 2026-08-31.** Making the measurement
+day a release criterion (§23.5) puts bench access on the 1.0 critical path, and
+it is the only item there that cannot be done at a desk. Two things can stop it
+that nothing else in the chain is exposed to: an instrument that is not free in
+the week of 26/10, and the certified reference of `Reference_Spectra_Wanted.md`
+item 1.1 — potassium dichromate or holmium oxide — which everything in section 1
+is measured against and which has a lead time if it must be bought rather than
+borrowed. **Confirm the standard is to hand before the 01/10 stock order, not
+after.** The mitigation for the instrument is the same shape as for the testers
+and equally unglamorous: book the slot now.
 
 ---
 
@@ -1441,18 +1452,31 @@ order the stock (01–02/10), measure (26–27/10, the same week as the §20
 diagnosis — one trip, two jobs), and fold the files into tests, docs and
 `data/uvvis/`.
 
-**Does it block 1.0.0? No. Does it block `paper.md`? Yes.**
+**Both. Decided by James, 2026-08-31: "Yes it should be before 1.0, wire it
+in."**
 
-Not the release, because §14.1 is the whole reason the schedule is credible:
-1.0.0 is a promise not to break things, and no reference spectrum changes a
-signature. Making validation data a release blocker is exactly the leak §14.1
-warns about, in the month reserved for not building. And if the day slips there
-is already a settled, cheap answer — the one taken for the estimators in
-§20.3: ship it, mark the validation state honestly, promise only the contract.
-`unmix` and `scattering` would say "validated against synthetic mixtures" and
-that would be true.
+The case put to him was that it should gate `paper.md` only. §14.1 says the road
+to 1.0 contains almost no new features and that the way November slips is by
+letting work leak into the month reserved for not building; no reference spectrum
+changes a signature, so on that argument this is additive and belongs in 1.1.
+There was also a ready fallback — the §20.3 treatment given to the estimators:
+ship it, state the validation honestly, promise only the contract.
 
-The paper is the other case, because the paper is where the claim gets *made*.
+He decided the trade the other way, and the reasoning is his to make rather than
+the schedule's: **1.0.0 shipping with `unmix` and `scattering` validated only
+against invented data is not what he wants the tag to mean.** §23.2 already
+refuses to ship fabricated reference data on the grounds that a fabricated
+reference makes an unmixing look quantitative when it is decorative; validating
+only against invented mixtures is the same objection one step downstream. So the
+release criterion is consistent with what §23 already believes, and it is §14.1
+that has to absorb the exception.
+
+What that costs is named in §14.4: the release now has a dependency on bench
+access and possibly on a purchase, which is a kind of dependency the rest of the
+1.0 chain does not have.
+
+The paper is gated too, and separately, because the paper is where the claim
+gets *made*.
 "Validated against data we invented" is an acceptable docstring and a thin
 answer to a JOSS reviewer asking how the methods were checked. So the fold-in
 task is a predecessor of `paper.md`, not of the tag. The relation costs nothing
@@ -1460,9 +1484,10 @@ as scheduled — files in hand end of October, paper written in November — and
 something slips it forces the honest outcome rather than the convenient one:
 write the paper after the evidence exists, or claim less in it.
 
-This is the same correction, one scale down, as putting the PyPI name decision
-in front of `paper.md` rather than beside the milestone. Gate the document that
-makes the claim, not the tag.
+Both edges are kept deliberately, and they are not the same edge twice: one says
+the paper's claim needs evidence, the other says the release has a validation
+criterion. They coincide today. If `paper.md` were ever reordered or dropped, the
+release criterion should survive it.
 
 **Section 4 of the list gets collected if the day allows.** The melt (4.1) feeds
 §16's titration work, which has been "waiting on a dataset" since 2 August;
