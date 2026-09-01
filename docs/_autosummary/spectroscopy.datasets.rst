@@ -9,11 +9,13 @@
    .. autosummary::
    
       DATASETS
+      REFERENCE_SETS
    
    .. rubric:: Functions
 
    .. autosummary::
    
+      aqpz_near_native
       available
       describe
       emission_series
@@ -21,5 +23,6 @@
       load
       load_pair
       path
+      reference_set
       replicate_directory
    

@@ -14,16 +14,16 @@ delegate here, so matplotlib stays out of the data model and is imported only
 when something is actually drawn.
 
 ==========================  ==================================================
-``plot``                one spectrum, with the axis labels and the reversed
+``plot``                    one spectrum, with the axis labels and the reversed
                             x axis that FTIR and Raman want
-``plot_collection``     several overlaid, with a legend
-``stack``               offset traces, direct-labelled
-``grid``                one panel per sample
-``annotate_peaks``      peak positions marked and labelled
-``annotate_bands``      ``{1650: "Amide I", ...}`` as marked assignments
-``plot_baseline``       a spectrum with its baseline and the correction
-``plot_decomposition``  NMF/PCA components, a fit, and the residuals
-``plot_scores``         samples in component space
+``plot_collection``         several overlaid, with a legend
+``stack``                   offset traces, direct-labelled
+``grid``                    one panel per sample
+``annotate_peaks``          peak positions marked and labelled
+``annotate_bands``          ``{1650: "Amide I", ...}`` as marked assignments
+``plot_baseline``           a spectrum with its baseline and the correction
+``plot_decomposition``      NMF/PCA components, a fit, and the residuals
+``plot_scores``             samples in component space
 ==========================  ==================================================
 
 Colour

@@ -8,7 +8,6 @@
 
    .. autosummary::
    
-      FILE_EXTS
       UNIT_LABELS
       KNOWNSPECTYPES
       REVERSED_AXIS_TECHNIQUES

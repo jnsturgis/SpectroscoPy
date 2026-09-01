@@ -476,7 +476,7 @@ def _public_docstrings():
     for path in sorted(root.rglob('*.py')):
         if 'gui' in path.parts:          # a scratch snippet, not shipped
             continue
-        tree = ast.parse(path.read_text(), filename=str(path))
+        tree = ast.parse(path.read_text(encoding='utf-8'), filename=str(path))
         relative = path.relative_to(root.parent)
 
         def walk(body, prefix=''):

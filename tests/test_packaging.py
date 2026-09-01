@@ -82,7 +82,7 @@ def _module_scope_import_graph():
 
     graph = {}
     for name, source in sources.items():
-        tree = ast.parse(source.read_text(), filename=str(source))
+        tree = ast.parse(source.read_text(encoding='utf-8'), filename=str(source))
         targets = set()
         for node in tree.body:                      # module scope only
             if isinstance(node, ast.Import):
@@ -200,7 +200,7 @@ def test_the_deprecated_shims_are_gone(name):
             f"needs a decision rather than a reappearance."
         )
 
-    packaging = (root / "pyproject.toml").read_text()
+    packaging = (root / "pyproject.toml").read_text(encoding="utf-8")
     packages_line = next(line for line in packaging.splitlines()
                          if line.startswith("packages = "))
     assert name not in packages_line, f"{name!r} is shipped again"

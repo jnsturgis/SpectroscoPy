@@ -980,10 +980,11 @@ def load_dichroweb_basis(directory, first_nm=DICHROWEB_FIRST_NM,
     absorbance = np.loadtxt(directory / 'A.txt')
     fractions = np.atleast_2d(np.loadtxt(directory / 'F.txt'))
     categories = [line.strip() for line in
-                  (directory / 'lbl1.txt').read_text().splitlines()
+                  (directory / 'lbl1.txt').read_text(encoding='utf-8').splitlines()
                   if line.strip()]
     names = [label.strip() for label in
-             (directory / 'lbl2.txt').read_text().split('\t') if label.strip()]
+             (directory / 'lbl2.txt').read_text(encoding='utf-8').split('\t')
+             if label.strip()]
 
     if absorbance.shape[1] != fractions.shape[1] or len(names) != absorbance.shape[1]:
         raise ValueError(

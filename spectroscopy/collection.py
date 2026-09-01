@@ -571,8 +571,8 @@ class SpectrumCollection(Sequence):
 
     def to_dataframe(self, orientation='wide'):
         """
-        As a pandas DataFrame. Requires pandas, deliberately not a dependency
-       .
+        As a pandas DataFrame. Requires pandas, which is deliberately not a
+        dependency.
 
         ``orientation='wide'`` gives one column per spectrum indexed by x;
         ``'long'`` gives tidy (sample, x, y) rows.
