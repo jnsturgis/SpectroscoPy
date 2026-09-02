@@ -221,3 +221,77 @@ def test_py_typed_marker_is_present_and_shipped():
     import spectroscopy
     marker = pathlib.Path(spectroscopy.__file__).parent / 'py.typed'
     assert marker.is_file(), "spectroscopy/py.typed is missing"
+
+
+def _text_io_without_encoding(root):
+    """
+    Every text read or write in `root` that leaves the codec to the locale.
+
+    Returns `(path, lineno, call)` triples. Binary calls are not reported:
+    `read_bytes`, `write_bytes` and `open(..., 'rb')` have no encoding to
+    declare, and the tests that deliberately write UTF-16 or Latin-1 fixtures
+    do so through `write_bytes`, which is why they are not false positives.
+    """
+    import ast
+
+    offenders = []
+    for source in sorted(root.rglob("*.py")):
+        if "_build" in source.parts or "jupyter_execute" in source.parts:
+            continue
+        tree = ast.parse(source.read_text(encoding="utf-8"), filename=str(source))
+        for node in ast.walk(tree):
+            if not isinstance(node, ast.Call):
+                continue
+            function = node.func
+            if isinstance(function, ast.Name):
+                name = function.id
+            elif isinstance(function, ast.Attribute):
+                name = function.attr
+            else:
+                continue
+            if name not in {"open", "read_text", "write_text"}:
+                continue
+            if any(word.arg == "encoding" for word in node.keywords):
+                continue
+            if name == "open":
+                mode = None
+                if len(node.args) > 1 and isinstance(node.args[1], ast.Constant):
+                    mode = node.args[1].value
+                for word in node.keywords:
+                    if word.arg == "mode" and isinstance(word.value, ast.Constant):
+                        mode = word.value.value
+                if mode and "b" in mode:
+                    continue
+            offenders.append(
+                (source.relative_to(root.parent), node.lineno, name))
+    return offenders
+
+
+def test_text_io_declares_its_encoding():
+    """
+    Regression, twice over.
+
+    `open()` and `Path.read_text()` decode with the locale codec when no
+    encoding is given. That is UTF-8 on the Linux runners and cp1252 on the
+    Windows ones, so a file the project reads perfectly well in CI on Ubuntu
+    raises `UnicodeDecodeError` on Windows -- and Windows is in the matrix
+    because spectroscopists are disproportionately on it.
+
+    It has bitten twice. Fixed on 2026-08-05 for the source files the API
+    tests parse; reintroduced on 2026-08-15 by three new call sites, which
+    read the same tree and choked on the same character -- the warning sign
+    in `spectroscopy/__init__.py`. The build stayed red for seventeen days.
+
+    Nobody was careless either time. The rule was known, correct, and written
+    down in a commit message, which is not somewhere a person can consult
+    while writing the line that breaks it. Hence a test: the knowledge has to
+    live where the act of breaking it will reach.
+    """
+    root = pathlib.Path(__file__).resolve().parent.parent
+    offenders = (_text_io_without_encoding(root / "spectroscopy")
+                 + _text_io_without_encoding(root / "tests"))
+    assert not offenders, (
+        "text I/O with no explicit encoding decodes with the locale codec, "
+        "which differs between the Linux and Windows runners:\n"
+        + "\n".join(f"  {path}:{line}: {call}()"
+                    for path, line, call in offenders))

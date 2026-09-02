@@ -102,7 +102,7 @@ def test_a_second_round_trip_changes_nothing(processed, tmp_path):
 def test_the_file_is_readable_by_eye(processed, tmp_path):
     """Data stays tab separated so ordinary tools still work on it."""
     _, target = _round_trip(processed, tmp_path)
-    lines = target.read_text().splitlines()
+    lines = target.read_text(encoding="utf-8").splitlines()
 
     assert lines[0].startswith("# spy format 1.0")
     data_start = lines.index("# data")
@@ -139,7 +139,7 @@ def test_legacy_files_still_load(tmp_path):
         "1001.000\t0.20000\n"
         "# metadata\n"
         "{'sample': 'legacy', 'spec_type': 'ATR-FTIR'}\n"
-    )
+    , encoding="utf-8")
     spec = Spectrum("", str(legacy), "spy")
 
     assert np.allclose(spec.x, [1000.0, 1001.0])
@@ -168,14 +168,14 @@ def test_version_is_taken_from_the_file_not_the_caller(tmp_path):
 
 def test_an_unknown_version_is_refused(tmp_path):
     path = tmp_path / "future.spy"
-    path.write_text("# spy format 9.9\n# header\n{}\n# data\n")
+    path.write_text("# spy format 9.9\n# header\n{}\n# data\n", encoding="utf-8")
     with pytest.raises(ValueError, match="unsupported .spy format"):
         Spectrum("", str(path), "spy")
 
 
 def test_an_empty_file_is_refused(tmp_path):
     path = tmp_path / "empty.spy"
-    path.write_text("")
+    path.write_text("", encoding="utf-8")
     with pytest.raises(ValueError, match="empty"):
         Spectrum("", str(path), "spy")
 
@@ -262,7 +262,7 @@ def test_a_single_spectrum_file_is_written_exactly_as_before(tmp_path):
     spectrum = Spectrum(np.array([1.0, 2.0]), np.array([3.0, 4.0]),
                         name='Glucose')
     spectrum.save_as(str(tmp_path / 'one.spy'))
-    text = (tmp_path / 'one.spy').read_text()
+    text = (tmp_path / 'one.spy').read_text(encoding="utf-8")
 
     assert text.startswith('# spy format 1.0\n# header\n')
     assert '# collection' not in text
@@ -372,7 +372,7 @@ def test_an_unknown_kind_loads_with_a_warning(tmp_path):
     """
     _reference_set().save_as(tmp_path / 'SMP180.spy')
     path = tmp_path / 'SMP180.spy'
-    path.write_text(path.read_text().replace('"ReferenceSet"', '"FutureSet"', 1))
+    path.write_text(path.read_text(encoding="utf-8").replace('"ReferenceSet"', '"FutureSet"', 1), encoding="utf-8")
 
     with pytest.warns(UserWarning, match='FutureSet'):
         back = spc.io.read_spectra(path)
@@ -390,7 +390,7 @@ def test_nothing_is_written_at_both_levels(tmp_path):
     to tell which was meant.
     """
     _reference_set().save_as(tmp_path / 'SMP180.spy')
-    text = (tmp_path / 'SMP180.spy').read_text()
+    text = (tmp_path / 'SMP180.spy').read_text(encoding="utf-8")
 
     assert text.count('MIT (c) 2023 Andy Miles') == 1
     assert text.count('# spectrum') == 3
@@ -399,7 +399,7 @@ def test_nothing_is_written_at_both_levels(tmp_path):
 def test_the_collection_file_stays_greppable(tmp_path):
     """Same bargain as always: structured to read back, plain to look at."""
     _reference_set().save_as(tmp_path / 'SMP180.spy')
-    text = (tmp_path / 'SMP180.spy').read_text()
+    text = (tmp_path / 'SMP180.spy').read_text(encoding="utf-8")
 
     assert text.startswith('# spy format 1.0')
     assert 'DichroWebGit SMP180' in text
@@ -410,8 +410,8 @@ def test_two_collection_blocks_are_refused(tmp_path):
     """Two sets concatenated into one file: there is no answer, so it says so."""
     _melt().save_as(tmp_path / 'melt.spy')
     doubled = tmp_path / 'doubled.spy'
-    text = (tmp_path / 'melt.spy').read_text()
-    doubled.write_text(text + text.split('\n', 1)[1])
+    text = (tmp_path / 'melt.spy').read_text(encoding="utf-8")
+    doubled.write_text(text + text.split('\n', 1)[1], encoding="utf-8")
 
     with pytest.raises(ValueError, match='two .# collection. blocks'):
         spc.io.read_spectra(doubled)

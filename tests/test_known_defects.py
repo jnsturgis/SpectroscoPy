@@ -25,7 +25,7 @@ def dpt_file(tmp_path):
     """A Bruker-style .dpt export: tab separated, no header row."""
     path = tmp_path / "sample.dpt"
     xs = [1000.0, 1001.0, 1002.0, 1003.0]
-    path.write_text("".join(f"{x}\t{x / 1000:.4f}\n" for x in xs))
+    path.write_text("".join(f"{x}\t{x / 1000:.4f}\n" for x in xs), encoding="utf-8")
     return path, xs
 
 
@@ -70,7 +70,7 @@ def test_the_old_tsv_route_no_longer_loses_a_point_either(dpt_file):
 def test_a_real_header_is_still_honoured(tmp_path):
     """Sniffing must not throw away a genuine header row."""
     path = tmp_path / "with_header.csv"
-    path.write_text("Wavelength,Absorbance\n400.0,0.10\n401.0,0.20\n")
+    path.write_text("Wavelength,Absorbance\n400.0,0.10\n401.0,0.20\n", encoding="utf-8")
     spec = Spectrum(str(path))
     assert len(spec.x) == 2
     assert spec.x_label == "Wavelength"
@@ -80,7 +80,7 @@ def test_a_real_header_is_still_honoured(tmp_path):
 def test_a_headerless_csv_keeps_every_point(tmp_path):
     """The .csv sibling of D1: data/uvvis_spectra/*.csv have no header row."""
     path = tmp_path / "no_header.csv"
-    path.write_text("950,-0.1341\n949.5,-0.14331\n949,-0.15252\n")
+    path.write_text("950,-0.1341\n949.5,-0.14331\n949,-0.15252\n", encoding="utf-8")
     spec = Spectrum(str(path))
     assert len(spec.x) == 3
     assert spec.x[0] == 950.0
@@ -278,7 +278,7 @@ def test_extension_inference(name, expected):
 def test_extension_matching_is_case_insensitive(tmp_path):
     """D5 (fixed): .DPT / .CSV used to be rejected."""
     path = tmp_path / "sample.DPT"
-    path.write_text("1000.0\t0.1\n1001.0\t0.2\n")
+    path.write_text("1000.0\t0.1\n1001.0\t0.2\n", encoding="utf-8")
     spec = Spectrum(str(path))
     assert len(spec.x) == 2
 
@@ -288,7 +288,7 @@ def test_supported_types_save_correctly(file_type, tmp_path):
     spec = _spectrum([1, 2, 3], [4, 5, 6])
     target = tmp_path / f"out.{file_type}"
     spec.save_as(str(target), file_type)
-    assert target.read_text().strip() != ""
+    assert target.read_text(encoding="utf-8").strip() != ""
 
 
 def test_saving_an_unhandled_type_raises_without_touching_the_file(tmp_path):
@@ -299,14 +299,14 @@ def test_saving_an_unhandled_type_raises_without_touching_the_file(tmp_path):
     """
     spec = _spectrum([1, 2, 3], [4, 5, 6])
     target = tmp_path / "precious.xyz"
-    target.write_text("existing data that must not be destroyed\n")
+    target.write_text("existing data that must not be destroyed\n", encoding="utf-8")
 
     # TypeError for a name nobody registered, ValueError for a format that is
     # registered but read-only ('table'). Either way the file is untouched.
     with pytest.raises(TypeError, match="Unknown filetype"):
         spec.save_as(str(target), "xyz")
-    assert target.read_text().startswith("existing data")
+    assert target.read_text(encoding="utf-8").startswith("existing data")
 
     with pytest.raises(ValueError, match="Cannot write"):
         spec.save_as(str(target), "table")
-    assert target.read_text().startswith("existing data")
+    assert target.read_text(encoding="utf-8").startswith("existing data")

@@ -21,7 +21,7 @@ YS = [-0.0096921418, -0.0096850535, -0.0096661681]
 
 def _write(tmp_path, text, name="sample.dpt", newline=""):
     path = tmp_path / name
-    path.write_text(text, newline=newline)
+    path.write_text(text, newline=newline, encoding="utf-8")
     return path
 
 

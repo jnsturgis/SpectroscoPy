@@ -564,7 +564,7 @@ def test_from_cd_needs_no_amplitude_either():
 def _write_basis_files(tmp_path, shapes):
     for name, y in shapes.items():
         (tmp_path / f'{name}.csv').write_text(
-            'wavelength,cd\n' + '\n'.join(f'{a},{b}' for a, b in zip(X, y)))
+            'wavelength,cd\n' + '\n'.join(f'{a},{b}' for a, b in zip(X, y)), encoding='utf-8')
 
 
 def test_a_structural_basis_loads_from_a_manifest(tmp_path):
@@ -573,7 +573,7 @@ def test_a_structural_basis_loads_from_a_manifest(tmp_path):
         'file,category,source,citation\n'
         'helix.csv,helix,measured here,doi:10.0/x\n'
         'sheet.csv,sheet,measured here,doi:10.0/x\n'
-        'other.csv,other,measured here,doi:10.0/x\n')
+        'other.csv,other,measured here,doi:10.0/x\n', encoding='utf-8')
 
     basis = lib.load_basis(tmp_path / 'basis.csv')
 
@@ -605,7 +605,7 @@ def test_set_level_provenance_survives_selection(tmp_path):
         'file,category,citation\n'
         'helix.csv,helix,doi:10.0/x\n'
         'sheet.csv,sheet,doi:10.0/x\n'
-        'other.csv,other,doi:10.0/x\n')
+        'other.csv,other,doi:10.0/x\n', encoding='utf-8')
     basis = lib.load_basis(tmp_path / 'basis.csv')
 
     subset = basis.select(lambda s: s.name != 'sheet')
@@ -619,7 +619,7 @@ def test_a_loaded_basis_goes_straight_into_from_cd(tmp_path):
     """The whole point: obtain a basis, load it, get a composition."""
     _write_basis_files(tmp_path, {c.name: y for c, y in SHAPES.items()})
     (tmp_path / 'basis.csv').write_text(
-        'file,category\nhelix.csv,helix\nsheet.csv,sheet\nother.csv,other\n')
+        'file,category\nhelix.csv,helix\nsheet.csv,sheet\nother.csv,other\n', encoding='utf-8')
     basis = lib.load_basis(tmp_path / 'basis.csv')
 
     truth = {'helix': 0.55, 'sheet': 0.20, 'other': 0.25}
@@ -637,7 +637,7 @@ def test_reference_proteins_load_with_their_compositions(tmp_path):
     (tmp_path / 'refs.csv').write_text(
         'file,name,helix,sheet,other\n'
         'p1.csv,protein one,0.80,0.05,0.15\n'
-        'p2.csv,protein two,0.10,0.60,0.30\n')
+        'p2.csv,protein two,0.10,0.60,0.30\n', encoding='utf-8')
 
     basis = lib.load_basis(tmp_path / 'refs.csv')
     assert not basis.is_structural
@@ -655,7 +655,7 @@ def test_reference_proteins_load_with_their_compositions(tmp_path):
 def test_a_manifest_must_choose_one_kind_of_basis(tmp_path):
     _write_basis_files(tmp_path, {'helix': SHAPES[HELIX]})
     (tmp_path / 'both.csv').write_text(
-        'file,category,helix\nhelix.csv,helix,1.0\n')
+        'file,category,helix\nhelix.csv,helix,1.0\n', encoding='utf-8')
     with pytest.raises(ValueError, match='not both and not neither'):
         lib.load_basis(tmp_path / 'both.csv')
 
@@ -664,13 +664,13 @@ def test_percentages_instead_of_fractions_are_caught(tmp_path):
     """80/5/15 sums to 100, not 1 -- a composition it is not."""
     _write_basis_files(tmp_path, {'p1': SHAPES[HELIX]})
     (tmp_path / 'refs.csv').write_text(
-        'file,helix,sheet,other\np1.csv,80,5,15\n')
+        'file,helix,sheet,other\np1.csv,80,5,15\n', encoding='utf-8')
     with pytest.raises(ValueError, match='not a composition'):
         lib.load_basis(tmp_path / 'refs.csv')
 
 
 def test_a_missing_reference_file_says_why_it_is_missing(tmp_path):
-    (tmp_path / 'basis.csv').write_text('file,category\nabsent.csv,helix\n')
+    (tmp_path / 'basis.csv').write_text('file,category\nabsent.csv,helix\n', encoding='utf-8')
     with pytest.raises(FileNotFoundError, match='not shipped with this package'):
         lib.load_basis(tmp_path / 'basis.csv')
 
@@ -1120,7 +1120,7 @@ def test_the_licence_notice_ships_beside_the_data():
     notice = (pathlib.Path(spectroscopy.__file__).parent / 'data'
               / 'cd_reference' / 'LICENSE.DichroWebGit')
     assert notice.is_file(), "the DichroWebGit MIT notice is not shipped"
-    text = notice.read_text()
+    text = notice.read_text(encoding='utf-8')
     assert 'MIT License' in text
     assert 'Andy Miles' in text
 

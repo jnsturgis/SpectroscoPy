@@ -402,7 +402,7 @@ def test_the_front_door_is_where_people_knock():
 def test_reading_a_multi_spectrum_file_says_where_to_go(tmp_path):
     """Returning the first of several silently would be worse than failing."""
     wide = tmp_path / 'wide.csv'
-    wide.write_text('wavelength,a,b\n400,0.1,0.2\n401,0.3,0.4\n402,0.5,0.6\n')
+    wide.write_text('wavelength,a,b\n400,0.1,0.2\n401,0.3,0.4\n402,0.5,0.6\n', encoding='utf-8')
     with pytest.raises(ValueError, match='read_spectra'):
         spc.read(wide, 'table', x_col=0)
 

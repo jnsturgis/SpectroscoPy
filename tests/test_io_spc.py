@@ -92,7 +92,7 @@ def test_truncated_file_says_so(tmp_path):
 
 def test_text_handle_is_refused(tmp_path):
     path = tmp_path / 'x.spc'
-    path.write_text('not binary')
+    path.write_text('not binary', encoding='utf-8')
     with pytest.raises(ValueError, match="mode='rb'"):
         with open(path, encoding='utf-8') as handle:
             read_spc(handle)

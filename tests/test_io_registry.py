@@ -86,7 +86,7 @@ def test_describe_formats_lists_capabilities():
 def test_read_spectrum_refuses_a_multi_spectrum_file(tmp_path):
     """Silently returning the first of many is exactly the quiet-wrong to avoid."""
     path = tmp_path / "wide.csv"
-    path.write_text("x,a,b\n1,10,20\n2,11,21\n")
+    path.write_text("x,a,b\n1,10,20\n2,11,21\n", encoding="utf-8")
     with pytest.raises(ValueError, match="read_spectra"):
         registry.read_spectrum(str(path), 'table')
 
@@ -122,7 +122,7 @@ def test_shared_x_column_names_series_from_the_y_header(tmp_path):
     """The GFP layout: one wavelength column, many named sample columns."""
     path = tmp_path / "wide.csv"
     path.write_text("Wavelength (nm),GFP 0.5uM,GFP 100nM\n"
-                    "500,436,63\n501,400,60\n")
+                    "500,436,63\n501,400,60\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', x_col=0)
     assert [s.name for s in spectra] == ["GFP 0.5uM", "GFP 100nM"]
     assert np.allclose(spectra[0].x, [500, 501])
@@ -134,7 +134,7 @@ def test_paired_columns_name_series_from_the_x_header(tmp_path):
     path = tmp_path / "paired.csv"
     path.write_text("Sample A,,Sample B,\n"
                     "Wavelength (nm),Intensity (a.u.),Wavelength (nm),Intensity (a.u.)\n"
-                    "465,13,465,678\n466,14,466,679\n")
+                    "465,13,465,678\n466,14,466,679\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', paired=True)
     assert [s.name for s in spectra] == ["Sample A", "Sample B"]
     assert spectra[0].x_label == "Wavelength (nm)"
@@ -151,7 +151,7 @@ def test_the_naming_header_row_is_chosen_by_distinctness(tmp_path):
     path = tmp_path / "akta.csv"
     path.write_text("Chrom.1\t\tChrom.1\t\n"
                     "UV\tml\tConductivity\tml\n"
-                    "0.0\t1.0\t0.0\t5.0\n0.1\t1.1\t0.1\t5.1\n")
+                    "0.0\t1.0\t0.0\t5.0\n0.1\t1.1\t0.1\t5.1\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', paired=True)
     assert [s.name for s in spectra] == ["UV", "Conductivity"]
 
@@ -165,7 +165,7 @@ def test_a_byte_order_mark_does_not_leak_into_a_name(tmp_path):
 
 def test_delimiter_and_header_count_are_sniffed(tmp_path):
     path = tmp_path / "tabs.txt"
-    path.write_text("a\tb\n1\t2\n3\t4\n")
+    path.write_text("a\tb\n1\t2\n3\t4\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', x_col=0)
     assert len(spectra) == 1
     assert np.allclose(spectra[0].y, [2, 4])
@@ -174,7 +174,7 @@ def test_delimiter_and_header_count_are_sniffed(tmp_path):
 def test_ragged_and_blank_cells_are_dropped_per_series(tmp_path):
     """Series in one file often have different lengths."""
     path = tmp_path / "ragged.csv"
-    path.write_text("A,,B,\nx,y,x,y\n1,10,1,20\n2,11,,\n3,12,,\n")
+    path.write_text("A,,B,\nx,y,x,y\n1,10,1,20\n2,11,,\n3,12,,\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', paired=True)
     assert len(spectra[0]) == 3
     assert len(spectra[1]) == 1
@@ -182,7 +182,7 @@ def test_ragged_and_blank_cells_are_dropped_per_series(tmp_path):
 
 def test_explicit_names_win(tmp_path):
     path = tmp_path / "wide.csv"
-    path.write_text("x,a,b\n1,10,20\n2,11,21\n")
+    path.write_text("x,a,b\n1,10,20\n2,11,21\n", encoding="utf-8")
     spectra = registry.read_spectra(str(path), 'table', x_col=0,
                                     names=["first", "second"])
     assert [s.name for s in spectra] == ["first", "second"]
@@ -190,7 +190,7 @@ def test_explicit_names_win(tmp_path):
 
 def test_an_empty_table_is_refused(tmp_path):
     path = tmp_path / "empty.csv"
-    path.write_text("# only a comment\n")
+    path.write_text("# only a comment\n", encoding="utf-8")
     with pytest.raises(ValueError, match="no data"):
         registry.read_spectra(str(path), 'table')
 
@@ -228,7 +228,7 @@ def test_a_format_registered_after_import_is_usable(tmp_path):
         spectrum.y = np.array([float(row[1]) for row in rows])
 
     path = tmp_path / "sample.late"
-    path.write_text("400;0.10\n500;0.25\n600;0.40\n")
+    path.write_text("400;0.10\n500;0.25\n600;0.40\n", encoding="utf-8")
 
     assert registry.infer_file_type(path) == 'latecomer'
     spectrum = Spectrum.read(path)          # used to raise TypeError
@@ -240,7 +240,7 @@ def test_unknown_filetype_error_lists_what_is_known(tmp_path):
     from spectroscopy.spectra import Spectrum
 
     path = tmp_path / "sample.nonsense"
-    path.write_text("1 2\n")
+    path.write_text("1 2\n", encoding="utf-8")
     with pytest.raises(TypeError) as caught:
         Spectrum.read(path)
     assert 'jcamp' in str(caught.value)
@@ -269,7 +269,7 @@ def test_a_csv_is_read_whatever_the_locale_wrote(name, tmp_path):
     from spectroscopy.spectra import Spectrum
 
     path = tmp_path / f"{name}.csv"
-    path.write_text(LOCALE_CASES[name])
+    path.write_text(LOCALE_CASES[name], encoding="utf-8")
     spectrum = Spectrum.read(path)
 
     assert np.allclose(spectrum.x, [400.5, 401.0, 402.5])
@@ -285,7 +285,7 @@ def test_grouping_separators_are_removed(tmp_path):
     for text in ("x;y\n1.400,5;0,1\n1.401,0;0,2\n1.402,5;0,3\n",
                  "x;y\n1 400,5;0,1\n1 401,0;0,2\n1 402,5;0,3\n"):
         path = tmp_path / "grouped.csv"
-        path.write_text(text)
+        path.write_text(text, encoding="utf-8")
         assert np.allclose(Spectrum.read(path).x, [1400.5, 1401.0, 1402.5])
 
 
@@ -293,7 +293,7 @@ def test_an_explicit_delimiter_or_decimal_wins(tmp_path):
     from spectroscopy.spectra import Spectrum
 
     path = tmp_path / "fr.csv"
-    path.write_text("400,5;0,1234\n401,0;0,2345\n")
+    path.write_text("400,5;0,1234\n401,0;0,2345\n", encoding="utf-8")
     spectrum = Spectrum.read(path)
     assert np.allclose(spectrum.x, [400.5, 401.0])
 
@@ -306,7 +306,7 @@ def test_the_decimal_is_sniffed_even_when_the_separator_is_known(tmp_path):
     from spectroscopy.spectra import Spectrum
 
     path = tmp_path / "german.tsv"
-    path.write_text("x\ty\n400,5\t0,1234\n401,0\t0,2345\n")
+    path.write_text("x\ty\n400,5\t0,1234\n401,0\t0,2345\n", encoding="utf-8")
     spectrum = Spectrum.read(path)
     assert np.allclose(spectrum.x, [400.5, 401.0])
     assert np.allclose(spectrum.y, [0.1234, 0.2345])
@@ -314,7 +314,7 @@ def test_the_decimal_is_sniffed_even_when_the_separator_is_known(tmp_path):
 
 def test_a_wide_table_can_be_comma_decimal(tmp_path):
     path = tmp_path / "series.csv"
-    path.write_text("lambda;A;B\n400,0;0,10;0,20\n401,0;0,11;0,22\n402,0;0,12;0,24\n")
+    path.write_text("lambda;A;B\n400,0;0,10;0,20\n401,0;0,11;0,22\n402,0;0,12;0,24\n", encoding="utf-8")
     collection = registry.read_spectra(path, 'table', x_col=0)
     assert len(collection) == 2
     assert np.allclose(collection[0].x, [400.0, 401.0, 402.0])
@@ -349,7 +349,7 @@ def test_a_comma_decimal_can_be_written_and_read_back(file_type, kwargs,
     path = tmp_path / f"out.{file_type}"
     original.save_as(str(path), file_type, **kwargs)
 
-    text = path.read_text()
+    text = path.read_text(encoding="utf-8")
     assert expected_sep in text
     if kwargs.get('decimal') == ',':
         assert '400,500' in text
@@ -388,4 +388,4 @@ def test_save_as_passes_options_through_to_the_writer(tmp_path):
     path = tmp_path / "out.csv"
     Spectrum(np.array([1.0]), np.array([2.0])).save_as(str(path), 'csv',
                                                        decimal=',')
-    assert '1,000;2,00000' in path.read_text()
+    assert '1,000;2,00000' in path.read_text(encoding="utf-8")

@@ -65,7 +65,7 @@ def test_the_xydata_header_is_not_parsed_as_data(tmp_path):
         "##XYDATA=(X++(Y..Y))\n"
         "1000 0.1 0.2 0.3 0.4\n"
         "##END=\n"
-    )
+    , encoding="utf-8")
     spec = _load(path)
     assert len(spec) == 4
     assert np.allclose(spec.y, [0.1, 0.2, 0.3, 0.4])
@@ -83,7 +83,7 @@ def test_asdf_detection_happens_on_the_first_data_line(tmp_path):
         "##TITLE=affn\n##JCAMP-DX=4.24\n##XUNITS=1/CM\n##YUNITS=ABSORBANCE\n"
         "##FIRSTX=1000\n##LASTX=1002\n##NPOINTS=3\n##XFACTOR=1\n##YFACTOR=1\n"
         "##XYDATA=(X++(Y..Y))\n1000 0.1 0.2 0.3\n##END=\n"
-    )
+    , encoding="utf-8")
     assert len(_load(path)) == 3
 
 

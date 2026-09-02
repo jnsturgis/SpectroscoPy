@@ -51,7 +51,7 @@ def dpt_tree(tmp_path):
     for sample, count, level in [("PG_coli", 3, 1.0), ("PG_myxo", 2, 5.0)]:
         for index in range(count):
             path = tmp_path / f"{sample}.{index}.dpt"
-            path.write_text("".join(f"{x}\t{level + index}\n" for x in X))
+            path.write_text("".join(f"{x}\t{level + index}\n" for x in X), encoding="utf-8")
     return tmp_path
 
 
@@ -215,7 +215,7 @@ def titration_tree(tmp_path):
     """
     for potential, level in [(-120, 1.0), (-20, 2.0), (0, 3.0), (60, 4.0)]:
         path = tmp_path / f"cyt_{potential}mV.dpt"
-        path.write_text("".join(f"{x}\t{level}\n" for x in X))
+        path.write_text("".join(f"{x}\t{level}\n" for x in X), encoding="utf-8")
     return tmp_path
 
 
@@ -243,7 +243,7 @@ def test_files_load_in_text_order_which_is_the_wrong_order(titration_tree):
 
     # ... but make the trap bite: text order puts -20 before -60.
     (titration_tree / "cyt_-60mV.dpt").write_text(
-        "".join(f"{x}\t9.0\n" for x in X))
+        "".join(f"{x}\t9.0\n" for x in X), encoding="utf-8")
     reloaded = SpectrumCollection.from_files(
         str(titration_tree / "*.dpt"), parameter_from=r'(-?\d+)mV')
     assert list(reloaded.parameters) == [-120.0, -20.0, -60.0, 0.0, 60.0]
