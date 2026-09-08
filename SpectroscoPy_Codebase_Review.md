@@ -1529,6 +1529,15 @@ end: **decide on Friday 2026-11-13** whether 1.0.0 ships as `spectroscopy` or as
 that. See roadmap §14.3. The two commitments made to Joey below stand either
 way — the acknowledgement is owed for the offer, not for the outcome.
 
+**The follow-up letter went on 2026-09-08**, kept at
+`packaging/name-reservation/followup-to-goodknight.md`. It asks how the recovery is going and nothing else: the delay
+is not his doing, and what is wanted from him is information rather than action
+— whether support has responded at all, and whether this is weeks or months.
+That is what the 13/11 decision turns on, and either answer settles it. The
+November date is stated in the letter as James's own constraint, paired with an
+explicit release, so it cannot read as a deadline handed to somebody who owes us
+nothing.
+
 **Two commitments made in return, and recorded so they do not depend on
 memory:** his version 0.10 stays on PyPI, so anything pinned to
 `spectroscopy==0.10` keeps working and our first release under the name goes
