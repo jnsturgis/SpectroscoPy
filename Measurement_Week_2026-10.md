@@ -32,7 +32,7 @@ Two jobs share the week:
 |---|---|---|
 | ✅ | 2026-09-01 | **Instrument free for the week** (James). The bench-access risk of §14.4 is closed |
 | ✅ | 2026-09-01 | **Dichromate available; holmium not found** (James). Enough to proceed — see 1.1 below, which now splits into two checks rather than one |
-| ☐ | Before the week | **Find the wavelength check.** Look in the instrument's own validation kit for a holmium or didymium filter before buying anything, and run the built-in D₂-lamp wavelength test. Not a blocker — see 1.1 |
+| ✅ | 2026-09-08 | **Neodymium filter found** (James), in the instrument's own kit. Nothing to buy; the 01–02/10 order carries no lead-time risk. See 1.1 for what it does and does not cover |
 | ☐ | 01–02/10 | Order the rest: beads in three sizes, BSA, lysozyme, calf thymus DNA, yeast RNA, ATP or NAD⁺, latex or silica blanks |
 | ☐ | Before | Say the word on the §20.2 diagnostic script — one page per series, raw and reference, subtraction with the 2130 cm⁻¹ band marked, second derivative with detected positions, fit with components and residual, composition spread. It exists to make Wednesday about looking at spectra rather than writing plumbing |
 | ☐ | Before | Fresh buffer, in quantity. Every blank in the week should come from the same bottle |
@@ -69,24 +69,48 @@ axes, and only one of them is in hand:
 | Axis | Standard | Status |
 |---|---|---|
 | **Photometric accuracy and linearity** | Potassium dichromate, 5 concentrations in dilute acid | ✅ available |
-| **Wavelength accuracy** | Holmium oxide (solution or filter); didymium is the usual substitute | ❌ not found |
+| **Wavelength accuracy** | Neodymium glass filter, from the instrument's own validation kit | ✅ found 2026-09-08 |
 
 **Dichromate alone is enough to run the week**, because the photometric axis is
 the one this project's claims rest on: `from_series` inverts Beer–Lambert and
 `unmix` fits amplitudes, so an absorbance-scale error propagates into every
 number the library produces. A small wavelength error does not.
 
-Two things close the gap without buying anything, and both should be done and
-**recorded** on the Monday:
+Both axes now have a standard. Run and **record** both on the Monday; the point
+of 1.1 is a record that the instrument was right *on the day*, not a belief that
+it generally is.
 
-- **The instrument's own wavelength test.** Most double-beam UV-Vis instruments
-  self-check against the deuterium lamp emission lines (656.1 and 486.0 nm).
-  That is a genuine wavelength calibration, it is free, and it is already built
-  in. Save or photograph the result — the point of 1.1 is a record that the
-  instrument was right *on the day*.
-- **Look in the instrument's validation kit** before ordering. Holmium and
-  didymium filters ship with a lot of instruments and sit in the accessory case
-  unused.
+**Using the neodymium filter.** Two things decide whether the numbers mean
+anything:
+
+- **Take the band positions from its certificate or datasheet, not from a
+  textbook.** Rare-earth glass filters differ between batches, and the
+  certified values are quoted *at a stated spectral bandwidth*.
+- **Record the slit width, and use the one the certificate assumes.** The
+  apparent maximum of a rare-earth band shifts with bandwidth, so a filter
+  measured at the wrong slit disagrees with its own certificate and tells you
+  nothing about the monochromator. This is the same class of error as an
+  unrecorded path length, and it costs the check rather than the sample.
+
+**What it does not cover, and what to do about it.** Neodymium's sharp bands sit
+in the visible. Everything this project actually claims is in the ultraviolet —
+A260, A280, the DNA edge, `best_wavelengths()` choosing 224.5 nm. So the filter
+verifies the monochromator where the work is not, which is worth stating in the
+`data/uvvis/` README rather than glossing.
+
+It is still worth having, for a reason that should be given rather than assumed:
+a grating monochromator's wavelength error is a smooth function of drive
+position, not a local defect, so agreement at several visible points is real
+evidence about the UV — it is an extrapolation, but a well-founded one. Two
+things narrow the gap further and both are free:
+
+- **The deuterium lamp lines** at 656.1 and 486.0 nm, if the instrument's
+  built-in test uses them.
+- **The dichromate spectrum you are measuring anyway.** Its maxima near 257 and
+  350 nm and minima near 235 and 313 nm are in the ultraviolet, and while the
+  bands are too broad for a calibration they are a perfectly good coarse check
+  that the UV end has not moved by several nanometres. It costs nothing: note
+  the four positions when the photometric series is run.
 
 If the dichromate is bench reagent rather than a certified material (NIST SRM
 935a or equivalent), say so in the `data/uvvis/` README. An uncertified dilution
@@ -98,12 +122,13 @@ and no claim in §23 currently needs that.
 **If either check disagrees with its expected values, stop and fix the
 instrument** — everything downstream inherits the error.
 
-Where wavelength accuracy does bite: **2.1**, since A260/A280 is defined at two
+Where wavelength accuracy bites hardest is **2.1**: A260/A280 is defined at two
 specific wavelengths, and `best_wavelengths()` picks points on a steep part of
-the DNA edge. If the D₂ check cannot be run, note it, and treat 2.1's absolute
-ratios as provisional until a wavelength standard is found — the *recovered
+the DNA edge, where a nanometre of drive error moves the value. The *recovered
 mixture ratios*, which are what 2.1 is actually testing, come from a whole-
-spectrum fit and are far less sensitive than the two-wavelength ratio is.
+spectrum fit and are far less sensitive. If the UV cross-checks above disagree
+with each other, that ordering is what to fall back on: report the recovered
+ratios, and mark the two-wavelength numbers provisional.
 
 Then the extinction-coefficient standards. Each is a **dilution series of 5
 concentrations spanning at least a factor of ten**, plus its buffer blank as a
