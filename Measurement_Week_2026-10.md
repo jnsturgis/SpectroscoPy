@@ -32,8 +32,8 @@ Two jobs share the week:
 |---|---|---|
 | ✅ | 2026-09-01 | **Instrument free for the week** (James). The bench-access risk of §14.4 is closed |
 | ✅ | 2026-09-01 | **Dichromate available; holmium not found** (James). Enough to proceed — see 1.1 below, which now splits into two checks rather than one |
-| ✅ | 2026-09-08 | **Neodymium filter found** (James), in the instrument's own kit. Nothing to buy; the 01–02/10 order carries no lead-time risk. See 1.1 for what it does and does not cover |
-| ☐ | 01–02/10 | Order the rest: beads in three sizes, BSA, lysozyme, calf thymus DNA, yeast RNA, ATP or NAD⁺, latex or silica blanks |
+| ✅ | 2026-09-08 | **Neodymium filter found** (James), in the instrument's own kit. *That* item needs no buying and no lead time. See 1.1 for what it does and does not cover |
+| ☐ | 01–02/10 | **Order the consumables — the lead time is here, not on the filter.** Beads in three sizes, BSA, lysozyme, calf thymus DNA, yeast RNA, ATP or NAD⁺, latex or silica blanks. Three weeks and a bit to the bench is not generous for lab supply, and **polystyrene beads in three defined sizes are the item most likely to be back-ordered** — order those first and let the rest follow. Keep the date: a measurement week is hard to reschedule, and slack in front of it is cheaper than slack inside it |
 | ☐ | Before | Say the word on the §20.2 diagnostic script — one page per series, raw and reference, subtraction with the 2130 cm⁻¹ band marked, second derivative with detected positions, fit with components and residual, composition spread. It exists to make Wednesday about looking at spectra rather than writing plumbing |
 | ☐ | Before | Fresh buffer, in quantity. Every blank in the week should come from the same bottle |
 
