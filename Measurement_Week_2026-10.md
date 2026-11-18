@@ -1,5 +1,7 @@
 # Measurement week, 26–30 October 2026
 
+> **Superseded by `Measurement_Week_2026-11.md`.** This week was not used, and the scope was cut on 23/10. Kept for its reasoning.
+
 The operational half of `Reference_Spectra_Wanted.md`: what to run, in what
 order, on which day. That document says *why* each sample earns its place and
 stays the reference for the reasoning; this one is meant to be at the bench.
