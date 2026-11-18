@@ -361,11 +361,12 @@ def test_a_dpt_file_knows_it_is_infrared():
     image, and near-infrared nanometres are plausible enough that nothing
     looks wrong.
     """
+    # Located through the installed package, not the source tree, so the
+    # release workflow can run this against the built wheel.
     import pathlib as _pathlib
 
-    root = _pathlib.Path(__file__).resolve().parent.parent
-    spectrum = spc.Spectrum.read(
-        root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    data = _pathlib.Path(spc.__file__).parent / 'data'
+    spectrum = spc.Spectrum.read(data / 'ftir_replicates/Glucose.1.dpt')
     assert spectrum.technique == 'FTIR'
     assert spectrum.x_unit == 'cm^-1'
     assert spectrum.x_quantity == 'Wavenumber'
@@ -390,12 +391,12 @@ def test_the_front_door_is_where_people_knock():
     """
     import pathlib as _pathlib
 
-    root = _pathlib.Path(__file__).resolve().parent.parent
-    spectrum = spc.read(root / 'spectroscopy/data/ftir_replicates/Glucose.1.dpt')
+    data = _pathlib.Path(spc.__file__).parent / 'data'
+    spectrum = spc.read(data / 'ftir_replicates/Glucose.1.dpt')
     assert isinstance(spectrum, spc.Spectrum)
     assert spectrum.technique == 'FTIR'
     # the format comes from the file, not the extension
-    assert spc.read(root / 'spectroscopy/data/infrared_spectra/ethanol.jdx'
+    assert spc.read(data / 'infrared_spectra/ethanol.jdx'
                     ).y_unit == 'transmittance'
 
 

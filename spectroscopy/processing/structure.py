@@ -421,7 +421,13 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
               model='voigt', derivative_weight=2.0,
               position_tolerance=4.0, **fit_kwargs) -> Composition:
     """
-    Estimate secondary structure from an amide I band.
+    Estimate secondary structure from an amide I band. **Experimental.**
+
+    Not yet usable on measured spectra. It recovers synthetic bands
+    correctly, but BSA and lysozyme at several concentrations give helix
+    fractions that vary by about 20 points for the same protein. Every call
+    emits a ``UserWarning`` saying so. Use ``from_cd`` for numbers you intend
+    to report. See the secondary-structure guide.
 
     Parameters
     ----------
@@ -489,6 +495,13 @@ def from_ftir(spectrum, method=None, *, bands=AMIDE_I_BANDS,
         raise ValueError(
             f"unknown method {method!r}; available: {', '.join(FTIR_METHODS)}"
         )
+
+    warnings.warn(
+        "from_ftir is experimental and not yet usable on measured spectra: "
+        "the same protein at different concentrations gives helix fractions "
+        "about 20 points apart. Do not report these numbers; use from_cd.",
+        UserWarning, stacklevel=2,
+    )
 
     band = spectrum.crop(*region)
     fit = band.fit_peaks(positions, model=model,

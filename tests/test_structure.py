@@ -44,6 +44,14 @@ def protein():
 # the estimate
 # ---------------------------------------------------------------------------
 
+def test_it_says_it_is_experimental(protein):
+    """Measured spectra give unusable numbers (roadmap section 19); the caller
+    must be told at the call, not only in the guide."""
+    with pytest.warns(UserWarning, match='experimental'):
+        from_ftir(protein, method='amide-i-curve-fit',
+                  positions=[p for p, _, _ in TRUTH])
+
+
 def test_it_recovers_a_known_composition(protein):
     composition = from_ftir(protein, method='amide-i-curve-fit',
                             positions=[p for p, _, _ in TRUTH])

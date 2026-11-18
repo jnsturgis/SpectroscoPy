@@ -1,0 +1,90 @@
+name: Release
+
+# Publishes to PyPI when a version tag is pushed, e.g. `git tag 0.2.0 && git push
+# origin 0.2.0`. Tags have no "v" prefix, matching the existing 0.1.0.
+#
+# Uses PyPI trusted publishing, so no token is stored anywhere. Before the first
+# release the PyPI project needs a trusted publisher added (Manage project ->
+# Publishing): owner jnsturgis, repository SpectroscoPy, workflow release.yml,
+# environment pypi. That needs ownership of the name, so it cannot be done
+# until the name question is settled. See packaging/RELEASING.md.
+
+on:
+  push:
+    tags:
+      - "[0-9]+.[0-9]+.[0-9]+"
+      - "[0-9]+.[0-9]+.[0-9]+rc[0-9]+"
+
+permissions:
+  contents: read
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0        # hatch-vcs derives the version from the tag
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.12"
+      - name: Build sdist and wheel
+        run: |
+          python -m pip install --upgrade pip build twine
+          python -m build
+          python -m twine check --strict dist/*
+      # A tag on a dirty or wrong commit gives a .devN version; refuse to
+      # publish that rather than put a dev build on PyPI permanently.
+      - name: Version must equal the tag
+        run: |
+          ls dist
+          test -f "dist/$(sed -n 's/^name = "\(.*\)"/\1/p' pyproject.toml | head -1 | tr - _)-${GITHUB_REF_NAME}-py3-none-any.whl"
+      - uses: actions/upload-artifact@v4
+        with:
+          name: dist
+          path: dist/
+
+  # The suite runs against the built wheel, not the source tree, so what is
+  # tested is what is uploaded. Both ends of the supported range, both OSes.
+  test-wheel:
+    needs: build
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: true
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+        python-version: ["3.10", "3.13"]
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: ${{ matrix.python-version }}
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - name: Install the wheel
+        shell: bash
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install dist/*.whl pytest scikit-learn
+      # Move the source package aside so the tests can only import the wheel.
+      - name: Test the installed wheel
+        shell: bash
+        run: |
+          mv spectroscopy _spectroscopy_source
+          python -m pytest -q
+
+  publish:
+    needs: test-wheel
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+    permissions:
+      id-token: write           # trusted publishing; nothing else
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: dist
+          path: dist/
+      - uses: pypa/gh-action-pypi-publish@release/v1
