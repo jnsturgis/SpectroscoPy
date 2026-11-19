@@ -152,14 +152,20 @@ to add a file format, and [CODE_OF_CONDUCT.md](CODE_OF_CONDUCT.md).
 ## Citing
 
 [CITATION.cff](CITATION.cff) — or use GitHub's "Cite this repository" button.
-Cite the repository URL rather than a `pip` name for now: the PyPI name is not
-yet settled.
+The package is `spectroscopy` on PyPI.
 
 ## Acknowledgements
 
 The PyPI name `spectroscopy` was given to this project by **Joey Knightbrook**,
-who published the original package of that name in 2017. His release stays
-available: anything pinned to `spectroscopy==0.10` keeps working.
+who published the original package of that name in 2017
+([jgoodknight/spectroscopy](https://github.com/jgoodknight/spectroscopy), for
+spectroscopy of systems with explicit vibrational degrees of freedom). His
+release stays available: anything pinned to `spectroscopy==0.10` keeps working.
+
+That is also why this project's releases on PyPI start at **0.20.0**. Version
+numbers are compared part by part, so 0.10 counts as newer than 0.2, and a
+lower number would have left `pip install spectroscopy` installing his package
+instead of this one.
 
 ## Licence
 

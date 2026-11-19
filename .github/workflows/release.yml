@@ -39,6 +39,13 @@ jobs:
         run: |
           ls dist
           test -f "dist/$(sed -n 's/^name = "\(.*\)"/\1/p' pyproject.toml | head -1 | tr - _)-${GITHUB_REF_NAME}-py3-none-any.whl"
+      # Joey Knightbrook's 0.10 stays on PyPI by agreement, and 0.2-0.9 sort
+      # below it, so a release numbered under 0.20 would never be what
+      # `pip install spectroscopy` picks. See packaging/RELEASING.md.
+      - name: Version must be at least 0.20.0
+        run: |
+          python -m pip install packaging
+          python -c "import sys; from packaging.version import Version as V; v = V('${GITHUB_REF_NAME}'); sys.exit(0 if v.release >= (0, 20) else f'{v} is below 0.20.0')"
       - uses: actions/upload-artifact@v4
         with:
           name: dist

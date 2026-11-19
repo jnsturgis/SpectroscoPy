@@ -63,6 +63,10 @@ he is on our side and the delay is not his doing.
 project stays intact. Our first release under the name goes well above it —
 `0.2.0` or later, never a number that could collide.
 
+*Correction, 2026-11-19:* `0.2.0` would **not** be above it, because versions
+compare part by part and 10 > 2. The first release is **0.20.0**. The name was
+transferred on 2026-11-19, with James as co-owner.
+
 This is not merely politeness: silently removing a release that somebody might
 depend on is the kind of thing the whole `pyspectroscopy` placeholder exists to
 avoid on our own side.
